@@ -1,18 +1,24 @@
 # Render Blueprint — voir https://render.com/docs/blueprint-spec
 #
-# Déploie 2 services :
-#   1. access-api       : le microservice Access (FastAPI), public.
-#   2. access-rabbitmq  : broker RabbitMQ (image officielle), PRIVÉ —
-#      jamais exposé sur Internet, joignable uniquement par access-api via
-#      le réseau interne Render, à l'adresse `access-rabbitmq:5672`.
+# Déploie 1 seul service pour l'instant :
+#   - access-api : le microservice Access (FastAPI), public, plan Free.
 #
-# ⚠️ À vérifier avant/après le premier déploiement (voir README section
-# "Déploiement sur Render" pour le détail) :
-#   - Les services privés (`type: pserv`) nécessitent en général un plan
-#     payant côté Render (pas le plan Free) — à confirmer dans ton dashboard.
-#   - `access-api` en plan Free : disque éphémère (la base SQLite est
-#     réinitialisée à chaque redéploiement/redémarrage) et mise en veille
-#     après 15 min d'inactivité (premier appel après veille plus lent).
+# Publication d'événements en mode "webhook" (fan-out HTTP, sans broker,
+# gratuit — cf. section 3 point 3 de la spec) : suffisant tant que personne
+# n'écoute encore, `EVENT_SUBSCRIBERS_URLS` reste vide par défaut.
+#
+# RabbitMQ (service privé `pserv`) volontairement PAS déployé pour l'instant
+# — un service privé Render nécessite en général un plan payant. Le code est
+# déjà prêt (`src/infrastructure/events/rabbitmq_event_publisher.py`) : pour
+# l'activer plus tard, voir le bloc commenté en bas de ce fichier, à
+# décommenter, plus `EVENT_PUBLISHER=rabbitmq` et `RABBITMQ_URL` à ajouter
+# dans les envVars de `access-api` ci-dessous (voir README section
+# "Publication d'événements : webhook ou RabbitMQ").
+#
+# ⚠️ Autres points à vérifier (voir README section "Déploiement sur Render") :
+#   - Plan Free : disque éphémère (la base SQLite est réinitialisée à
+#     chaque redéploiement/redémarrage) et mise en veille après 15 min
+#     d'inactivité (premier appel après veille plus lent, cold start).
 #   - API_KEY est généré automatiquement par Render à la création du
 #     service — va le récupérer dans Render > access-api > Environment
 #     avant de configurer Postman.
@@ -59,18 +65,20 @@ services:
       - key: RATE_LIMIT_ACCESS_REQUESTS
         value: "20/minute"
       - key: EVENT_PUBLISHER
-        value: rabbitmq
-      - key: RABBITMQ_URL
-        # Adresse interne Render du service privé ci-dessous (nom de
-        # service = nom d'hôte sur le réseau privé Render). Si la
-        # résolution échoue au démarrage, repasser EVENT_PUBLISHER=webhook
-        # le temps de diagnostiquer (aucune couche métier à toucher).
-        value: amqp://guest:guest@access-rabbitmq:5672/%2F
+        value: webhook
 
-  - type: pserv
-    name: access-rabbitmq
-    env: image
-    plan: starter
-    region: frankfurt
-    image:
-      url: docker.io/library/rabbitmq:3-management
+# --- RabbitMQ (désactivé pour l'instant, cf. note en haut de fichier) -------
+# Pour activer plus tard : décommenter ce service, ajouter dans les envVars
+# de access-api ci-dessus :
+#   - key: EVENT_PUBLISHER
+#     value: rabbitmq
+#   - key: RABBITMQ_URL
+#     value: amqp://guest:guest@access-rabbitmq:5672/%2F
+#
+#  - type: pserv
+#    name: access-rabbitmq
+#    env: image
+#    plan: starter
+#    region: frankfurt
+#    image:
+#      url: docker.io/library/rabbitmq:3-management

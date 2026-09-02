@@ -433,23 +433,31 @@ id).
 
 ## 14. Déploiement sur Render
 
-Un [`render.yaml`](render.yaml) (Render Blueprint) décrit deux services :
+Un [`render.yaml`](render.yaml) (Render Blueprint) décrit **un seul service**
+pour l'instant :
 
-1. **`access-api`** — le microservice Access (FastAPI), public, plan Free.
-2. **`access-rabbitmq`** — broker RabbitMQ (image officielle
-   `rabbitmq:3-management`), déployé en **service privé** (`type: pserv`) :
-   jamais exposé sur Internet, joignable uniquement par `access-api` via le
-   réseau interne Render (`amqp://guest:guest@access-rabbitmq:5672/%2F`).
+- **`access-api`** — le microservice Access (FastAPI), public, plan Free,
+  publication d'événements en mode **`webhook`** (fan-out HTTP, gratuit,
+  sans broker — cf. section 6).
+
+**RabbitMQ en attente** : le service privé `access-rabbitmq` (image
+`rabbitmq:3-management`) est présent dans `render.yaml` mais **commenté** —
+un service privé Render nécessite en général un plan payant, mis de côté
+pour l'instant pour ne rien payer. Le code (`RabbitMQEventPublisher`) est
+déjà prêt et testé ; pour l'activer plus tard il suffira de décommenter le
+bloc en bas de `render.yaml` et d'ajouter `EVENT_PUBLISHER=rabbitmq` +
+`RABBITMQ_URL` dans les envVars de `access-api` — aucune couche métier à
+toucher.
 
 ### Marche à suivre
 
 1. Sur [render.com](https://render.com), **New +** → **Blueprint** → connectez
    le repo GitHub `DenisDMU/access-parking` → Render détecte `render.yaml` et
-   propose de créer les deux services → **Apply**.
-2. Une fois `access-api` déployé, allez dans **access-api → Environment** et
-   récupérez la valeur générée automatiquement pour `API_KEY` (Render la
-   génère au premier déploiement, `generateValue: true` dans le blueprint) —
-   c'est cette clé qu'il faut mettre dans Postman/`.env`, pas `change-me`.
+   propose de créer `access-api` → **Apply**.
+2. Une fois déployé, allez dans **access-api → Environment** et récupérez la
+   valeur générée automatiquement pour `API_KEY` (Render la génère au
+   premier déploiement, `generateValue: true` dans le blueprint) — c'est
+   cette clé qu'il faut mettre dans Postman/`.env`, pas `change-me`.
 3. Récupérez l'URL publique du service (en haut de la page `access-api`,
    type `https://access-api-xxxx.onrender.com`).
 4. Ouvrez `postman/Access-Render.postman_environment.json` dans Postman et
@@ -464,13 +472,6 @@ Je n'ai pas d'accès direct à ton compte Render pour tester ce blueprint en
 conditions réelles — voici ce qui mérite une vérification de ta part au
 premier déploiement :
 
-- **Services privés (`pserv`)** : nécessitent généralement un plan payant
-  côté Render (pas le plan Free) — vérifie le coût annoncé avant de valider
-  le déploiement de `access-rabbitmq`. Si tu préfères éviter ce coût pour
-  l'instant, repasse `EVENT_PUBLISHER` à `webhook` dans les variables
-  d'environnement de `access-api` (aucune couche métier à toucher, aucun
-  service RabbitMQ à déployer) — le fan-out HTTP reste la solution "sans
-  broker" prévue par la spec pour le MVP.
 - **Disque éphémère (plan Free)** : le fichier SQLite (`access.db`) est
   réinitialisé à chaque redéploiement/redémarrage du service `access-api`
   sur le plan Free (pas de disque persistant sans upgrade). Acceptable pour
@@ -481,14 +482,14 @@ premier déploiement :
 - **Mise en veille (plan Free)** : `access-api` s'endort après ~15 min
   d'inactivité ; le premier appel suivant peut prendre 30-60s (cold start) —
   normal, pas un bug.
-- **Résolution réseau interne `access-rabbitmq:5672`** : le nom d'hôte
-  interne Render correspond en principe au champ `name` du service privé —
-  si `EVENT_PUBLISHER=rabbitmq` échoue au démarrage (logs `access-api`),
-  vérifie ce nom exact dans le dashboard Render et ajuste `RABBITMQ_URL` en
-  conséquence, ou repasse en `webhook` (cf. point ci-dessus).
 - **CORS** : `CORS_ALLOWED_ORIGINS=*` par défaut dans le blueprint (démo
   publique/équipe) — à restreindre à vos vraies origines une fois un front
   ou un domaine d'équipe fixé.
+- **RabbitMQ plus tard** : quand vous serez prêts à payer le plan du service
+  privé, voir le bloc commenté en bas de `render.yaml` — si
+  `access-rabbitmq:5672` ne résout pas au démarrage une fois activé, vérifie
+  le nom exact dans le dashboard Render (le nom d'hôte interne correspond en
+  principe au champ `name` du service privé) et ajuste `RABBITMQ_URL`.
 
 ---
 
