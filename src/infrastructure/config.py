@@ -59,15 +59,12 @@ class Settings:
     booking_use_mock: bool = field(
         default_factory=lambda: _bool_env("BOOKING_USE_MOCK", _bool_env("USE_MOCKS", True))
     )
-    parking_use_mock: bool = field(
-        default_factory=lambda: _bool_env("PARKING_USE_MOCK", _bool_env("USE_MOCKS", True))
-    )
-    # Pas de pricing_use_mock : Pricing est le premier service réellement
-    # branché (voir README section 5) — mock_pricing_client.py a été
-    # supprimé, il n'y a donc plus de bascule possible pour ce service
-    # (toujours HttpPricingClient). Les tests automatisés utilisent un
-    # dependency override dédié (FakePricingPort), pas ce toggle — voir
-    # tests/integration/conftest.py.
+    # Pas de parking_use_mock / pricing_use_mock : Pricing puis Parking sont
+    # les premiers services réellement branchés (voir README section 5) —
+    # leurs mocks ont été supprimés, plus de bascule possible pour eux
+    # (toujours HttpParkingClient/HttpPricingClient). Les tests automatisés
+    # utilisent des dependency overrides dédiés (FakeParkingPort,
+    # FakePricingPort), pas ce toggle — voir tests/integration/conftest.py.
     payment_use_mock: bool = field(
         default_factory=lambda: _bool_env("PAYMENT_USE_MOCK", _bool_env("USE_MOCKS", True))
     )

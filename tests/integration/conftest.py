@@ -16,13 +16,13 @@ import os
 # `.env` local du développeur active un vrai service — sinon
 # `load_dotenv()` (appelé par `infrastructure/config.py`) le ferait fuiter
 # dans l'environnement de test, rendant la suite dépendante du réseau et
-# non déterministe. Pricing n'a plus de bascule (mock supprimé du code) :
-# il est remplacé ci-dessous par un dependency override dédié.
+# non déterministe. Pricing et Parking n'ont plus de bascule (mocks
+# supprimés du code) : ils sont remplacés ci-dessous par des dependency
+# overrides dédiés.
 os.environ["API_KEY"] = "test-api-key"
 os.environ["USE_MOCKS"] = "true"
 os.environ["VEHICLES_USE_MOCK"] = "true"
 os.environ["BOOKING_USE_MOCK"] = "true"
-os.environ["PARKING_USE_MOCK"] = "true"
 os.environ["PAYMENT_USE_MOCK"] = "true"
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 os.environ["EVENT_SUBSCRIBERS_URLS"] = ""
@@ -39,7 +39,7 @@ from src.infrastructure.db.session import init_db  # noqa: E402
 from src.interfaces.api import deps  # noqa: E402
 from src.interfaces.api.main import app  # noqa: E402
 from src.interfaces.api.rate_limit import limiter  # noqa: E402
-from tests.unit.fakes import FakePricingPort  # noqa: E402
+from tests.unit.fakes import FakeParkingPort, FakePricingPort  # noqa: E402
 
 AUTH_HEADERS = {"X-API-Key": "test-api-key"}
 
@@ -65,12 +65,14 @@ def client():
 
     app.dependency_overrides[deps.get_db_session] = _override_get_db_session
     app.dependency_overrides[deps.get_engine] = _override_get_engine
-    # Pricing n'a plus de mock dans infrastructure/external/ (branché sur le
-    # vrai service de l'équipe) — les tests remplacent le port par un double
-    # déterministe pour ne jamais dépendre du réseau.
+    # Pricing et Parking n'ont plus de mock dans infrastructure/external/
+    # (branchés sur les vrais services de l'équipe) — les tests remplacent
+    # ces ports par des doubles déterministes pour ne jamais dépendre du
+    # réseau.
     app.dependency_overrides[deps.get_pricing_port] = lambda: FakePricingPort(
         amount=Decimal("9.99")
     )
+    app.dependency_overrides[deps.get_parking_port] = lambda: FakeParkingPort()
 
     with TestClient(app) as test_client:
         test_client.test_engine = test_engine  # exposé pour les tests qui inspectent la DB directement

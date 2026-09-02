@@ -55,7 +55,6 @@ from src.infrastructure.external.http_payment_client import HttpPaymentClient
 from src.infrastructure.external.http_pricing_client import HttpPricingClient
 from src.infrastructure.external.http_vehicles_client import HttpVehiclesClient
 from src.infrastructure.external.mock_booking_client import MockBookingClient
-from src.infrastructure.external.mock_parking_client import MockParkingClient
 from src.infrastructure.external.mock_payment_client import MockPaymentClient
 from src.infrastructure.external.mock_vehicles_client import MockVehiclesClient
 
@@ -117,11 +116,11 @@ def get_booking_port() -> BookingServicePort:
 
 
 def get_parking_port() -> ParkingServicePort:
+    # Pas de bascule mock ici : Parking est branché sur le vrai service de
+    # l'équipe (mock_parking_client.py supprimé, voir README section 5/16).
+    # Les tests automatisés remplacent ce provider par un FakeParkingPort
+    # via app.dependency_overrides (tests/integration/conftest.py).
     settings = get_settings()
-    if settings.parking_use_mock:
-        return MockParkingClient()
-    # ⚠️ Squelette : routes/champs à confirmer avec l'équipe Parking avant
-    # utilisation réelle — voir les TODO dans http_parking_client.py.
     return HttpParkingClient(settings.parking_service_url)
 
 

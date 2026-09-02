@@ -47,8 +47,12 @@ class FakeParkingPort:
         self._has_place = has_place
         self.occupied: dict[str, str] = {}
         self.freed: list[str] = []
+        self.calls: list[tuple] = []
 
-    def request_place(self, vehicle_type: VehicleType) -> PlaceAssignment | None:
+    def request_place(
+        self, vehicle_type: VehicleType, is_reservation: bool = False
+    ) -> PlaceAssignment | None:
+        self.calls.append((vehicle_type, is_reservation))
         if not self._has_place:
             return None
         if self._assignment is not None:

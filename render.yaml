@@ -62,9 +62,11 @@ services:
       - key: BOOKING_SERVICE_URL
         value: http://localhost:8002
       - key: PARKING_SERVICE_URL
-        value: http://localhost:8003
+        # Service reel de l'equipe branche - mock supprime du code, aucune
+        # bascule possible pour ce service (voir README section 5/16).
+        value: https://parking-6r73.onrender.com
       - key: PRICING_SERVICE_URL
-        # Premier service reel de l'equipe branche - mock supprime du code,
+        # Service reel de l'equipe branche - mock supprime du code,
         # aucune bascule possible pour ce service (voir README section 5/16).
         value: https://pricing-9khk.onrender.com
       - key: PAYMENT_SERVICE_URL

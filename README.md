@@ -228,7 +228,7 @@ même fichier `deps.py`) — chaque squelette liste ses propres `TODO` :
 |----------|------------------------------------------|----------------------------|
 | Vehicles | `http_vehicles_client.py`  | Route/méthode, code "inconnu", noms de champs |
 | Booking  | `http_booking_client.py`   | Route/méthode, code "pas de réservation", `placeId` déjà assigné ou non |
-| Parking  | `http_parking_client.py`   | Routes allocate/occupy/free, `placeId` réutilisable ou non (cf. consignes 2.1) |
+| **Parking** | `http_parking_client.py` | **✅ Branché** (`hold`/`confirm_entry`/`free`, catégories STANDARD/XL/ELECTRIC/HANDICAPPED/TWO_WHEELS) — pas de `placeId` réel, encodage synthétique `"CATEGORIE:walkin\|booking"`, voir section 16 |
 | **Pricing** | `http_pricing_client.py` | **✅ Branché** (`PRICING_USE_MOCK=false`) contre le vrai service (`POST /quote`) — mapping `PlaceType → zone` et arrondi de durée pour les réservations restent des hypothèses documentées dans le fichier, voir aussi section 16 |
 | Payment  | `http_payment_client.py`   | Route/méthode, clé d'idempotence (consignes 2.6), statuts intermédiaires |
 
@@ -578,8 +578,19 @@ non intrusives** ont été ajoutées :
   `get_status` (dont la signature spec est inchangée) pour exposer
   `current_request_id`, nécessaire à l'étape 4 du workflow "Sortie".
 - `Reservation.place_id` (optionnel) : Booking (mocké) peut indiquer
-  directement la place réservée ; si absent, le use case retombe sur
-  `ParkingServicePort.request_place`.
+  directement la place réservée ; si absent (cas réel désormais, cf.
+  ci-dessous), le use case retombe sur `ParkingServicePort.request_place`.
+- `ParkingServicePort.request_place`/`mark_place_occupied`/`mark_place_free`
+  ont gagné un paramètre `is_reservation` (même principe que
+  `PricingServicePort`, section 5) : le vrai service Parking sépare sa
+  capacité en deux pools ("walkin"/"booking") par catégorie. Par ailleurs,
+  Parking **ne gère aucun identifiant de place individuel** (juste des
+  compteurs par catégorie, conforme aux consignes projet section 2.1) : le
+  `place_id` qu'Access manipule en interne est donc **synthétique**
+  (`"CATEGORIE:walkin"` ou `"CATEGORIE:booking"`), fabriqué par
+  `http_parking_client.py` pour que le reste du code (qui a besoin d'un
+  identifiant pour "quelle place libérer" à la sortie) continue de
+  fonctionner sans changement.
 
 **Nommage anglais vs. contenu français** : tous les identifiants de code
 (classes d'entités, champs, colonnes SQL, clés JSON) sont en anglais — la

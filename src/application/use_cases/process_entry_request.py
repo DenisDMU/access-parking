@@ -120,7 +120,9 @@ class ProcessEntryRequest:
             place_type = reservation.reserved_place_type
             place_id = reservation.place_id
             if place_id is None:
-                assignment = self._parking_port.request_place(vehicle_info.vehicle_type)
+                assignment = self._parking_port.request_place(
+                    vehicle_info.vehicle_type, is_reservation=True
+                )
                 if assignment is None:
                     return self._refuse(
                         request_id=request_id,
@@ -132,7 +134,9 @@ class ProcessEntryRequest:
                     )
                 place_id, place_type = assignment.place_id, assignment.place_type
         else:
-            assignment = self._parking_port.request_place(vehicle_info.vehicle_type)
+            assignment = self._parking_port.request_place(
+                vehicle_info.vehicle_type, is_reservation=False
+            )
             if assignment is None:
                 return self._refuse(
                     request_id=request_id,
