@@ -57,7 +57,6 @@ from src.infrastructure.external.http_vehicles_client import HttpVehiclesClient
 from src.infrastructure.external.mock_booking_client import MockBookingClient
 from src.infrastructure.external.mock_parking_client import MockParkingClient
 from src.infrastructure.external.mock_payment_client import MockPaymentClient
-from src.infrastructure.external.mock_pricing_client import MockPricingClient
 from src.infrastructure.external.mock_vehicles_client import MockVehiclesClient
 
 _settings = get_settings()
@@ -127,11 +126,11 @@ def get_parking_port() -> ParkingServicePort:
 
 
 def get_pricing_port() -> PricingServicePort:
+    # Pas de bascule mock ici : Pricing est branché sur le vrai service de
+    # l'équipe (mock_pricing_client.py supprimé, voir README section 5/16).
+    # Les tests automatisés remplacent ce provider par un FakePricingPort
+    # via app.dependency_overrides (tests/integration/conftest.py).
     settings = get_settings()
-    if settings.pricing_use_mock:
-        return MockPricingClient()
-    # ⚠️ Squelette : routes/champs à confirmer avec l'équipe Pricing avant
-    # utilisation réelle — voir les TODO dans http_pricing_client.py.
     return HttpPricingClient(settings.pricing_service_url)
 
 
