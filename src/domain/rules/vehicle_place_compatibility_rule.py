@@ -23,8 +23,8 @@ def is_compatible(vehicle_type: VehicleType, place_type: PlaceType) -> bool:
 
     # Un 4 roues ne peut pas occuper une place 2 roues (l'inverse est permis).
     if (
-        vehicle_type.category is VehicleCategory.QUATRE_ROUES
-        and place_type.category is VehicleCategory.DEUX_ROUES
+        vehicle_type.category is VehicleCategory.FOUR_WHEELER
+        and place_type.category is VehicleCategory.TWO_WHEELER
     ):
         return False
 

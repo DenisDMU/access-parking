@@ -3,17 +3,17 @@
 from tests.integration.conftest import AUTH_HEADERS
 
 
-def _payload(plaque: str, type_: int, date: str, source: int = 3) -> dict:
-    return {"plaque": plaque, "type": type_, "date": date, "source": source}
+def _payload(plate: str, type_: int, date: str, source: int = 3) -> dict:
+    return {"plate": plate, "type": type_, "date": date, "source": source}
 
 
-def test_sortie_autorisee_pricing_et_payment_ok(client):
+def test_exit_authorized_pricing_and_payment_ok(client):
     entry = client.post(
         "/api/v1/access/requests",
         json=_payload("AA-111-AA", 1, "2026-09-02T10:00:00Z"),
         headers=AUTH_HEADERS,
     )
-    assert entry.json()["autorisation"]["resultat"] == 1
+    assert entry.json()["authorization"]["result"] == 1
 
     exit_response = client.post(
         "/api/v1/access/requests",
@@ -22,18 +22,18 @@ def test_sortie_autorisee_pricing_et_payment_ok(client):
     )
     assert exit_response.status_code == 200
     body = exit_response.json()
-    assert body["autorisation"]["resultat"] == 1
-    assert body["autorisation"]["montantPaiement"] is not None
-    assert body["autorisation"]["montantPaiement"] > 0
+    assert body["authorization"]["result"] == 1
+    assert body["authorization"]["paymentAmount"] is not None
+    assert body["authorization"]["paymentAmount"] > 0
 
 
-def test_sortie_refusee_paiement_echoue(client):
+def test_exit_refused_payment_failed(client):
     entry = client.post(
         "/api/v1/access/requests",
         json=_payload("HH-888-HH", 1, "2026-09-02T10:00:00Z"),
         headers=AUTH_HEADERS,
     )
-    assert entry.json()["autorisation"]["resultat"] == 1
+    assert entry.json()["authorization"]["result"] == 1
 
     exit_response = client.post(
         "/api/v1/access/requests",
@@ -42,11 +42,11 @@ def test_sortie_refusee_paiement_echoue(client):
     )
     assert exit_response.status_code == 200
     body = exit_response.json()
-    assert body["autorisation"]["resultat"] == 2
-    assert body["autorisation"]["motif"] == "Paiement refusé"
+    assert body["authorization"]["result"] == 2
+    assert body["authorization"]["reason"] == "Paiement refusé"
 
 
-def test_sortie_refusee_vehicule_non_present(client):
+def test_exit_refused_vehicle_not_present(client):
     response = client.post(
         "/api/v1/access/requests",
         json=_payload("CC-333-CC", 2, "2026-09-02T11:00:00Z", source=2),
@@ -54,31 +54,31 @@ def test_sortie_refusee_vehicule_non_present(client):
     )
     assert response.status_code == 200
     body = response.json()
-    assert body["autorisation"]["resultat"] == 2
-    assert "non présent" in body["autorisation"]["motif"]
+    assert body["authorization"]["result"] == 2
+    assert "non présent" in body["authorization"]["reason"]
 
 
-def test_get_access_request_par_id(client):
+def test_get_access_request_by_id(client):
     entry = client.post(
         "/api/v1/access/requests",
         json=_payload("DD-444-DD", 1, "2026-09-02T10:00:00Z"),
         headers=AUTH_HEADERS,
     )
-    demande_id = entry.json()["demandeId"]
+    request_id = entry.json()["requestId"]
 
-    detail = client.get(f"/api/v1/access/requests/{demande_id}", headers=AUTH_HEADERS)
+    detail = client.get(f"/api/v1/access/requests/{request_id}", headers=AUTH_HEADERS)
     assert detail.status_code == 200
     body = detail.json()
-    assert body["demandeId"] == demande_id
-    assert body["vehiculeId"] == "v_electric"
+    assert body["requestId"] == request_id
+    assert body["vehicleId"] == "v_electric"
 
 
-def test_get_access_request_introuvable(client):
+def test_get_access_request_not_found(client):
     response = client.get("/api/v1/access/requests/does-not-exist", headers=AUTH_HEADERS)
     assert response.status_code == 404
 
 
-def test_list_access_requests_filtre_par_vehicule_id(client):
+def test_list_access_requests_filters_by_vehicle_id(client):
     client.post(
         "/api/v1/access/requests",
         json=_payload("AA-111-AA", 1, "2026-09-02T10:00:00Z"),
@@ -91,9 +91,9 @@ def test_list_access_requests_filtre_par_vehicule_id(client):
     )
 
     response = client.get(
-        "/api/v1/access/requests", params={"vehiculeId": "v_normal_4roues"}, headers=AUTH_HEADERS
+        "/api/v1/access/requests", params={"vehicleId": "v_standard_4wheeler"}, headers=AUTH_HEADERS
     )
     assert response.status_code == 200
     body = response.json()
     assert len(body) == 1
-    assert body[0]["vehiculeId"] == "v_normal_4roues"
+    assert body[0]["vehicleId"] == "v_standard_4wheeler"

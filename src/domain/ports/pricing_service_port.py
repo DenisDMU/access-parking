@@ -12,10 +12,10 @@ from src.domain.value_objects.dto import PlaceType
 class PricingServicePort(Protocol):
     def calculate_price(
         self,
-        vehicule_id: str,
-        date_entree: datetime,
-        date_sortie: datetime,
-        type_place: PlaceType,
+        vehicle_id: str,
+        entry_date: datetime,
+        exit_date: datetime,
+        place_type: PlaceType,
     ) -> Decimal:
         """Calcule le montant dû pour ce stationnement."""
         ...

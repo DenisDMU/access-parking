@@ -4,24 +4,24 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from src.domain.entities.autorisation_acces import AutorisationAcces
-from src.domain.entities.demande_acces import DemandeAcces
+from src.domain.entities.access_authorization import AccessAuthorization
+from src.domain.entities.access_request import AccessRequest
 from src.domain.ports.access_repository_port import AccessRepositoryPort
 
 
 @dataclass(frozen=True)
 class AccessRequestDetail:
-    demande: DemandeAcces
-    autorisation: AutorisationAcces | None
+    request: AccessRequest
+    authorization: AccessAuthorization | None
 
 
 class GetAccessRequest:
     def __init__(self, access_repo: AccessRepositoryPort) -> None:
         self._access_repo = access_repo
 
-    def execute(self, demande_id: str) -> AccessRequestDetail | None:
-        demande = self._access_repo.get_demande(demande_id)
-        if demande is None:
+    def execute(self, request_id: str) -> AccessRequestDetail | None:
+        request = self._access_repo.get_request(request_id)
+        if request is None:
             return None
-        autorisation = self._access_repo.get_autorisation_by_demande(demande_id)
-        return AccessRequestDetail(demande=demande, autorisation=autorisation)
+        authorization = self._access_repo.get_authorization_by_request(request_id)
+        return AccessRequestDetail(request=request, authorization=authorization)

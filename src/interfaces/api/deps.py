@@ -4,8 +4,11 @@ Seul endroit de la codebase où le domaine/l'application sont reliés aux
 implémentations concrètes de `infrastructure`. `USE_MOCKS` est LE point de
 bascule pour brancher un vrai microservice à la place d'un mock (section 3
 point 2, section 14 point 5 du README) : basculez `settings.use_mocks` à
-`False` et remplacez le `raise NotImplementedError` ci-dessous par
-l'instanciation de votre client HTTP réel — aucune autre couche à toucher.
+`False`, chaque `get_*_port()` ci-dessous instancie alors automatiquement le
+client HTTP correspondant dans `infrastructure/external/http_*_client.py`.
+Ces clients sont des SQUELETTES (routes/champs à confirmer avec chaque
+équipe, voir les TODO dans chaque fichier) — aucune autre couche à toucher
+une fois finalisés.
 """
 
 from __future__ import annotations
@@ -44,6 +47,12 @@ from src.infrastructure.db.repositories.sqlite_vehicle_presence_repository impor
 )
 from src.infrastructure.db.session import make_engine, make_session_factory
 from src.infrastructure.events.outbox_event_publisher import OutboxEventPublisher
+from src.infrastructure.events.rabbitmq_event_publisher import RabbitMQEventPublisher
+from src.infrastructure.external.http_booking_client import HttpBookingClient
+from src.infrastructure.external.http_parking_client import HttpParkingClient
+from src.infrastructure.external.http_payment_client import HttpPaymentClient
+from src.infrastructure.external.http_pricing_client import HttpPricingClient
+from src.infrastructure.external.http_vehicles_client import HttpVehiclesClient
 from src.infrastructure.external.mock_booking_client import MockBookingClient
 from src.infrastructure.external.mock_parking_client import MockParkingClient
 from src.infrastructure.external.mock_payment_client import MockPaymentClient
@@ -90,48 +99,48 @@ def get_outbox_repository(
 # --- Services externes (bascule USE_MOCKS) ----------------------------------
 
 def get_vehicles_port() -> VehiclesServicePort:
-    if get_settings().use_mocks:
+    settings = get_settings()
+    if settings.use_mocks:
         return MockVehiclesClient()
-    raise NotImplementedError(
-        "USE_MOCKS=false : implémentez un client HTTP réel dans "
-        "infrastructure/external/ respectant VehiclesServicePort (voir README)."
-    )
+    # ⚠️ Squelette : routes/champs à confirmer avec l'équipe Vehicles avant
+    # utilisation réelle — voir les TODO dans http_vehicles_client.py.
+    return HttpVehiclesClient(settings.vehicles_service_url)
 
 
 def get_booking_port() -> BookingServicePort:
-    if get_settings().use_mocks:
+    settings = get_settings()
+    if settings.use_mocks:
         return MockBookingClient()
-    raise NotImplementedError(
-        "USE_MOCKS=false : implémentez un client HTTP réel dans "
-        "infrastructure/external/ respectant BookingServicePort (voir README)."
-    )
+    # ⚠️ Squelette : routes/champs à confirmer avec l'équipe Booking avant
+    # utilisation réelle — voir les TODO dans http_booking_client.py.
+    return HttpBookingClient(settings.booking_service_url)
 
 
 def get_parking_port() -> ParkingServicePort:
-    if get_settings().use_mocks:
+    settings = get_settings()
+    if settings.use_mocks:
         return MockParkingClient()
-    raise NotImplementedError(
-        "USE_MOCKS=false : implémentez un client HTTP réel dans "
-        "infrastructure/external/ respectant ParkingServicePort (voir README)."
-    )
+    # ⚠️ Squelette : routes/champs à confirmer avec l'équipe Parking avant
+    # utilisation réelle — voir les TODO dans http_parking_client.py.
+    return HttpParkingClient(settings.parking_service_url)
 
 
 def get_pricing_port() -> PricingServicePort:
-    if get_settings().use_mocks:
+    settings = get_settings()
+    if settings.use_mocks:
         return MockPricingClient()
-    raise NotImplementedError(
-        "USE_MOCKS=false : implémentez un client HTTP réel dans "
-        "infrastructure/external/ respectant PricingServicePort (voir README)."
-    )
+    # ⚠️ Squelette : routes/champs à confirmer avec l'équipe Pricing avant
+    # utilisation réelle — voir les TODO dans http_pricing_client.py.
+    return HttpPricingClient(settings.pricing_service_url)
 
 
 def get_payment_port() -> PaymentServicePort:
-    if get_settings().use_mocks:
+    settings = get_settings()
+    if settings.use_mocks:
         return MockPaymentClient()
-    raise NotImplementedError(
-        "USE_MOCKS=false : implémentez un client HTTP réel dans "
-        "infrastructure/external/ respectant PaymentServicePort (voir README)."
-    )
+    # ⚠️ Squelette : routes/champs à confirmer avec l'équipe Payment avant
+    # utilisation réelle — voir les TODO dans http_payment_client.py.
+    return HttpPaymentClient(settings.payment_service_url)
 
 
 def get_ai_vision_port() -> AIVisionPort:
@@ -143,6 +152,12 @@ def get_event_publisher(
     outbox_repo: SqliteOutboxRepository = Depends(get_outbox_repository),
 ) -> EventPublisherPort:
     settings = get_settings()
+    if settings.event_publisher == "rabbitmq":
+        return RabbitMQEventPublisher(
+            access_repo=access_repo,
+            outbox_repo=outbox_repo,
+            amqp_url=settings.rabbitmq_url,
+        )
     return OutboxEventPublisher(
         access_repo=access_repo,
         outbox_repo=outbox_repo,

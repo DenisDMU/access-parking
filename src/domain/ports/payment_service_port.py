@@ -9,6 +9,6 @@ from src.domain.value_objects.dto import PaymentResult
 
 
 class PaymentServicePort(Protocol):
-    def request_payment(self, vehicule_id: str, montant: Decimal) -> PaymentResult:
+    def request_payment(self, vehicle_id: str, amount: Decimal) -> PaymentResult:
         """Demande le paiement du montant pour ce véhicule pseudonymisé."""
         ...

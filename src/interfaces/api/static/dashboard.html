@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Access — Journal de bord</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f7f7f8;
+    --panel: #ffffff;
+    --border: #e2e2e6;
+    --text: #17181c;
+    --muted: #6b6f76;
+    --accent: #2f6feb;
+    --ok: #1a7f37;
+    --ok-bg: #daf5e0;
+    --info: #0969da;
+    --info-bg: #ddf0ff;
+    --danger: #cf222e;
+    --danger-bg: #ffe4e6;
+    --neutral: #57606a;
+    --neutral-bg: #eef0f2;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117;
+      --panel: #161b22;
+      --border: #2b3138;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --ok: #3fb950;
+      --ok-bg: #0f3d1f;
+      --info: #58a6ff;
+      --info-bg: #0c2d4d;
+      --danger: #f85149;
+      --danger-bg: #4c1214;
+      --neutral: #8b949e;
+      --neutral-bg: #21262d;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  header {
+    padding: 20px 24px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+  }
+  h1 { margin: 0 0 4px; font-size: 18px; }
+  .subtitle { color: var(--muted); font-size: 13px; }
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    padding: 14px 24px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  .toolbar label { color: var(--muted); font-size: 12px; }
+  input, select, button {
+    font: inherit;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    background: var(--bg);
+    color: var(--text);
+  }
+  input[type="password"], input[type="text"] { width: 220px; }
+  button {
+    background: var(--accent);
+    color: white;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  button:hover { opacity: 0.9; }
+  button.secondary {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .status { font-size: 12px; color: var(--muted); margin-left: auto; }
+  .status.error { color: var(--danger); }
+  main { padding: 16px 24px 40px; }
+  .empty {
+    color: var(--muted);
+    text-align: center;
+    padding: 60px 0;
+  }
+  .events { display: flex; flex-direction: column; gap: 8px; }
+  .event {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+  }
+  .event-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+  }
+  .badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .badge-entre { color: var(--ok); background: var(--ok-bg); }
+  .badge-sorti { color: var(--info); background: var(--info-bg); }
+  .badge-refuse { color: var(--danger); background: var(--danger-bg); }
+  .badge-autre { color: var(--neutral); background: var(--neutral-bg); }
+  .event-summary { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .event-time { color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .event-toggle { color: var(--muted); font-size: 11px; }
+  pre {
+    margin: 10px 0 0;
+    padding: 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow-x: auto;
+    font-size: 12px;
+    display: none;
+  }
+  .event.open pre { display: block; }
+  .event.open .event-toggle::after { content: "▲"; }
+  .event:not(.open) .event-toggle::after { content: "▼"; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Access — Journal de bord</h1>
+  <div class="subtitle">
+    Lecture live de <code>GET /access/events</code> (outbox) — endpoint de démo/observabilité en l'absence de vrai broker.
+  </div>
+</header>
+
+<div class="toolbar">
+  <label>Clé API
+    <input id="apiKey" type="password" placeholder="X-API-Key" />
+  </label>
+  <label>Rafraîchissement
+    <select id="interval">
+      <option value="0">Manuel</option>
+      <option value="3000" selected>3 s</option>
+      <option value="5000">5 s</option>
+      <option value="10000">10 s</option>
+    </select>
+  </label>
+  <button id="refreshBtn" class="secondary">↻ Rafraîchir</button>
+  <span id="status" class="status">—</span>
+</div>
+
+<main>
+  <div id="content" class="empty">Renseigne ta clé API ci-dessus pour charger les événements.</div>
+</main>
+
+<script>
+(function () {
+  const KEY_STORAGE = "access.dashboard.apiKey";
+  const apiKeyInput = document.getElementById("apiKey");
+  const intervalSelect = document.getElementById("interval");
+  const refreshBtn = document.getElementById("refreshBtn");
+  const statusEl = document.getElementById("status");
+  const content = document.getElementById("content");
+
+  let timer = null;
+
+  const TYPE_META = {
+    1: { label: "VÉHICULE ENTRÉ", cls: "badge-entre" },
+    2: { label: "VÉHICULE SORTI", cls: "badge-sorti" },
+    3: { label: "ACCÈS REFUSÉ", cls: "badge-refuse" },
+    4: { label: "AUTRE", cls: "badge-autre" },
+  };
+
+  function loadKey() {
+    try {
+      return localStorage.getItem(KEY_STORAGE) || "";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function saveKey(value) {
+    try {
+      localStorage.setItem(KEY_STORAGE, value);
+    } catch (e) {
+      /* stockage indisponible (navigation privée...) — tant pis, pas bloquant */
+    }
+  }
+
+  apiKeyInput.value = loadKey();
+
+  function setStatus(text, isError) {
+    statusEl.textContent = text;
+    statusEl.classList.toggle("error", Boolean(isError));
+  }
+
+  function summarize(evenement) {
+    const p = evenement.payload || {};
+    const bits = [];
+    if (p.vehicleId) bits.push(p.vehicleId);
+    if (p.placeId) bits.push("place " + p.placeId);
+    if (p.amount) bits.push(p.amount + " €");
+    if (p.reason) bits.push(p.reason);
+    return bits.join(" · ") || "(sans détail)";
+  }
+
+  function render(events) {
+    if (!events.length) {
+      content.className = "empty";
+      content.textContent = "Aucun événement pour l'instant.";
+      return;
+    }
+    content.className = "events";
+    content.innerHTML = "";
+    events.forEach(function (evenement) {
+      const meta = TYPE_META[evenement.type] || TYPE_META[4];
+      const row = document.createElement("div");
+      row.className = "event";
+
+      const head = document.createElement("div");
+      head.className = "event-head";
+      head.innerHTML =
+        '<span class="badge ' + meta.cls + '">' + meta.label + "</span>" +
+        '<span class="event-summary">' + escapeHtml(summarize(evenement)) + "</span>" +
+        '<span class="event-time">' + new Date(evenement.createdAt).toLocaleString("fr-FR") + "</span>" +
+        '<span class="event-toggle"></span>';
+      head.addEventListener("click", function () {
+        row.classList.toggle("open");
+      });
+
+      const pre = document.createElement("pre");
+      pre.textContent = JSON.stringify(evenement, null, 2);
+
+      row.appendChild(head);
+      row.appendChild(pre);
+      content.appendChild(row);
+    });
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  async function refresh() {
+    const key = apiKeyInput.value.trim();
+    if (!key) {
+      setStatus("En attente d'une clé API…");
+      return;
+    }
+    saveKey(key);
+    setStatus("Chargement…");
+    try {
+      const response = await fetch("/api/v1/access/events?limit=200", {
+        headers: { "X-API-Key": key },
+      });
+      if (response.status === 401) {
+        setStatus("Clé API invalide (401)", true);
+        return;
+      }
+      if (!response.ok) {
+        setStatus("Erreur serveur (" + response.status + ")", true);
+        return;
+      }
+      const events = await response.json();
+      render(events);
+      setStatus(events.length + " événement(s) — dernière mise à jour " + new Date().toLocaleTimeString("fr-FR"));
+    } catch (err) {
+      setStatus("Impossible de contacter Access (" + err.message + ")", true);
+    }
+  }
+
+  function scheduleAutoRefresh() {
+    if (timer) clearInterval(timer);
+    const ms = Number(intervalSelect.value);
+    if (ms > 0) {
+      timer = setInterval(refresh, ms);
+    }
+  }
+
+  refreshBtn.addEventListener("click", refresh);
+  intervalSelect.addEventListener("change", scheduleAutoRefresh);
+  apiKeyInput.addEventListener("change", refresh);
+
+  refresh();
+  scheduleAutoRefresh();
+})();
+</script>
+</body>
+</html>

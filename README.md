@@ -6,6 +6,13 @@
 > parking" (voir `.claude/access-microservice-spec.md` pour la spécification
 > complète, et `.claude/consignes.md` pour le contexte du projet global).
 
+> **Convention de nommage** : tous les identifiants de code (classes, champs,
+> colonnes SQL, clés JSON de l'API) sont en **anglais**. Les *messages*
+> métier retournés au format texte (`reason`, ex. "Accès autorisé") restent
+> volontairement en **français** : ce sont des données/du contenu destiné à
+> des usagers/exploitants français, pas des identifiants de code — voir
+> détail en [section 12](#12-écarts-assumés-par-rapport-à-la-spec).
+
 ---
 
 ## Sommaire
@@ -15,13 +22,15 @@
 3. [Lancement & Swagger](#3-lancement--swagger)
 4. [Architecture hexagonale](#4-architecture-hexagonale)
 5. [Brancher un vrai microservice à la place d'un mock](#5-brancher-un-vrai-microservice-à-la-place-dun-mock)
-6. [Ajouter une règle métier](#6-ajouter-une-règle-métier)
-7. [Enums (tables de correspondance)](#7-enums-tables-de-correspondance)
-8. [Tests](#8-tests)
-9. [Sécurité](#9-sécurité)
-10. [Endpoints](#10-endpoints)
-11. [Postman](#11-postman)
-12. [Écarts assumés par rapport à la spec](#12-écarts-assumés-par-rapport-à-la-spec)
+6. [Publication d'événements : webhook ou RabbitMQ](#6-publication-dévénements--webhook-ou-rabbitmq)
+7. [Ajouter une règle métier](#7-ajouter-une-règle-métier)
+8. [Enums (tables de correspondance)](#8-enums-tables-de-correspondance)
+9. [Tests](#9-tests)
+10. [Sécurité](#10-sécurité)
+11. [Endpoints](#11-endpoints)
+12. [Journal de bord (dashboard)](#12-journal-de-bord-dashboard)
+13. [Postman](#13-postman)
+14. [Écarts assumés par rapport à la spec](#14-écarts-assumés-par-rapport-à-la-spec)
 
 ---
 
@@ -31,8 +40,8 @@ Access est le **point central** du workflow d'entrée/sortie du parking. Il ne
 possède **aucune donnée métier des autres services** (identité véhicule,
 réservations, disponibilité des places, tarifs, transactions) : il les
 interroge via 5 ports dédiés (mockés pour ce MVP) et ne conserve en propre
-que ses propres objets métier (`DemandeAcces`, `AutorisationAcces`,
-`EvenementAcces`) plus un cache technique de présence (`vehicle_presence`).
+que ses propres objets métier (`AccessRequest`, `AccessAuthorization`,
+`AccessEvent`) plus un cache technique de présence (`vehicle_presence`).
 
 ```mermaid
 sequenceDiagram
@@ -45,31 +54,31 @@ sequenceDiagram
     participant Pa as Payment
 
     V->>A: Entrée (plaque brute)
-    A->>Ve: get_vehicle_info(plaque)
-    Ve-->>A: vehiculeId (pseudonymisé) + attributs
-    A->>B: get_reservation(vehiculeId)
+    A->>Ve: get_vehicle_info(plate)
+    Ve-->>A: vehicleId (pseudonymisé) + attributs
+    A->>B: get_reservation(vehicleId)
     alt pas de réservation
-        A->>P: request_place(typeVehicule)
+        A->>P: request_place(vehicleType)
     end
-    A-->>V: Autorisation (AUTORISE / REFUSE / CONFIRMATION_REQUISE)
-    A--)A: Publie VEHICULE_ENTRE / ACCES_REFUSE
+    A-->>V: Autorisation (AUTHORIZED / REFUSED / CONFIRMATION_REQUIRED)
+    A--)A: Publie VEHICLE_ENTERED / ACCESS_REFUSED
 
     V->>A: Sortie (plaque brute)
-    A->>Ve: get_vehicle_info(plaque)
+    A->>Ve: get_vehicle_info(plate)
     A->>Pr: calculate_price(...)
-    Pr-->>A: montant
-    A->>Pa: request_payment(vehiculeId, montant)
+    Pr-->>A: amount
+    A->>Pa: request_payment(vehicleId, amount)
     Pa-->>A: succès / échec
     A-->>V: Autorisation de sortie
-    A--)A: Publie VEHICULE_SORTI / ACCES_REFUSE
+    A--)A: Publie VEHICLE_EXITED / ACCESS_REFUSED
 ```
 
 **Règle absolue (RGPD) : la plaque brute n'est utilisée qu'à un seul endroit**
-de toute la codebase — l'appel `VehiclesServicePort.get_vehicle_info(plaque)`
+de toute la codebase — l'appel `VehiclesServicePort.get_vehicle_info(plate)`
 depuis les use cases `ProcessEntryRequest` / `ProcessExitRequest` /
 `CheckPlateKnown`. Elle n'est **jamais** persistée, publiée dans un événement,
 renvoyée par l'API, ni écrite dans un log (un filtre de logging redonde même
-cette garantie en profondeur, voir [section 9](#9-sécurité)).
+cette garantie en profondeur, voir [section 10](#10-sécurité)).
 
 ---
 
@@ -90,7 +99,8 @@ pip install -r requirements.txt
 # Configuration
 cp .env.example .env
 # Ajustez .env si besoin (API_KEY, EVENT_SUBSCRIBERS_URLS pour brancher vos
-# coéquipiers en local, etc.)
+# coéquipiers en local, EVENT_PUBLISHER=rabbitmq si vous préférez un vrai
+# broker, etc.)
 ```
 
 ---
@@ -103,6 +113,7 @@ uvicorn src.interfaces.api.main:app --reload --port 8000
 
 - Swagger UI : http://localhost:8000/docs
 - ReDoc : http://localhost:8000/redoc
+- Journal de bord (dashboard) : http://localhost:8000/ (redirige vers `/static/dashboard.html`)
 - Healthcheck (sans clé API) : http://localhost:8000/health
 
 Toutes les autres routes exigent l'en-tête `X-API-Key` (valeur de `API_KEY`
@@ -113,17 +124,17 @@ Un registre de plaques de démonstration est câblé dans le mock Vehicles pour
 exercer chaque cas manuellement — détail dans
 [`mock_vehicles_client.py`](src/infrastructure/external/mock_vehicles_client.py) :
 
-| Plaque       | Profil                                                    |
-|--------------|------------------------------------------------------------|
-| `AA-111-AA`  | 4 roues standard                                            |
-| `BB-222-BB`  | 2 roues                                                      |
-| `CC-333-CC`  | 4 roues XL                                                   |
-| `DD-444-DD`  | 4 roues électrique                                           |
-| `EE-555-EE`  | 4 roues handicapé, **avec** justificatif PMR                 |
-| `FF-666-FF`  | 4 roues handicapé, **sans** justificatif PMR (→ confirmation)|
-| `GG-777-GG`  | 4 roues standard, **a une réservation active** (Booking)     |
-| `HH-888-HH`  | 4 roues standard, **paiement toujours refusé** à la sortie   |
-| toute autre  | inconnue de Vehicles (→ rejet)                               |
+| Plaque       | vehicleId              | Profil                                                       |
+|--------------|--------------------------|---------------------------------------------------------------|
+| `AA-111-AA`  | `v_standard_4wheeler`    | 4 roues standard                                               |
+| `BB-222-BB`  | `v_2wheeler`             | 2 roues                                                        |
+| `CC-333-CC`  | `v_xl`                   | 4 roues XL                                                     |
+| `DD-444-DD`  | `v_electric`             | 4 roues électrique                                             |
+| `EE-555-EE`  | `v_disabled_ok`          | 4 roues handicapé, **avec** justificatif d'accessibilité       |
+| `FF-666-FF`  | `v_disabled_no_permit`   | 4 roues handicapé, **sans** justificatif (→ confirmation)      |
+| `GG-777-GG`  | `v_with_reservation`     | 4 roues standard, **a une réservation active** (Booking)       |
+| `HH-888-HH`  | `v_payment_fail`         | 4 roues standard, **paiement toujours refusé** à la sortie     |
+| toute autre  | —                        | inconnue de Vehicles (→ rejet)                                 |
 
 ---
 
@@ -132,9 +143,9 @@ exercer chaque cas manuellement — détail dans
 ```
 src/
 ├── domain/            # Cœur métier pur — ZÉRO dépendance externe
-│   ├── entities/       # DemandeAcces, AutorisationAcces, EvenementAcces, VehiclePresence
+│   ├── entities/       # AccessRequest, AccessAuthorization, AccessEvent, VehiclePresence
 │   ├── value_objects/  # Enums tinyint + DTO (VehicleType, PlaceType, VehicleInfo, ...)
-│   ├── rules/          # Fonctions pures : présence, compatibilité véhicule/place, PMR
+│   ├── rules/          # Fonctions pures : présence, compatibilité véhicule/place, accessibilité
 │   └── ports/          # Protocol — contrats vers l'extérieur (aucune implémentation)
 │
 ├── application/
@@ -143,17 +154,18 @@ src/
 │
 ├── infrastructure/     # Implémentations concrètes des ports
 │   ├── db/              # SQLAlchemy : modèles, session, repositories SQLite
-│   ├── external/        # Un mock par service externe (Vehicles/Booking/Parking/Pricing/Payment)
+│   ├── external/        # Mocks + squelettes HTTP (un par service : Vehicles/Booking/Parking/Pricing/Payment)
 │   ├── ai/              # Adaptateur LPR/vision fake déterministe
-│   ├── events/          # OutboxEventPublisher (persistance + fan-out HTTP best-effort)
+│   ├── events/          # OutboxEventPublisher (webhook) + RabbitMQEventPublisher (broker)
 │   ├── security/        # Authentification X-API-Key
 │   ├── config.py        # Lecture centralisée de l'environnement (.env)
 │   └── logging_config.py# Logs + filtre anti-fuite de plaque
 │
 └── interfaces/api/     # FastAPI : point d'entrée HTTP
-    ├── main.py           # App, middlewares, gestion d'erreurs centralisée
+    ├── main.py           # App, middlewares, gestion d'erreurs centralisée, dashboard
     ├── deps.py           # Composition root — SEUL endroit qui relie tout
     ├── rate_limit.py      # Limiter slowapi partagé
+    ├── static/            # Dashboard (journal de bord, page statique)
     ├── routers/           # access_router, events_router, health_router
     └── schemas/           # Pydantic (requêtes/réponses), jamais la plaque en sortie
 ```
@@ -164,39 +176,82 @@ de `domain`. `interfaces/api` est le seul endroit qui connaît à la fois
 `application` et `infrastructure` (via `deps.py`, la *composition root*).
 
 Pourquoi ce découpage ? Parce que la vraie complexité d'Access n'est pas
-technique mais **métier** (règles de compatibilité, présence, PMR) — les
-isoler dans `domain`, sans aucune dépendance à FastAPI/SQLAlchemy/httpx,
-permet de les tester unitairement en une fraction de seconde, et de changer
-n'importe quel détail d'infrastructure (base de données, broker d'événements,
-vrais clients HTTP) sans jamais toucher à la logique de décision.
+technique mais **métier** (règles de compatibilité, présence, accessibilité)
+— les isoler dans `domain`, sans aucune dépendance à
+FastAPI/SQLAlchemy/httpx, permet de les tester unitairement en une fraction
+de seconde, et de changer n'importe quel détail d'infrastructure (base de
+données, broker d'événements, vrais clients HTTP) sans jamais toucher à la
+logique de décision.
 
 ---
 
 ## 5. Brancher un vrai microservice à la place d'un mock
 
-`USE_MOCKS` (dans `.env`) est **le point de bascule unique**. Pour brancher le
-vrai service Vehicles par exemple :
+`USE_MOCKS` (dans `.env`) est **le point de bascule unique**, et les 5
+squelettes HTTP existent déjà (`infrastructure/external/http_*_client.py`),
+chacun avec des `TODO` explicites listant ce qui reste à confirmer avec
+l'équipe du service concerné (route exacte, méthode HTTP, noms de champs
+JSON, codes d'erreur). Pour finaliser Vehicles par exemple :
 
-1. Passez `USE_MOCKS=false` dans `.env`.
-2. Renseignez son URL (`VEHICLES_SERVICE_URL`, déjà présent dans `.env.example`).
-3. Créez `src/infrastructure/external/http_vehicles_client.py`, implémentant
-   **exactement** `VehiclesServicePort` (même méthode `get_vehicle_info`,
-   même DTO `VehicleInfo` en retour) en utilisant `httpx` pour l'appel réel.
-4. Dans `src/interfaces/api/deps.py`, remplacez le `raise NotImplementedError`
-   de `get_vehicles_port()` par `return HttpVehiclesClient(get_settings().vehicles_service_url)`.
+1. Ouvrez `src/infrastructure/external/http_vehicles_client.py` et traitez
+   chaque `TODO[VEHICLES-*]` avec la vraie spec de l'équipe Vehicles (route,
+   méthode, champs de réponse, code "inconnu").
+2. Passez `USE_MOCKS=false` dans `.env` et renseignez `VEHICLES_SERVICE_URL`.
+3. C'est tout — `deps.py::get_vehicles_port()` bascule automatiquement sur
+   `HttpVehiclesClient` dès que `USE_MOCKS=false`.
 
 **Aucune autre couche à toucher** : ni `domain`, ni `application`, ni les
 routers, ni les schémas — c'est toute la promesse de l'architecture
 hexagonale. Le même principe s'applique identiquement à Booking, Parking,
 Pricing et Payment (`get_booking_port`, `get_parking_port`, etc., dans le
-même fichier).
+même fichier `deps.py`) — chaque squelette liste ses propres `TODO` :
+
+| Service  | Fichier squelette                      | Points ouverts principaux |
+|----------|------------------------------------------|----------------------------|
+| Vehicles | `http_vehicles_client.py`  | Route/méthode, code "inconnu", noms de champs |
+| Booking  | `http_booking_client.py`   | Route/méthode, code "pas de réservation", `placeId` déjà assigné ou non |
+| Parking  | `http_parking_client.py`   | Routes allocate/occupy/free, `placeId` réutilisable ou non (cf. consignes 2.1) |
+| Pricing  | `http_pricing_client.py`   | Route/méthode, type du champ montant, traçabilité de la grille tarifaire (consignes 2.5) |
+| Payment  | `http_payment_client.py`   | Route/méthode, clé d'idempotence (consignes 2.6), statuts intermédiaires |
 
 ---
 
-## 6. Ajouter une règle métier
+## 6. Publication d'événements : webhook ou RabbitMQ
+
+Deux implémentations d'`EventPublisherPort` sont prêtes, sélectionnées par
+`EVENT_PUBLISHER` dans `.env` (bascule dans `deps.py::get_event_publisher()`)
+— dans les deux cas, l'événement est **toujours** persisté (`access_events`
++ `outbox_events`) avant toute tentative de diffusion, et un échec de
+diffusion est loggé mais ne bloque jamais la décision d'accès :
+
+- **`webhook`** (par défaut) — fan-out HTTP best-effort vers chaque URL de
+  `EVENT_SUBSCRIBERS_URLS` (voir `outbox_event_publisher.py`). Pas de vrai
+  broker : chaque coéquipier expose sa propre route (ex. `POST
+  /webhooks/access`) et te donne son URL.
+- **`rabbitmq`** — publie sur un exchange topic `access.events` (routing key
+  `access.<event_type>`, ex. `access.vehicle_entered`) via
+  `rabbitmq_event_publisher.py`. Pour tester en local :
+
+  ```bash
+  docker run -d --name access-rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:3-management
+  ```
+
+  Puis dans `.env` : `EVENT_PUBLISHER=rabbitmq` et
+  `RABBITMQ_URL=amqp://guest:guest@localhost:5672/%2F`. Interface de gestion
+  sur http://localhost:15672 (guest/guest). Chaque service intéressé déclare
+  sa propre queue et la lie aux routing keys qui l'intéressent (`access.#`
+  pour tout recevoir).
+
+Dans les deux cas, `GET /access/events` reste disponible pour relire les
+événements journalisés côté Access (utile même avec RabbitMQ, pour du debug
+local sans ouvrir l'interface de gestion).
+
+---
+
+## 7. Ajouter une règle métier
 
 1. Ajoutez une fonction pure dans `src/domain/rules/` (ex.
-   `ma_nouvelle_regle.py`), sans import vers `infrastructure`/`interfaces`.
+   `my_new_rule.py`), sans import vers `infrastructure`/`interfaces`.
 2. Testez-la unitairement dans `tests/unit/` sur toute sa matrice de cas.
 3. Branchez-la dans le use case concerné
    (`src/application/use_cases/process_entry_request.py` ou
@@ -204,35 +259,35 @@ même fichier).
 4. Ajoutez un test d'intégration si la règle change une réponse API visible.
 
 Exemple concret déjà en place : `vehicle_place_compatibility_rule.py` (règle
-2 roues/4 roues/XL/électrique/handicapé) et `pmr_rule.py`, toutes deux
+2 roues/4 roues/XL/électrique/handicapé) et `disability_rule.py`, toutes deux
 appelées depuis `ProcessEntryRequest.execute`.
 
 ---
 
-## 7. Enums (tables de correspondance)
+## 8. Enums (tables de correspondance)
 
 Toutes les valeurs sont définies dans
 [`src/domain/value_objects/enums.py`](src/domain/value_objects/enums.py).
 
-**TypeDemande** — `1=ENTREE` · `2=SORTIE`
+**RequestType** — `1=ENTRY` · `2=EXIT`
 
-**StatutDemande** — `1=EN_COURS` · `2=TRAITEE` · `3=REJETEE` (réservé au cas
-"véhicule inconnu de Vehicles")
+**RequestStatus** — `1=IN_PROGRESS` · `2=PROCESSED` · `3=REJECTED` (réservé
+au cas "véhicule inconnu de Vehicles")
 
-**ResultatAutorisation** — `1=AUTORISE` · `2=REFUSE` · `3=CONFIRMATION_REQUISE`
+**AuthorizationResult** — `1=AUTHORIZED` · `2=REFUSED` · `3=CONFIRMATION_REQUIRED`
 
-**TypeEvenement** — `1=VEHICULE_ENTRE` · `2=VEHICULE_SORTI` · `3=ACCES_REFUSE` · `4=AUTRE`
+**EventType** — `1=VEHICLE_ENTERED` · `2=VEHICLE_EXITED` · `3=ACCESS_REFUSED` · `4=OTHER`
 
-**SourceDetection** — `1=CAMERA` · `2=BORNE` · `3=LPR` · `4=APP_MOBILE`
-(pour une sortie, `BORNE` et `APP_MOBILE` sont tous deux valides)
+**DetectionSource** — `1=CAMERA` · `2=TERMINAL` · `3=LPR` · `4=MOBILE_APP`
+(pour une sortie, `TERMINAL` et `MOBILE_APP` sont tous deux valides)
 
 **PresenceStatus** *(technique)* — `1=IN` · `2=OUT`
 
-**VehicleCategory** *(technique, véhicule ET place)* — `1=DEUX_ROUES` · `2=QUATRE_ROUES`
+**VehicleCategory** *(technique, véhicule ET place)* — `1=TWO_WHEELER` · `2=FOUR_WHEELER`
 
 ---
 
-## 8. Tests
+## 9. Tests
 
 ```bash
 source .venv/bin/activate
@@ -242,28 +297,30 @@ pytest tests/integration    # endpoints via TestClient FastAPI (SQLite en mémoi
 pytest -v            # détail de chaque cas
 ```
 
-Couverture (67 tests) :
+Couverture (69 tests) :
 
 - **Unitaires** — matrice complète de la règle de compatibilité
-  véhicule/place, règle de présence, règle PMR ; chaque use case
-  (`ProcessEntryRequest`, `ProcessExitRequest`) avec tous les ports mockés.
+  véhicule/place, règle de présence, règle d'accessibilité ; chaque use case
+  (`ProcessEntryRequest`, `ProcessExitRequest`) avec tous les ports mockés ;
+  comportement best-effort de `RabbitMQEventPublisher` (broker injoignable).
 - **Intégration** — entrée autorisée (sans/avec réservation), entrée refusée
-  (déjà présent, type incompatible), entrée en confirmation requise (PMR),
-  entrée rejetée (véhicule inconnu), sortie autorisée, sortie refusée
-  (paiement échoué, véhicule non présent), `/health`, `/access/plates/.../known`,
-  et un **test dédié** qui rejoue plusieurs scénarios puis inspecte
-  directement chaque table SQLite pour garantir qu'aucune valeur au format
-  plaque française n'y apparaît (`tests/integration/test_no_plate_leak.py`).
+  (déjà présent, type incompatible), entrée en confirmation requise
+  (accessibilité), entrée rejetée (véhicule inconnu), sortie autorisée,
+  sortie refusée (paiement échoué, véhicule non présent), `/health`,
+  `/access/plates/.../known`, et un **test dédié** qui rejoue plusieurs
+  scénarios puis inspecte directement chaque table SQLite pour garantir
+  qu'aucune valeur au format plaque française n'y apparaît
+  (`tests/integration/test_no_plate_leak.py`).
 
 ---
 
-## 9. Sécurité
+## 10. Sécurité
 
 - **Authentification** : clé API (`X-API-Key`) sur toutes les routes sauf
   `/health` (`src/infrastructure/security/api_key_auth.py`). Jamais loggée.
 - **Validation stricte** : Pydantic, y compris le format de plaque française
   (`^[A-Z]{2}-\d{3}-[A-Z]{2}$`) sur la requête d'entrée et sur le path param
-  de `/access/plates/{plaque}/known`.
+  de `/access/plates/{plate}/known`.
 - **CORS restrictif** : liste blanche configurable (`CORS_ALLOWED_ORIGINS`).
 - **Rate limiting** : `POST /access/requests` limité (`RATE_LIMIT_ACCESS_REQUESTS`,
   `20/minute` par défaut) via `slowapi`.
@@ -278,7 +335,7 @@ Couverture (67 tests) :
 
 ---
 
-## 10. Endpoints
+## 11. Endpoints
 
 Préfixe `/api/v1` (sauf `/health`).
 
@@ -286,55 +343,119 @@ Préfixe `/api/v1` (sauf `/health`).
 |---|---|---|---|
 | POST | `/access/requests` | Oui | Crée et traite une demande d'accès (entrée ou sortie) |
 | GET | `/access/requests/{id}` | Oui | Détail d'une demande + décision |
-| GET | `/access/requests?vehiculeId=&type=&from=&to=` | Oui | Liste/filtre (audit) |
-| GET | `/access/plates/{plaque}/known` | Oui | Vérifie si une plaque est connue, sans rien persister |
+| GET | `/access/requests?vehicleId=&type=&from=&to=` | Oui | Liste/filtre (audit) |
+| GET | `/access/plates/{plate}/known` | Oui | Vérifie si une plaque est connue, sans rien persister |
 | GET | `/access/events` | Oui | Liste les événements publiés (outbox, démo/observabilité) |
 | GET | `/health` | Non | Healthcheck (API + DB) |
 
 Documentation interactive complète (schémas, exemples, codes d'erreur) sur
 `/docs`.
 
+### Exemple — `POST /access/requests` (entrée)
+
+```json
+{
+  "plate": "AA-111-AA",
+  "type": 1,
+  "date": "2026-09-02T10:15:00Z",
+  "source": 3,
+  "photoBase64": null
+}
+```
+
+Réponse — ne contient jamais la plaque :
+
+```json
+{
+  "requestId": "b3a1f7b0-...-uuid",
+  "vehicleId": "v_standard_4wheeler",
+  "type": 1,
+  "status": 2,
+  "authorization": {
+    "result": 1,
+    "reason": "Accès autorisé",
+    "vehicleTypeCheckOk": true,
+    "disabilityCheckOk": null
+  }
+}
+```
+
 ---
 
-## 11. Postman
+## 12. Journal de bord (dashboard)
+
+Une petite page statique (`src/interfaces/api/static/dashboard.html`) est
+servie **par Access lui-même** — pas de port supplémentaire, pas de serveur
+front séparé, elle appelle `GET /api/v1/access/events` en same-origin (donc
+aucun souci CORS). Accessible sur http://localhost:8000/ (redirige
+automatiquement) ou http://localhost:8000/static/dashboard.html.
+
+Renseignez votre `X-API-Key` dans le champ prévu (stockée uniquement dans le
+`localStorage` de votre navigateur) : la liste des événements se rafraîchit
+automatiquement (intervalle configurable), avec un badge coloré par type
+d'événement et le détail JSON dépliable.
+
+---
+
+## 13. Postman
 
 Un dossier [`postman/`](postman/) contient :
 
 - `Access-Microservice.postman_collection.json` — toutes les routes,
-  organisées par dossier (Health / Access / Events), avec des exemples prêts
-  à l'emploi pour chaque scénario du tableau de plaques de démo (entrée
-  simple, réservation, PMR, véhicule inconnu, sortie payée, paiement refusé...).
+  organisées par dossier (Health / Access — Entry / Access — Exit / Access —
+  Lookup / Events / **Errors — edge cases**), avec des exemples prêts à
+  l'emploi pour chaque scénario du tableau de plaques de démo (entrée
+  simple, réservation, accessibilité, véhicule inconnu, sortie payée,
+  paiement refusé...).
 - `Access-Microservice.postman_environment.json` — variables `baseUrl` et
   `apiKey` à ajuster selon votre `.env`.
 
+Le dossier **"Errors — edge cases"** contient volontairement des requêtes
+invalides (pas de clé API, plaque mal formée, type invalide, champ manquant,
+`photoBase64` corrompu, id inexistant, rate limit) — chacune avec un script
+de test Postman qui vérifie le code HTTP attendu, pour voir concrètement à
+quoi ressemblent les erreurs de l'API.
+
 **Import** : Postman → *Import* → sélectionnez les deux fichiers → choisissez
-l'environnement "Access — Local" en haut à droite. La requête "Entrée —
-véhicule standard" capture automatiquement `demandeId`/`vehiculeId` dans des
+l'environnement "Access — Local" en haut à droite. La requête "Entry —
+standard vehicle" capture automatiquement `requestId`/`vehicleId` dans des
 variables de collection, réutilisées par les requêtes suivantes (sortie,
 détail par id).
 
 ---
 
-## 12. Écarts assumés par rapport à la spec
+## 14. Écarts assumés par rapport à la spec
 
 Pour rester fidèle au modèle de données figé (section 6 de la spec) tout en
 répondant aux besoins fonctionnels du use case "Sortie" (retrouver la place
 et son type à partir de la seule présence), quelques extensions **minimes et
 non intrusives** ont été ajoutées :
 
-- `AccessRepositoryPort.get_autorisation_by_demande`,
-  `get_evenement_by_demande` et `list_evenements` : lecture supplémentaire,
-  aucune règle métier ajoutée. Le `placeId`/type de place attribué à
-  l'entrée est retrouvé via le `payload` JSON de l'événement `VEHICULE_ENTRE`
-  associé (le schéma SQL officiel ne prévoit pas de colonne dédiée — le
-  payload d'événement est explicitement documenté comme pouvant contenir
-  "la place", section 6).
-- `VehiclePresenceRepositoryPort.get_current_demande_id` : complète
+- `AccessRepositoryPort.get_authorization_by_request`,
+  `get_event_by_request` et `list_events` : lecture supplémentaire, aucune
+  règle métier ajoutée. Le `placeId`/type de place attribué à l'entrée est
+  retrouvé via le `payload` JSON de l'événement `VEHICLE_ENTERED` associé
+  (le schéma SQL officiel ne prévoit pas de colonne dédiée — le payload
+  d'événement est explicitement documenté comme pouvant contenir "la place",
+  section 6).
+- `VehiclePresenceRepositoryPort.get_current_request_id` : complète
   `get_status` (dont la signature spec est inchangée) pour exposer
-  `demande_id_courante`, nécessaire à l'étape 4 du workflow "Sortie".
+  `current_request_id`, nécessaire à l'étape 4 du workflow "Sortie".
 - `Reservation.place_id` (optionnel) : Booking (mocké) peut indiquer
   directement la place réservée ; si absent, le use case retombe sur
   `ParkingServicePort.request_place`.
+
+**Nommage anglais vs. contenu français** : tous les identifiants de code
+(classes d'entités, champs, colonnes SQL, clés JSON) sont en anglais — la
+spec d'origine (rédigée en français) est donc traduite dans le code, avec la
+correspondance rappelée dans chaque docstring et dans la
+[section 8](#8-enums-tables-de-correspondance). En revanche, le contenu des
+messages métier renvoyés (`reason`, ex. "Accès autorisé", "Véhicule déjà
+présent dans le parking") reste en français, volontairement : Access sert
+des conducteurs et exploitants francophones, et ces chaînes sont du contenu
+utilisateur, pas des identifiants de code — les traduire n'apporterait rien
+et un choix inverse serait trivial à faire évoluer plus tard (elles sont
+toutes centralisées dans les deux use cases `Process*Request`).
 
 Toutes ces extensions sont documentées dans le code (docstrings des ports
 concernés) et n'affaiblissent aucune des garanties de la spec — notamment la

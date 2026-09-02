@@ -16,7 +16,7 @@ class VehiclePresence:
     une seconde fois" sans posséder de donnée métier d'un autre service.
     """
 
-    vehicule_id: str
-    statut: PresenceStatus
+    vehicle_id: str
+    status: PresenceStatus
     updated_at: datetime
-    demande_id_courante: str | None = None
+    current_request_id: str | None = None

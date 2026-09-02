@@ -4,16 +4,16 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from src.application.use_cases.process_exit_request import ProcessExitRequest
-from src.domain.entities.demande_acces import DemandeAcces
-from src.domain.entities.evenement_acces import EvenementAcces
+from src.domain.entities.access_event import AccessEvent
+from src.domain.entities.access_request import AccessRequest
 from src.domain.value_objects.dto import VehicleInfo, VehicleType
 from src.domain.value_objects.enums import (
+    AuthorizationResult,
+    DetectionSource,
+    EventType,
     PresenceStatus,
-    ResultatAutorisation,
-    SourceDetection,
-    StatutDemande,
-    TypeDemande,
-    TypeEvenement,
+    RequestStatus,
+    RequestType,
     VehicleCategory,
 )
 from tests.unit.fakes import (
@@ -26,45 +26,45 @@ from tests.unit.fakes import (
     FakeVehiclesPort,
 )
 
-ENTREE_AT = datetime(2026, 9, 2, 10, 0, tzinfo=timezone.utc)
-SORTIE_AT = ENTREE_AT + timedelta(hours=1)
+ENTRY_AT = datetime(2026, 9, 2, 10, 0, tzinfo=timezone.utc)
+EXIT_AT = ENTRY_AT + timedelta(hours=1)
 
 
-def _seed_vehicule_present(access_repo, presence_repo, vehicule_id="v1", place_id="P-1"):
+def _seed_vehicle_present(access_repo, presence_repo, vehicle_id="v1", place_id="P-1"):
     """Simule qu'un véhicule est entré : demande d'entrée + événement
-    VEHICULE_ENTRE (porteur du placeId/placeType, cf. process_exit_request)
+    VEHICLE_ENTERED (porteur du placeId/placeType, cf. process_exit_request)
     + présence IN."""
 
-    demande_id = "demande-entree-1"
-    access_repo.save_demande(
-        DemandeAcces(
-            id=demande_id,
-            type=TypeDemande.ENTREE,
-            date=ENTREE_AT,
-            source=SourceDetection.LPR,
-            statut=StatutDemande.TRAITEE,
-            vehicule_id=vehicule_id,
+    request_id = "entry-request-1"
+    access_repo.save_request(
+        AccessRequest(
+            id=request_id,
+            type=RequestType.ENTRY,
+            date=ENTRY_AT,
+            source=DetectionSource.LPR,
+            status=RequestStatus.PROCESSED,
+            vehicle_id=vehicle_id,
         )
     )
-    access_repo.save_evenement(
-        EvenementAcces(
-            id="evt-entree-1",
-            type=TypeEvenement.VEHICULE_ENTRE,
-            demande_id=demande_id,
+    access_repo.save_event(
+        AccessEvent(
+            id="evt-entry-1",
+            type=EventType.VEHICLE_ENTERED,
+            request_id=request_id,
             payload={
-                "vehiculeId": vehicule_id,
+                "vehicleId": vehicle_id,
                 "placeId": place_id,
                 "placeType": {
-                    "category": int(VehicleCategory.QUATRE_ROUES),
+                    "category": int(VehicleCategory.FOUR_WHEELER),
                     "isXl": False,
                     "isElectric": False,
                     "isHandicap": False,
                 },
             },
-            created_at=ENTREE_AT,
+            created_at=ENTRY_AT,
         )
     )
-    presence_repo.seed(vehicule_id, PresenceStatus.IN, demande_id=demande_id)
+    presence_repo.seed(vehicle_id, PresenceStatus.IN, request_id=request_id)
 
 
 def make_use_case(vehicles_port, parking_port, pricing_port, payment_port, presence_repo, access_repo):
@@ -79,50 +79,50 @@ def make_use_case(vehicles_port, parking_port, pricing_port, payment_port, prese
     )
 
 
-def test_sortie_autorisee_pricing_et_payment_ok():
+def test_exit_authorized_pricing_and_payment_ok():
     vehicles = FakeVehiclesPort(
-        {"AA-111-AA": VehicleInfo(vehicule_id="v1", type_vehicule=VehicleType(category=VehicleCategory.QUATRE_ROUES))}
+        {"AA-111-AA": VehicleInfo(vehicle_id="v1", vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER))}
     )
     presence = FakePresenceRepo()
     access_repo = FakeAccessRepo()
-    _seed_vehicule_present(access_repo, presence)
+    _seed_vehicle_present(access_repo, presence)
     parking = FakeParkingPort()
-    pricing = FakePricingPort(montant=Decimal("7.50"))
-    payment = FakePaymentPort(succes=True)
+    pricing = FakePricingPort(amount=Decimal("7.50"))
+    payment = FakePaymentPort(success=True)
     use_case = make_use_case(vehicles, parking, pricing, payment, presence, access_repo)
 
-    decision = use_case.execute("AA-111-AA", SORTIE_AT, SourceDetection.BORNE)
+    decision = use_case.execute("AA-111-AA", EXIT_AT, DetectionSource.TERMINAL)
 
-    assert decision.resultat is ResultatAutorisation.AUTORISE
-    assert decision.montant_paiement == Decimal("7.50")
+    assert decision.result is AuthorizationResult.AUTHORIZED
+    assert decision.payment_amount == Decimal("7.50")
     assert parking.freed == ["P-1"]
     assert presence.get_status("v1") is PresenceStatus.OUT
 
 
-def test_sortie_refusee_paiement_echoue():
+def test_exit_refused_payment_failed():
     vehicles = FakeVehiclesPort(
-        {"AA-111-AA": VehicleInfo(vehicule_id="v1", type_vehicule=VehicleType(category=VehicleCategory.QUATRE_ROUES))}
+        {"AA-111-AA": VehicleInfo(vehicle_id="v1", vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER))}
     )
     presence = FakePresenceRepo()
     access_repo = FakeAccessRepo()
-    _seed_vehicule_present(access_repo, presence)
+    _seed_vehicle_present(access_repo, presence)
     parking = FakeParkingPort()
-    pricing = FakePricingPort(montant=Decimal("7.50"))
-    payment = FakePaymentPort(succes=False)
+    pricing = FakePricingPort(amount=Decimal("7.50"))
+    payment = FakePaymentPort(success=False)
     use_case = make_use_case(vehicles, parking, pricing, payment, presence, access_repo)
 
-    decision = use_case.execute("AA-111-AA", SORTIE_AT, SourceDetection.APP_MOBILE)
+    decision = use_case.execute("AA-111-AA", EXIT_AT, DetectionSource.MOBILE_APP)
 
-    assert decision.resultat is ResultatAutorisation.REFUSE
-    assert decision.motif == "Paiement refusé"
+    assert decision.result is AuthorizationResult.REFUSED
+    assert decision.reason == "Paiement refusé"
     # Le véhicule reste marqué présent : il n'a pas physiquement quitté la place.
     assert presence.get_status("v1") is PresenceStatus.IN
     assert parking.freed == []
 
 
-def test_sortie_refusee_vehicule_non_present():
+def test_exit_refused_vehicle_not_present():
     vehicles = FakeVehiclesPort(
-        {"CC-333-CC": VehicleInfo(vehicule_id="v_absent", type_vehicule=VehicleType(category=VehicleCategory.QUATRE_ROUES))}
+        {"CC-333-CC": VehicleInfo(vehicle_id="v_absent", vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER))}
     )
     presence = FakePresenceRepo()
     access_repo = FakeAccessRepo()
@@ -131,9 +131,9 @@ def test_sortie_refusee_vehicule_non_present():
     payment = FakePaymentPort()
     use_case = make_use_case(vehicles, parking, pricing, payment, presence, access_repo)
 
-    decision = use_case.execute("CC-333-CC", SORTIE_AT, SourceDetection.BORNE)
+    decision = use_case.execute("CC-333-CC", EXIT_AT, DetectionSource.TERMINAL)
 
-    assert decision.resultat is ResultatAutorisation.REFUSE
-    assert decision.motif == "Véhicule non présent dans le parking"
+    assert decision.result is AuthorizationResult.REFUSED
+    assert decision.reason == "Véhicule non présent dans le parking"
     assert pricing.calls == []
     assert payment.calls == []

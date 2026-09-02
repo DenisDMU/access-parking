@@ -12,9 +12,9 @@ from datetime import datetime
 from decimal import Decimal
 
 from src.domain.value_objects.enums import (
-    ResultatAutorisation,
-    StatutDemande,
-    TypeDemande,
+    AuthorizationResult,
+    RequestStatus,
+    RequestType,
     VehicleCategory,
 )
 
@@ -24,7 +24,7 @@ class VehicleType:
     """Caractéristiques d'un véhicule utiles à la décision d'accès.
 
     Ne contient jamais la plaque : uniquement les attributs nécessaires à la
-    règle de compatibilité véhicule/place et à la règle PMR.
+    règle de compatibilité véhicule/place et à la règle d'accessibilité.
     """
 
     category: VehicleCategory
@@ -47,13 +47,13 @@ class PlaceType:
 class VehicleInfo:
     """Réponse de `VehiclesServicePort.get_vehicle_info`.
 
-    `vehicule_id` est l'identifiant **pseudonymisé** — la seule référence au
+    `vehicle_id` est l'identifiant **pseudonymisé** — la seule référence au
     véhicule qui doit ensuite circuler dans le reste du système.
     """
 
-    vehicule_id: str
-    type_vehicule: VehicleType
-    justificatif_pmr: bool = False
+    vehicle_id: str
+    vehicle_type: VehicleType
+    disability_permit: bool = False
 
 
 @dataclass(frozen=True)
@@ -69,10 +69,10 @@ class Reservation:
     """
 
     id: str
-    vehicule_id: str
-    type_place_reservee: PlaceType
-    date_debut: datetime
-    date_fin: datetime
+    vehicle_id: str
+    reserved_place_type: PlaceType
+    start_date: datetime
+    end_date: datetime
     place_id: str | None = None
 
 
@@ -88,29 +88,29 @@ class PlaceAssignment:
 class PaymentResult:
     """Réponse de `PaymentServicePort.request_payment`."""
 
-    succes: bool
-    reference_transaction: str | None = None
+    success: bool
+    transaction_reference: str | None = None
 
 
 @dataclass(frozen=True)
 class AICheckResult:
     """Réponse de `AIVisionPort.analyze` — ne contient jamais de plaque."""
 
-    model_ai: str
+    ai_model: str
     confidence: float
     timestamp: datetime
 
 
 @dataclass(frozen=True)
 class AccessFilters:
-    """Filtres pour `AccessRepositoryPort.list_demandes` (audit).
+    """Filtres pour `AccessRepositoryPort.list_requests` (audit).
 
-    Filtre exclusivement sur `vehicule_id` pseudonymisé, jamais sur la
+    Filtre exclusivement sur `vehicle_id` pseudonymisé, jamais sur la
     plaque brute.
     """
 
-    vehicule_id: str | None = None
-    type: TypeDemande | None = None
+    vehicle_id: str | None = None
+    type: RequestType | None = None
     date_from: datetime | None = None
     date_to: datetime | None = None
 
@@ -119,25 +119,25 @@ class AccessFilters:
 class EntryDecision:
     """DTO de sortie du use case `ProcessEntryRequest`."""
 
-    demande_id: str
-    vehicule_id: str | None
-    type: TypeDemande
-    statut: StatutDemande
-    resultat: ResultatAutorisation
-    motif: str | None
-    controle_type_vehicule_ok: bool | None
-    controle_pmr_ok: bool | None
-    montant_paiement: Decimal | None = None
+    request_id: str
+    vehicle_id: str | None
+    type: RequestType
+    status: RequestStatus
+    result: AuthorizationResult
+    reason: str | None
+    vehicle_type_check_ok: bool | None
+    disability_check_ok: bool | None
+    payment_amount: Decimal | None = None
 
 
 @dataclass(frozen=True)
 class ExitDecision:
     """DTO de sortie du use case `ProcessExitRequest`."""
 
-    demande_id: str
-    vehicule_id: str | None
-    type: TypeDemande
-    statut: StatutDemande
-    resultat: ResultatAutorisation
-    motif: str | None
-    montant_paiement: Decimal | None = None
+    request_id: str
+    vehicle_id: str | None
+    type: RequestType
+    status: RequestStatus
+    result: AuthorizationResult
+    reason: str | None
+    payment_amount: Decimal | None = None

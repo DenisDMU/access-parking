@@ -1,24 +1,25 @@
 """Mock du service Vehicles.
 
 Interface strictement identique à ce qu'aurait un vrai client HTTP
-(`VehiclesServicePort`) — remplacer ce mock par un vrai appel ne touche que
-ce fichier (cf. README, "Comment brancher un vrai microservice").
+(`VehiclesServicePort`) — remplacer ce mock par un vrai appel ne touche
+aucune autre couche (domain/application/interfaces), conformément à
+l'architecture hexagonale — voir README section 5.
 
 Registre fixe et déterministe de plaques "connues", pensé pour exercer
 chaque branche des règles métier en test manuel (Swagger/Postman) comme en
 test automatisé :
 
-| Plaque       | vehicule_id            | Profil                                   |
-|--------------|-------------------------|-------------------------------------------|
-| AA-111-AA    | v_normal_4roues         | 4 roues standard                          |
-| BB-222-BB    | v_2roues                | 2 roues                                   |
-| CC-333-CC    | v_xl                    | 4 roues XL                                |
-| DD-444-DD    | v_electric              | 4 roues électrique                        |
-| EE-555-EE    | v_handicap_ok           | 4 roues handicapé, justificatif PMR OK    |
-| FF-666-FF    | v_handicap_no_just      | 4 roues handicapé, SANS justificatif PMR  |
-| GG-777-GG    | v_with_reservation      | 4 roues standard, a une réservation active|
-| HH-888-HH    | v_payment_fail          | 4 roues standard, paiement toujours refusé|
-| autre plaque | —                       | inconnue (None)                           |
+| Plaque       | vehicle_id              | Profil                                   |
+|--------------|--------------------------|-------------------------------------------|
+| AA-111-AA    | v_standard_4wheeler      | 4 roues standard                          |
+| BB-222-BB    | v_2wheeler               | 2 roues                                   |
+| CC-333-CC    | v_xl                     | 4 roues XL                                |
+| DD-444-DD    | v_electric               | 4 roues électrique                        |
+| EE-555-EE    | v_disabled_ok            | 4 roues handicapé, justificatif OK        |
+| FF-666-FF    | v_disabled_no_permit     | 4 roues handicapé, SANS justificatif      |
+| GG-777-GG    | v_with_reservation       | 4 roues standard, a une réservation active|
+| HH-888-HH    | v_payment_fail           | 4 roues standard, paiement toujours refusé|
+| autre plaque | —                        | inconnue (None)                           |
 """
 
 from __future__ import annotations
@@ -28,44 +29,44 @@ from src.domain.value_objects.enums import VehicleCategory
 
 _REGISTRY: dict[str, VehicleInfo] = {
     "AA-111-AA": VehicleInfo(
-        vehicule_id="v_normal_4roues",
-        type_vehicule=VehicleType(category=VehicleCategory.QUATRE_ROUES),
-        justificatif_pmr=False,
+        vehicle_id="v_standard_4wheeler",
+        vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER),
+        disability_permit=False,
     ),
     "BB-222-BB": VehicleInfo(
-        vehicule_id="v_2roues",
-        type_vehicule=VehicleType(category=VehicleCategory.DEUX_ROUES),
-        justificatif_pmr=False,
+        vehicle_id="v_2wheeler",
+        vehicle_type=VehicleType(category=VehicleCategory.TWO_WHEELER),
+        disability_permit=False,
     ),
     "CC-333-CC": VehicleInfo(
-        vehicule_id="v_xl",
-        type_vehicule=VehicleType(category=VehicleCategory.QUATRE_ROUES, is_xl=True),
-        justificatif_pmr=False,
+        vehicle_id="v_xl",
+        vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER, is_xl=True),
+        disability_permit=False,
     ),
     "DD-444-DD": VehicleInfo(
-        vehicule_id="v_electric",
-        type_vehicule=VehicleType(category=VehicleCategory.QUATRE_ROUES, is_electric=True),
-        justificatif_pmr=False,
+        vehicle_id="v_electric",
+        vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER, is_electric=True),
+        disability_permit=False,
     ),
     "EE-555-EE": VehicleInfo(
-        vehicule_id="v_handicap_ok",
-        type_vehicule=VehicleType(category=VehicleCategory.QUATRE_ROUES, is_handicap=True),
-        justificatif_pmr=True,
+        vehicle_id="v_disabled_ok",
+        vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER, is_handicap=True),
+        disability_permit=True,
     ),
     "FF-666-FF": VehicleInfo(
-        vehicule_id="v_handicap_no_just",
-        type_vehicule=VehicleType(category=VehicleCategory.QUATRE_ROUES, is_handicap=True),
-        justificatif_pmr=False,
+        vehicle_id="v_disabled_no_permit",
+        vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER, is_handicap=True),
+        disability_permit=False,
     ),
     "GG-777-GG": VehicleInfo(
-        vehicule_id="v_with_reservation",
-        type_vehicule=VehicleType(category=VehicleCategory.QUATRE_ROUES),
-        justificatif_pmr=False,
+        vehicle_id="v_with_reservation",
+        vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER),
+        disability_permit=False,
     ),
     "HH-888-HH": VehicleInfo(
-        vehicule_id="v_payment_fail",
-        type_vehicule=VehicleType(category=VehicleCategory.QUATRE_ROUES),
-        justificatif_pmr=False,
+        vehicle_id="v_payment_fail",
+        vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER),
+        disability_permit=False,
     ),
 }
 
@@ -73,5 +74,5 @@ _REGISTRY: dict[str, VehicleInfo] = {
 class MockVehiclesClient:
     """Implémente `VehiclesServicePort`."""
 
-    def get_vehicle_info(self, plaque_brute: str) -> VehicleInfo | None:
-        return _REGISTRY.get(plaque_brute)
+    def get_vehicle_info(self, raw_plate: str) -> VehicleInfo | None:
+        return _REGISTRY.get(raw_plate)

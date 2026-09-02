@@ -1,8 +1,8 @@
 """Schémas Pydantic des endpoints `/access/*`.
 
 ⚠️ Règle stricte (section 6/11 de la spec) : `AccessRequestIn` contient un
-champ `plaque`, mais aucun schéma de réponse ne doit jamais exposer la
-plaque — seul `vehicule_id` (pseudonymisé) circule au-delà de la requête
+champ `plate`, mais aucun schéma de réponse ne doit jamais exposer la
+plaque — seul `vehicleId` (pseudonymisé) circule au-delà de la requête
 entrante.
 """
 
@@ -13,13 +13,13 @@ from datetime import datetime, timezone
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from src.domain.value_objects.enums import (
-    ResultatAutorisation,
-    SourceDetection,
-    StatutDemande,
-    TypeDemande,
+    AuthorizationResult,
+    DetectionSource,
+    RequestStatus,
+    RequestType,
 )
 
-PLAQUE_PATTERN = r"^[A-Z]{2}-\d{3}-[A-Z]{2}$"
+PLATE_PATTERN = r"^[A-Z]{2}-\d{3}-[A-Z]{2}$"
 
 
 class AccessRequestIn(BaseModel):
@@ -31,7 +31,7 @@ class AccessRequestIn(BaseModel):
         json_schema_extra={
             "examples": [
                 {
-                    "plaque": "AA-111-AA",
+                    "plate": "AA-111-AA",
                     "type": 1,
                     "date": "2026-09-02T10:15:00Z",
                     "source": 3,
@@ -41,10 +41,10 @@ class AccessRequestIn(BaseModel):
         },
     )
 
-    plaque: str = Field(pattern=PLAQUE_PATTERN, description="Plaque française, format AB-123-CD")
-    type: TypeDemande = Field(description="1=ENTREE, 2=SORTIE")
+    plate: str = Field(pattern=PLATE_PATTERN, description="Plaque française, format AB-123-CD")
+    type: RequestType = Field(description="1=ENTRY, 2=EXIT")
     date: datetime
-    source: SourceDetection = Field(description="1=CAMERA, 2=BORNE, 3=LPR, 4=APP_MOBILE")
+    source: DetectionSource = Field(description="1=CAMERA, 2=TERMINAL, 3=LPR, 4=MOBILE_APP")
     photo_base64: str | None = Field(default=None, alias="photoBase64")
 
     @field_validator("date")
@@ -56,14 +56,14 @@ class AccessRequestIn(BaseModel):
         return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
 
 
-class AutorisationOut(BaseModel):
+class AuthorizationOut(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    resultat: ResultatAutorisation = Field(description="1=AUTORISE, 2=REFUSE, 3=CONFIRMATION_REQUISE")
-    motif: str | None = None
-    controle_type_vehicule_ok: bool | None = Field(default=None, alias="controleTypeVehiculeOk")
-    controle_pmr_ok: bool | None = Field(default=None, alias="controlePmrOk")
-    montant_paiement: float | None = Field(default=None, alias="montantPaiement")
+    result: AuthorizationResult = Field(description="1=AUTHORIZED, 2=REFUSED, 3=CONFIRMATION_REQUIRED")
+    reason: str | None = None
+    vehicle_type_check_ok: bool | None = Field(default=None, alias="vehicleTypeCheckOk")
+    disability_check_ok: bool | None = Field(default=None, alias="disabilityCheckOk")
+    payment_amount: float | None = Field(default=None, alias="paymentAmount")
 
 
 class AccessRequestOut(BaseModel):
@@ -74,33 +74,33 @@ class AccessRequestOut(BaseModel):
         json_schema_extra={
             "examples": [
                 {
-                    "demandeId": "b3a1f7b0-0000-4000-8000-000000000000",
-                    "vehiculeId": "v_normal_4roues",
+                    "requestId": "b3a1f7b0-0000-4000-8000-000000000000",
+                    "vehicleId": "v_standard_4wheeler",
                     "type": 1,
-                    "statut": 2,
-                    "autorisation": {
-                        "resultat": 1,
-                        "motif": "Accès autorisé",
-                        "controleTypeVehiculeOk": True,
-                        "controlePmrOk": None,
+                    "status": 2,
+                    "authorization": {
+                        "result": 1,
+                        "reason": "Accès autorisé",
+                        "vehicleTypeCheckOk": True,
+                        "disabilityCheckOk": None,
                     },
                 }
             ]
         },
     )
 
-    demande_id: str = Field(alias="demandeId")
-    vehicule_id: str | None = Field(alias="vehiculeId")
-    type: TypeDemande
-    statut: StatutDemande = Field(description="1=EN_COURS, 2=TRAITEE, 3=REJETEE")
-    autorisation: AutorisationOut | None = None
+    request_id: str = Field(alias="requestId")
+    vehicle_id: str | None = Field(alias="vehicleId")
+    type: RequestType
+    status: RequestStatus = Field(description="1=IN_PROGRESS, 2=PROCESSED, 3=REJECTED")
+    authorization: AuthorizationOut | None = None
 
 
 class AccessRequestDetailOut(AccessRequestOut):
-    """Réponse de `GET /access/requests/{id}` — ajoute date/source/ai_check."""
+    """Réponse de `GET /access/requests/{id}` — ajoute date/source/aiCheck."""
 
     date: datetime
-    source: SourceDetection
+    source: DetectionSource
     ai_check: dict | None = Field(default=None, alias="aiCheck")
 
 
@@ -109,16 +109,16 @@ class AccessRequestListItemOut(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    demande_id: str = Field(alias="demandeId")
-    vehicule_id: str | None = Field(alias="vehiculeId")
-    type: TypeDemande
+    request_id: str = Field(alias="requestId")
+    vehicle_id: str | None = Field(alias="vehicleId")
+    type: RequestType
     date: datetime
-    source: SourceDetection
-    statut: StatutDemande
+    source: DetectionSource
+    status: RequestStatus
 
 
 class PlateKnownOut(BaseModel):
-    """Réponse de `GET /access/plates/{plaque}/known`.
+    """Réponse de `GET /access/plates/{plate}/known`.
 
     Ne renvoie **jamais** la plaque (section 15, Definition of Done) : elle
     est déjà dans l'URL demandée par le client, l'API n'a pas besoin de
@@ -128,7 +128,7 @@ class PlateKnownOut(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     known: bool
-    vehicule_id: str | None = Field(default=None, alias="vehiculeId")
+    vehicle_id: str | None = Field(default=None, alias="vehicleId")
 
 
 class EventOut(BaseModel):
@@ -137,8 +137,8 @@ class EventOut(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     id: str
-    type: int = Field(description="1=VEHICULE_ENTRE, 2=VEHICULE_SORTI, 3=ACCES_REFUSE, 4=AUTRE")
-    demande_id: str = Field(alias="demandeId")
+    type: int = Field(description="1=VEHICLE_ENTERED, 2=VEHICLE_EXITED, 3=ACCESS_REFUSED, 4=OTHER")
+    request_id: str = Field(alias="requestId")
     payload: dict
     created_at: datetime = Field(alias="createdAt")
 

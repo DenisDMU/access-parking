@@ -16,10 +16,10 @@ from src.domain.value_objects.enums import VehicleCategory
 _RESERVATIONS: dict[str, Reservation] = {
     "v_with_reservation": Reservation(
         id="res-demo-1",
-        vehicule_id="v_with_reservation",
-        type_place_reservee=PlaceType(category=VehicleCategory.QUATRE_ROUES),
-        date_debut=datetime.now(timezone.utc),
-        date_fin=datetime.now(timezone.utc) + timedelta(hours=2),
+        vehicle_id="v_with_reservation",
+        reserved_place_type=PlaceType(category=VehicleCategory.FOUR_WHEELER),
+        start_date=datetime.now(timezone.utc),
+        end_date=datetime.now(timezone.utc) + timedelta(hours=2),
         place_id="P-RES-01",
     )
 }
@@ -28,5 +28,5 @@ _RESERVATIONS: dict[str, Reservation] = {
 class MockBookingClient:
     """Implémente `BookingServicePort`."""
 
-    def get_reservation(self, vehicule_id: str) -> Reservation | None:
-        return _RESERVATIONS.get(vehicule_id)
+    def get_reservation(self, vehicle_id: str) -> Reservation | None:
+        return _RESERVATIONS.get(vehicle_id)

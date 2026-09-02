@@ -1,5 +1,7 @@
-"""Modèles SQLAlchemy — reflètent exactement le modèle de données de la
-section 6 de la spec (5 tables, tous les enums tinyint en `Integer`)."""
+"""Modèles SQLAlchemy — reflètent le modèle de données de la section 6 de la
+spec (5 tables, tous les enums tinyint en `Integer`), avec noms de
+tables/colonnes traduits en anglais (voir README, "Tables de correspondance
+FR/EN")."""
 
 from __future__ import annotations
 
@@ -14,46 +16,46 @@ class Base(DeclarativeBase):
     pass
 
 
-class DemandeAccesModel(Base):
-    """Table `demandes_acces` — objet officiel *Demande d'accès*."""
+class AccessRequestModel(Base):
+    """Table `access_requests` — objet officiel *Demande d'accès*."""
 
-    __tablename__ = "demandes_acces"
+    __tablename__ = "access_requests"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
-    vehicule_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    vehicle_id: Mapped[str | None] = mapped_column(String, nullable=True)
     type: Mapped[int] = mapped_column(Integer, nullable=False)
     date: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     source: Mapped[int] = mapped_column(Integer, nullable=False)
     ai_check: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    statut: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[int] = mapped_column(Integer, nullable=False)
 
 
-class AutorisationAccesModel(Base):
-    """Table `autorisations_acces` — objet officiel *Autorisation d'accès*."""
+class AccessAuthorizationModel(Base):
+    """Table `access_authorizations` — objet officiel *Autorisation d'accès*."""
 
-    __tablename__ = "autorisations_acces"
+    __tablename__ = "access_authorizations"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
-    demande_id: Mapped[str] = mapped_column(
-        String, ForeignKey("demandes_acces.id"), nullable=False
+    request_id: Mapped[str] = mapped_column(
+        String, ForeignKey("access_requests.id"), nullable=False
     )
-    resultat: Mapped[int] = mapped_column(Integer, nullable=False)
-    motif: Mapped[str | None] = mapped_column(String, nullable=True)
-    autorisation_service_ok: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
-    controle_type_vehicule_ok: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
-    controle_pmr_ok: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
-    montant_paiement: Mapped[Decimal | None] = mapped_column(Numeric, nullable=True)
+    result: Mapped[int] = mapped_column(Integer, nullable=False)
+    reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    authorization_service_ok: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    vehicle_type_check_ok: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    disability_check_ok: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    payment_amount: Mapped[Decimal | None] = mapped_column(Numeric, nullable=True)
 
 
-class EvenementAccesModel(Base):
-    """Table `evenements_acces` — objet officiel *Événement d'accès*."""
+class AccessEventModel(Base):
+    """Table `access_events` — objet officiel *Événement d'accès*."""
 
-    __tablename__ = "evenements_acces"
+    __tablename__ = "access_events"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
     type: Mapped[int] = mapped_column(Integer, nullable=False)
-    demande_id: Mapped[str] = mapped_column(
-        String, ForeignKey("demandes_acces.id"), nullable=False
+    request_id: Mapped[str] = mapped_column(
+        String, ForeignKey("access_requests.id"), nullable=False
     )
     payload: Mapped[dict] = mapped_column(JSON, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
@@ -64,10 +66,10 @@ class VehiclePresenceModel(Base):
 
     __tablename__ = "vehicle_presence"
 
-    vehicule_id: Mapped[str] = mapped_column(String, primary_key=True)
-    statut: Mapped[int] = mapped_column(Integer, nullable=False)
-    demande_id_courante: Mapped[str | None] = mapped_column(
-        String, ForeignKey("demandes_acces.id"), nullable=True
+    vehicle_id: Mapped[str] = mapped_column(String, primary_key=True)
+    status: Mapped[int] = mapped_column(Integer, nullable=False)
+    current_request_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("access_requests.id"), nullable=True
     )
     updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
 
@@ -78,8 +80,8 @@ class OutboxEventModel(Base):
     __tablename__ = "outbox_events"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
-    evenement_id: Mapped[str] = mapped_column(
-        String, ForeignKey("evenements_acces.id"), nullable=False
+    event_id: Mapped[str] = mapped_column(
+        String, ForeignKey("access_events.id"), nullable=False
     )
-    publie: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    published: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)

@@ -12,7 +12,7 @@ Déroulé (section 8 de la spec) :
 5. Règle de présence → refus si déjà `IN`.
 6. Réservation (Booking) sinon attribution de place (Parking).
 7. Règle de compatibilité véhicule/place → refus si incompatible.
-8. Règle PMR → confirmation requise si justificatif manquant.
+8. Règle d'accessibilité (PMR) → confirmation requise si justificatif manquant.
 9. Sinon autorisation, occupation de la place, mise à jour de la présence.
 10-13. Persistance + publication de l'événement + retour de la décision.
 """
@@ -22,9 +22,9 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import uuid4
 
-from src.domain.entities.autorisation_acces import AutorisationAcces
-from src.domain.entities.demande_acces import DemandeAcces
-from src.domain.entities.evenement_acces import EvenementAcces
+from src.domain.entities.access_authorization import AccessAuthorization
+from src.domain.entities.access_event import AccessEvent
+from src.domain.entities.access_request import AccessRequest
 from src.domain.ports.access_repository_port import AccessRepositoryPort
 from src.domain.ports.ai_vision_port import AIVisionPort
 from src.domain.ports.booking_service_port import BookingServicePort
@@ -34,17 +34,17 @@ from src.domain.ports.vehicle_presence_repository_port import (
     VehiclePresenceRepositoryPort,
 )
 from src.domain.ports.vehicles_service_port import VehiclesServicePort
+from src.domain.rules.disability_rule import requires_disability_confirmation
 from src.domain.rules.presence_rule import can_enter
-from src.domain.rules.pmr_rule import requires_pmr_confirmation
 from src.domain.rules.vehicle_place_compatibility_rule import is_compatible
 from src.domain.value_objects.dto import EntryDecision, PlaceType
 from src.domain.value_objects.enums import (
+    AuthorizationResult,
+    DetectionSource,
+    EventType,
     PresenceStatus,
-    ResultatAutorisation,
-    SourceDetection,
-    StatutDemande,
-    TypeDemande,
-    TypeEvenement,
+    RequestStatus,
+    RequestType,
 )
 
 
@@ -78,111 +78,111 @@ class ProcessEntryRequest:
 
     def execute(
         self,
-        plaque: str,
+        plate: str,
         date: datetime,
-        source: SourceDetection,
+        source: DetectionSource,
         photo: bytes | None = None,
     ) -> EntryDecision:
-        demande_id = str(uuid4())
+        request_id = str(uuid4())
 
         ai_check: dict | None = None
         if photo is not None:
             ai_result = self._ai_vision_port.analyze(photo)
             ai_check = {
-                "modelAI": ai_result.model_ai,
+                "aiModel": ai_result.ai_model,
                 "confidence": ai_result.confidence,
                 "timestamp": ai_result.timestamp.isoformat(),
             }
 
         # Seul endroit de toute la codebase où la plaque brute est utilisée.
-        vehicle_info = self._vehicles_port.get_vehicle_info(plaque)
-        del plaque  # ne doit plus jamais être référencée ci-dessous
+        vehicle_info = self._vehicles_port.get_vehicle_info(plate)
+        del plate  # ne doit plus jamais être référencée ci-dessous
 
         if vehicle_info is None:
-            return self._reject_unknown_vehicle(demande_id, date, source, ai_check)
+            return self._reject_unknown_vehicle(request_id, date, source, ai_check)
 
-        vehicule_id = vehicle_info.vehicule_id
+        vehicle_id = vehicle_info.vehicle_id
 
-        presence_status = self._presence_repo.get_status(vehicule_id)
+        presence_status = self._presence_repo.get_status(vehicle_id)
         if not can_enter(presence_status):
             return self._refuse(
-                demande_id=demande_id,
-                vehicule_id=vehicule_id,
+                request_id=request_id,
+                vehicle_id=vehicle_id,
                 date=date,
                 source=source,
                 ai_check=ai_check,
-                motif="Véhicule déjà présent dans le parking",
+                reason="Véhicule déjà présent dans le parking",
             )
 
-        reservation = self._booking_port.get_reservation(vehicule_id)
+        reservation = self._booking_port.get_reservation(vehicle_id)
         if reservation is not None:
-            place_type = reservation.type_place_reservee
+            place_type = reservation.reserved_place_type
             place_id = reservation.place_id
             if place_id is None:
-                assignment = self._parking_port.request_place(vehicle_info.type_vehicule)
+                assignment = self._parking_port.request_place(vehicle_info.vehicle_type)
                 if assignment is None:
                     return self._refuse(
-                        demande_id=demande_id,
-                        vehicule_id=vehicule_id,
+                        request_id=request_id,
+                        vehicle_id=vehicle_id,
                         date=date,
                         source=source,
                         ai_check=ai_check,
-                        motif="Réservation trouvée mais aucune place disponible",
+                        reason="Réservation trouvée mais aucune place disponible",
                     )
                 place_id, place_type = assignment.place_id, assignment.place_type
         else:
-            assignment = self._parking_port.request_place(vehicle_info.type_vehicule)
+            assignment = self._parking_port.request_place(vehicle_info.vehicle_type)
             if assignment is None:
                 return self._refuse(
-                    demande_id=demande_id,
-                    vehicule_id=vehicule_id,
+                    request_id=request_id,
+                    vehicle_id=vehicle_id,
                     date=date,
                     source=source,
                     ai_check=ai_check,
-                    motif="Aucune place disponible",
+                    reason="Aucune place disponible",
                 )
             place_id, place_type = assignment.place_id, assignment.place_type
 
-        compat_ok = is_compatible(vehicle_info.type_vehicule, place_type)
+        compat_ok = is_compatible(vehicle_info.vehicle_type, place_type)
         if not compat_ok:
             return self._refuse(
-                demande_id=demande_id,
-                vehicule_id=vehicule_id,
+                request_id=request_id,
+                vehicle_id=vehicle_id,
                 date=date,
                 source=source,
                 ai_check=ai_check,
-                motif="Type de véhicule incompatible avec la place attribuée",
-                controle_type_vehicule_ok=False,
+                reason="Type de véhicule incompatible avec la place attribuée",
+                vehicle_type_check_ok=False,
             )
 
-        if requires_pmr_confirmation(place_type, vehicle_info.justificatif_pmr):
-            demande = DemandeAcces(
-                id=demande_id,
-                type=TypeDemande.ENTREE,
+        if requires_disability_confirmation(place_type, vehicle_info.disability_permit):
+            request = AccessRequest(
+                id=request_id,
+                type=RequestType.ENTRY,
                 date=date,
                 source=source,
-                statut=StatutDemande.TRAITEE,
-                vehicule_id=vehicule_id,
+                status=RequestStatus.PROCESSED,
+                vehicle_id=vehicle_id,
                 ai_check=ai_check,
             )
-            autorisation = AutorisationAcces(
+            authorization = AccessAuthorization(
                 id=str(uuid4()),
-                demande_id=demande_id,
-                resultat=ResultatAutorisation.CONFIRMATION_REQUISE,
-                motif="Justificatif PMR requis pour une place handicapé",
-                controle_type_vehicule_ok=True,
-                controle_pmr_ok=False,
+                request_id=request_id,
+                result=AuthorizationResult.CONFIRMATION_REQUIRED,
+                reason="Justificatif d'accessibilité (PMR) requis pour une place handicapé",
+                vehicle_type_check_ok=True,
+                disability_check_ok=False,
             )
-            self._access_repo.save_demande(demande)
-            self._access_repo.save_autorisation(autorisation)
+            self._access_repo.save_request(request)
+            self._access_repo.save_authorization(authorization)
             self._event_publisher.publish(
-                EvenementAcces(
+                AccessEvent(
                     id=str(uuid4()),
-                    type=TypeEvenement.AUTRE,
-                    demande_id=demande_id,
+                    type=EventType.OTHER,
+                    request_id=request_id,
                     payload={
-                        "vehiculeId": vehicule_id,
-                        "motif": autorisation.motif,
+                        "vehicleId": vehicle_id,
+                        "reason": authorization.reason,
                         "placeId": place_id,
                         "placeType": _place_type_to_payload(place_type),
                     },
@@ -190,48 +190,48 @@ class ProcessEntryRequest:
                 )
             )
             return EntryDecision(
-                demande_id=demande_id,
-                vehicule_id=vehicule_id,
-                type=TypeDemande.ENTREE,
-                statut=demande.statut,
-                resultat=autorisation.resultat,
-                motif=autorisation.motif,
-                controle_type_vehicule_ok=True,
-                controle_pmr_ok=False,
+                request_id=request_id,
+                vehicle_id=vehicle_id,
+                type=RequestType.ENTRY,
+                status=request.status,
+                result=authorization.result,
+                reason=authorization.reason,
+                vehicle_type_check_ok=True,
+                disability_check_ok=False,
             )
 
         # Tout est valide : autorisation.
-        self._parking_port.mark_place_occupied(place_id, vehicule_id)
-        self._presence_repo.set_status(vehicule_id, PresenceStatus.IN, demande_id)
+        self._parking_port.mark_place_occupied(place_id, vehicle_id)
+        self._presence_repo.set_status(vehicle_id, PresenceStatus.IN, request_id)
 
-        controle_pmr_ok = True if place_type.is_handicap else None
+        disability_check_ok = True if place_type.is_handicap else None
 
-        demande = DemandeAcces(
-            id=demande_id,
-            type=TypeDemande.ENTREE,
+        request = AccessRequest(
+            id=request_id,
+            type=RequestType.ENTRY,
             date=date,
             source=source,
-            statut=StatutDemande.TRAITEE,
-            vehicule_id=vehicule_id,
+            status=RequestStatus.PROCESSED,
+            vehicle_id=vehicle_id,
             ai_check=ai_check,
         )
-        autorisation = AutorisationAcces(
+        authorization = AccessAuthorization(
             id=str(uuid4()),
-            demande_id=demande_id,
-            resultat=ResultatAutorisation.AUTORISE,
-            motif="Accès autorisé",
-            controle_type_vehicule_ok=True,
-            controle_pmr_ok=controle_pmr_ok,
+            request_id=request_id,
+            result=AuthorizationResult.AUTHORIZED,
+            reason="Accès autorisé",
+            vehicle_type_check_ok=True,
+            disability_check_ok=disability_check_ok,
         )
-        self._access_repo.save_demande(demande)
-        self._access_repo.save_autorisation(autorisation)
+        self._access_repo.save_request(request)
+        self._access_repo.save_authorization(authorization)
         self._event_publisher.publish(
-            EvenementAcces(
+            AccessEvent(
                 id=str(uuid4()),
-                type=TypeEvenement.VEHICULE_ENTRE,
-                demande_id=demande_id,
+                type=EventType.VEHICLE_ENTERED,
+                request_id=request_id,
                 payload={
-                    "vehiculeId": vehicule_id,
+                    "vehicleId": vehicle_id,
                     "placeId": place_id,
                     "placeType": _place_type_to_payload(place_type),
                 },
@@ -240,106 +240,106 @@ class ProcessEntryRequest:
         )
 
         return EntryDecision(
-            demande_id=demande_id,
-            vehicule_id=vehicule_id,
-            type=TypeDemande.ENTREE,
-            statut=demande.statut,
-            resultat=autorisation.resultat,
-            motif=autorisation.motif,
-            controle_type_vehicule_ok=True,
-            controle_pmr_ok=controle_pmr_ok,
+            request_id=request_id,
+            vehicle_id=vehicle_id,
+            type=RequestType.ENTRY,
+            status=request.status,
+            result=authorization.result,
+            reason=authorization.reason,
+            vehicle_type_check_ok=True,
+            disability_check_ok=disability_check_ok,
         )
 
     def _reject_unknown_vehicle(
         self,
-        demande_id: str,
+        request_id: str,
         date: datetime,
-        source: SourceDetection,
+        source: DetectionSource,
         ai_check: dict | None,
     ) -> EntryDecision:
-        demande = DemandeAcces(
-            id=demande_id,
-            type=TypeDemande.ENTREE,
+        request = AccessRequest(
+            id=request_id,
+            type=RequestType.ENTRY,
             date=date,
             source=source,
-            statut=StatutDemande.REJETEE,
-            vehicule_id=None,
+            status=RequestStatus.REJECTED,
+            vehicle_id=None,
             ai_check=ai_check,
         )
-        motif = "Véhicule inconnu de Vehicles — procédure alternative requise"
-        autorisation = AutorisationAcces(
+        reason = "Véhicule inconnu de Vehicles — procédure alternative requise"
+        authorization = AccessAuthorization(
             id=str(uuid4()),
-            demande_id=demande_id,
-            resultat=ResultatAutorisation.CONFIRMATION_REQUISE,
-            motif=motif,
+            request_id=request_id,
+            result=AuthorizationResult.CONFIRMATION_REQUIRED,
+            reason=reason,
         )
-        self._access_repo.save_demande(demande)
-        self._access_repo.save_autorisation(autorisation)
+        self._access_repo.save_request(request)
+        self._access_repo.save_authorization(authorization)
         self._event_publisher.publish(
-            EvenementAcces(
+            AccessEvent(
                 id=str(uuid4()),
-                type=TypeEvenement.ACCES_REFUSE,
-                demande_id=demande_id,
-                payload={"vehiculeId": None, "motif": motif},
+                type=EventType.ACCESS_REFUSED,
+                request_id=request_id,
+                payload={"vehicleId": None, "reason": reason},
                 created_at=date,
             )
         )
         return EntryDecision(
-            demande_id=demande_id,
-            vehicule_id=None,
-            type=TypeDemande.ENTREE,
-            statut=demande.statut,
-            resultat=autorisation.resultat,
-            motif=motif,
-            controle_type_vehicule_ok=None,
-            controle_pmr_ok=None,
+            request_id=request_id,
+            vehicle_id=None,
+            type=RequestType.ENTRY,
+            status=request.status,
+            result=authorization.result,
+            reason=reason,
+            vehicle_type_check_ok=None,
+            disability_check_ok=None,
         )
 
     def _refuse(
         self,
         *,
-        demande_id: str,
-        vehicule_id: str,
+        request_id: str,
+        vehicle_id: str,
         date: datetime,
-        source: SourceDetection,
+        source: DetectionSource,
         ai_check: dict | None,
-        motif: str,
-        controle_type_vehicule_ok: bool | None = None,
+        reason: str,
+        vehicle_type_check_ok: bool | None = None,
     ) -> EntryDecision:
-        demande = DemandeAcces(
-            id=demande_id,
-            type=TypeDemande.ENTREE,
+        request = AccessRequest(
+            id=request_id,
+            type=RequestType.ENTRY,
             date=date,
             source=source,
-            statut=StatutDemande.TRAITEE,
-            vehicule_id=vehicule_id,
+            status=RequestStatus.PROCESSED,
+            vehicle_id=vehicle_id,
             ai_check=ai_check,
         )
-        autorisation = AutorisationAcces(
+        authorization = AccessAuthorization(
             id=str(uuid4()),
-            demande_id=demande_id,
-            resultat=ResultatAutorisation.REFUSE,
-            motif=motif,
-            controle_type_vehicule_ok=controle_type_vehicule_ok,
+            request_id=request_id,
+            result=AuthorizationResult.REFUSED,
+            reason=reason,
+            vehicle_type_check_ok=vehicle_type_check_ok,
         )
-        self._access_repo.save_demande(demande)
-        self._access_repo.save_autorisation(autorisation)
+        self._access_repo.save_request(request)
+        self._access_repo.save_authorization(authorization)
         self._event_publisher.publish(
-            EvenementAcces(
+            AccessEvent(
                 id=str(uuid4()),
-                type=TypeEvenement.ACCES_REFUSE,
-                demande_id=demande_id,
-                payload={"vehiculeId": vehicule_id, "motif": motif},
+                type=EventType.ACCESS_REFUSED,
+                request_id=request_id,
+                payload={"vehicleId": vehicle_id, "reason": reason},
                 created_at=date,
             )
         )
         return EntryDecision(
-            demande_id=demande_id,
-            vehicule_id=vehicule_id,
-            type=TypeDemande.ENTREE,
-            statut=demande.statut,
-            resultat=autorisation.resultat,
-            motif=motif,
-            controle_type_vehicule_ok=controle_type_vehicule_ok,
-            controle_pmr_ok=None,
+            request_id=request_id,
+            vehicle_id=vehicle_id,
+            type=RequestType.ENTRY,
+            status=request.status,
+            result=authorization.result,
+            reason=reason,
+            vehicle_type_check_ok=vehicle_type_check_ok,
+            disability_check_ok=None,
         )

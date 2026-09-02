@@ -7,15 +7,21 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from src.domain.entities.autorisation_acces import AutorisationAcces
-from src.domain.entities.demande_acces import DemandeAcces
-from src.domain.entities.evenement_acces import EvenementAcces
+from src.domain.entities.access_authorization import AccessAuthorization
+from src.domain.entities.access_event import AccessEvent
+from src.domain.entities.access_request import AccessRequest
 from src.domain.value_objects.dto import AccessFilters
-from src.domain.value_objects.enums import SourceDetection, StatutDemande, TypeDemande
+from src.domain.value_objects.enums import (
+    AuthorizationResult,
+    DetectionSource,
+    EventType,
+    RequestStatus,
+    RequestType,
+)
 from src.infrastructure.db.models import (
-    AutorisationAccesModel,
-    DemandeAccesModel,
-    EvenementAccesModel,
+    AccessAuthorizationModel,
+    AccessEventModel,
+    AccessRequestModel,
 )
 
 
@@ -29,40 +35,36 @@ def _ensure_utc(dt: datetime) -> datetime:
     return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
 
 
-def _demande_to_entity(row: DemandeAccesModel) -> DemandeAcces:
-    return DemandeAcces(
+def _request_to_entity(row: AccessRequestModel) -> AccessRequest:
+    return AccessRequest(
         id=row.id,
-        type=TypeDemande(row.type),
+        type=RequestType(row.type),
         date=_ensure_utc(row.date),
-        source=SourceDetection(row.source),
-        statut=StatutDemande(row.statut),
-        vehicule_id=row.vehicule_id,
+        source=DetectionSource(row.source),
+        status=RequestStatus(row.status),
+        vehicle_id=row.vehicle_id,
         ai_check=row.ai_check,
     )
 
 
-def _autorisation_to_entity(row: AutorisationAccesModel) -> AutorisationAcces:
-    from src.domain.value_objects.enums import ResultatAutorisation
-
-    return AutorisationAcces(
+def _authorization_to_entity(row: AccessAuthorizationModel) -> AccessAuthorization:
+    return AccessAuthorization(
         id=row.id,
-        demande_id=row.demande_id,
-        resultat=ResultatAutorisation(row.resultat),
-        motif=row.motif,
-        autorisation_service_ok=row.autorisation_service_ok,
-        controle_type_vehicule_ok=row.controle_type_vehicule_ok,
-        controle_pmr_ok=row.controle_pmr_ok,
-        montant_paiement=row.montant_paiement,
+        request_id=row.request_id,
+        result=AuthorizationResult(row.result),
+        reason=row.reason,
+        authorization_service_ok=row.authorization_service_ok,
+        vehicle_type_check_ok=row.vehicle_type_check_ok,
+        disability_check_ok=row.disability_check_ok,
+        payment_amount=row.payment_amount,
     )
 
 
-def _evenement_to_entity(row: EvenementAccesModel) -> EvenementAcces:
-    from src.domain.value_objects.enums import TypeEvenement
-
-    return EvenementAcces(
+def _event_to_entity(row: AccessEventModel) -> AccessEvent:
+    return AccessEvent(
         id=row.id,
-        type=TypeEvenement(row.type),
-        demande_id=row.demande_id,
+        type=EventType(row.type),
+        request_id=row.request_id,
         payload=row.payload,
         created_at=_ensure_utc(row.created_at),
     )
@@ -72,84 +74,84 @@ class SqliteAccessRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def save_demande(self, demande: DemandeAcces) -> None:
-        row = DemandeAccesModel(
-            id=demande.id,
-            vehicule_id=demande.vehicule_id,
-            type=int(demande.type),
-            date=demande.date,
-            source=int(demande.source),
-            ai_check=demande.ai_check,
-            statut=int(demande.statut),
+    def save_request(self, request: AccessRequest) -> None:
+        row = AccessRequestModel(
+            id=request.id,
+            vehicle_id=request.vehicle_id,
+            type=int(request.type),
+            date=request.date,
+            source=int(request.source),
+            ai_check=request.ai_check,
+            status=int(request.status),
         )
         self._session.merge(row)
         self._session.commit()
 
-    def save_autorisation(self, autorisation: AutorisationAcces) -> None:
-        row = AutorisationAccesModel(
-            id=autorisation.id,
-            demande_id=autorisation.demande_id,
-            resultat=int(autorisation.resultat),
-            motif=autorisation.motif,
-            autorisation_service_ok=autorisation.autorisation_service_ok,
-            controle_type_vehicule_ok=autorisation.controle_type_vehicule_ok,
-            controle_pmr_ok=autorisation.controle_pmr_ok,
-            montant_paiement=autorisation.montant_paiement,
+    def save_authorization(self, authorization: AccessAuthorization) -> None:
+        row = AccessAuthorizationModel(
+            id=authorization.id,
+            request_id=authorization.request_id,
+            result=int(authorization.result),
+            reason=authorization.reason,
+            authorization_service_ok=authorization.authorization_service_ok,
+            vehicle_type_check_ok=authorization.vehicle_type_check_ok,
+            disability_check_ok=authorization.disability_check_ok,
+            payment_amount=authorization.payment_amount,
         )
         self._session.merge(row)
         self._session.commit()
 
-    def save_evenement(self, evenement: EvenementAcces) -> None:
-        row = EvenementAccesModel(
-            id=evenement.id,
-            type=int(evenement.type),
-            demande_id=evenement.demande_id,
-            payload=evenement.payload,
-            created_at=evenement.created_at,
+    def save_event(self, event: AccessEvent) -> None:
+        row = AccessEventModel(
+            id=event.id,
+            type=int(event.type),
+            request_id=event.request_id,
+            payload=event.payload,
+            created_at=event.created_at,
         )
         self._session.merge(row)
         self._session.commit()
 
-    def get_demande(self, demande_id: str) -> DemandeAcces | None:
-        row = self._session.get(DemandeAccesModel, demande_id)
-        return _demande_to_entity(row) if row else None
+    def get_request(self, request_id: str) -> AccessRequest | None:
+        row = self._session.get(AccessRequestModel, request_id)
+        return _request_to_entity(row) if row else None
 
-    def list_demandes(self, filters: AccessFilters) -> list[DemandeAcces]:
-        stmt = select(DemandeAccesModel)
-        if filters.vehicule_id is not None:
-            stmt = stmt.where(DemandeAccesModel.vehicule_id == filters.vehicule_id)
+    def list_requests(self, filters: AccessFilters) -> list[AccessRequest]:
+        stmt = select(AccessRequestModel)
+        if filters.vehicle_id is not None:
+            stmt = stmt.where(AccessRequestModel.vehicle_id == filters.vehicle_id)
         if filters.type is not None:
-            stmt = stmt.where(DemandeAccesModel.type == int(filters.type))
+            stmt = stmt.where(AccessRequestModel.type == int(filters.type))
         if filters.date_from is not None:
-            stmt = stmt.where(DemandeAccesModel.date >= filters.date_from)
+            stmt = stmt.where(AccessRequestModel.date >= filters.date_from)
         if filters.date_to is not None:
-            stmt = stmt.where(DemandeAccesModel.date <= filters.date_to)
-        stmt = stmt.order_by(DemandeAccesModel.date.desc())
+            stmt = stmt.where(AccessRequestModel.date <= filters.date_to)
+        stmt = stmt.order_by(AccessRequestModel.date.desc())
         rows = self._session.execute(stmt).scalars().all()
-        return [_demande_to_entity(row) for row in rows]
+        return [_request_to_entity(row) for row in rows]
 
-    def get_autorisation_by_demande(self, demande_id: str) -> AutorisationAcces | None:
-        stmt = select(AutorisationAccesModel).where(
-            AutorisationAccesModel.demande_id == demande_id
+    def get_authorization_by_request(self, request_id: str) -> AccessAuthorization | None:
+        stmt = select(AccessAuthorizationModel).where(
+            AccessAuthorizationModel.request_id == request_id
         )
         row = self._session.execute(stmt).scalars().first()
-        return _autorisation_to_entity(row) if row else None
+        return _authorization_to_entity(row) if row else None
 
-    def get_evenement_by_demande(self, demande_id: str) -> EvenementAcces | None:
+    def get_event_by_request(self, request_id: str) -> AccessEvent | None:
         stmt = (
-            select(EvenementAccesModel)
-            .where(EvenementAccesModel.demande_id == demande_id)
-            .order_by(EvenementAccesModel.created_at.desc())
+            select(AccessEventModel)
+            .where(AccessEventModel.request_id == request_id)
+            .order_by(AccessEventModel.created_at.desc())
         )
         row = self._session.execute(stmt).scalars().first()
-        return _evenement_to_entity(row) if row else None
+        return _event_to_entity(row) if row else None
 
-    def list_evenements(self, limit: int = 100, offset: int = 0) -> list[EvenementAcces]:
+    def list_events(self, limit: int = 100, offset: int = 0) -> list[AccessEvent]:
         stmt = (
-            select(EvenementAccesModel)
-            .order_by(EvenementAccesModel.created_at.desc())
+            select(AccessEventModel)
+            .order_by(AccessEventModel.created_at.desc())
             .offset(offset)
             .limit(limit)
         )
         rows = self._session.execute(stmt).scalars().all()
-        return [_evenement_to_entity(row) for row in rows]
+        return [_event_to_entity(row) for row in rows]

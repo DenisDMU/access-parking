@@ -7,9 +7,9 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
 
-from src.domain.entities.autorisation_acces import AutorisationAcces
-from src.domain.entities.demande_acces import DemandeAcces
-from src.domain.entities.evenement_acces import EvenementAcces
+from src.domain.entities.access_authorization import AccessAuthorization
+from src.domain.entities.access_event import AccessEvent
+from src.domain.entities.access_request import AccessRequest
 from src.domain.value_objects.dto import (
     AccessFilters,
     AICheckResult,
@@ -28,17 +28,17 @@ class FakeVehiclesPort:
         self.registry = registry or {}
         self.calls: list[str] = []
 
-    def get_vehicle_info(self, plaque_brute: str) -> VehicleInfo | None:
-        self.calls.append(plaque_brute)
-        return self.registry.get(plaque_brute)
+    def get_vehicle_info(self, raw_plate: str) -> VehicleInfo | None:
+        self.calls.append(raw_plate)
+        return self.registry.get(raw_plate)
 
 
 class FakeBookingPort:
     def __init__(self, reservations: dict[str, Reservation] | None = None) -> None:
         self.reservations = reservations or {}
 
-    def get_reservation(self, vehicule_id: str) -> Reservation | None:
-        return self.reservations.get(vehicule_id)
+    def get_reservation(self, vehicle_id: str) -> Reservation | None:
+        return self.reservations.get(vehicle_id)
 
 
 class FakeParkingPort:
@@ -48,7 +48,7 @@ class FakeParkingPort:
         self.occupied: dict[str, str] = {}
         self.freed: list[str] = []
 
-    def request_place(self, type_vehicule: VehicleType) -> PlaceAssignment | None:
+    def request_place(self, vehicle_type: VehicleType) -> PlaceAssignment | None:
         if not self._has_place:
             return None
         if self._assignment is not None:
@@ -56,15 +56,15 @@ class FakeParkingPort:
         return PlaceAssignment(
             place_id="P-TEST-1",
             place_type=PlaceType(
-                category=type_vehicule.category,
-                is_xl=type_vehicule.is_xl,
-                is_electric=type_vehicule.is_electric,
-                is_handicap=type_vehicule.is_handicap,
+                category=vehicle_type.category,
+                is_xl=vehicle_type.is_xl,
+                is_electric=vehicle_type.is_electric,
+                is_handicap=vehicle_type.is_handicap,
             ),
         )
 
-    def mark_place_occupied(self, place_id: str, vehicule_id: str) -> bool:
-        self.occupied[place_id] = vehicule_id
+    def mark_place_occupied(self, place_id: str, vehicle_id: str) -> bool:
+        self.occupied[place_id] = vehicle_id
         return True
 
     def mark_place_free(self, place_id: str) -> bool:
@@ -73,94 +73,94 @@ class FakeParkingPort:
 
 
 class FakePricingPort:
-    def __init__(self, montant: Decimal = Decimal("5.00")) -> None:
-        self.montant = montant
+    def __init__(self, amount: Decimal = Decimal("5.00")) -> None:
+        self.amount = amount
         self.calls: list[tuple] = []
 
-    def calculate_price(self, vehicule_id, date_entree, date_sortie, type_place) -> Decimal:
-        self.calls.append((vehicule_id, date_entree, date_sortie, type_place))
-        return self.montant
+    def calculate_price(self, vehicle_id, entry_date, exit_date, place_type) -> Decimal:
+        self.calls.append((vehicle_id, entry_date, exit_date, place_type))
+        return self.amount
 
 
 class FakePaymentPort:
-    def __init__(self, succes: bool = True) -> None:
-        self.succes = succes
+    def __init__(self, success: bool = True) -> None:
+        self.success = success
         self.calls: list[tuple] = []
 
-    def request_payment(self, vehicule_id: str, montant: Decimal) -> PaymentResult:
-        self.calls.append((vehicule_id, montant))
-        return PaymentResult(succes=self.succes, reference_transaction="TX-FAKE" if self.succes else None)
+    def request_payment(self, vehicle_id: str, amount: Decimal) -> PaymentResult:
+        self.calls.append((vehicle_id, amount))
+        return PaymentResult(success=self.success, transaction_reference="TX-FAKE" if self.success else None)
 
 
 class FakeAIVisionPort:
     def analyze(self, photo: bytes | None) -> AICheckResult:
-        return AICheckResult(model_ai="fake-test", confidence=1.0 if photo else 0.0, timestamp=datetime(2026, 1, 1))
+        return AICheckResult(ai_model="fake-test", confidence=1.0 if photo else 0.0, timestamp=datetime(2026, 1, 1))
 
 
 @dataclass
 class _PresenceRecord:
-    statut: PresenceStatus
-    demande_id_courante: str | None
+    status: PresenceStatus
+    current_request_id: str | None
 
 
 class FakePresenceRepo:
     def __init__(self) -> None:
         self._store: dict[str, _PresenceRecord] = {}
 
-    def get_status(self, vehicule_id: str) -> PresenceStatus | None:
-        record = self._store.get(vehicule_id)
-        return record.statut if record else None
+    def get_status(self, vehicle_id: str) -> PresenceStatus | None:
+        record = self._store.get(vehicle_id)
+        return record.status if record else None
 
-    def get_current_demande_id(self, vehicule_id: str) -> str | None:
-        record = self._store.get(vehicule_id)
-        return record.demande_id_courante if record else None
+    def get_current_request_id(self, vehicle_id: str) -> str | None:
+        record = self._store.get(vehicle_id)
+        return record.current_request_id if record else None
 
-    def set_status(self, vehicule_id: str, status: PresenceStatus, demande_id: str | None) -> None:
-        self._store[vehicule_id] = _PresenceRecord(statut=status, demande_id_courante=demande_id)
+    def set_status(self, vehicle_id: str, status: PresenceStatus, request_id: str | None) -> None:
+        self._store[vehicle_id] = _PresenceRecord(status=status, current_request_id=request_id)
 
-    def seed(self, vehicule_id: str, status: PresenceStatus, demande_id: str | None = None) -> None:
-        self.set_status(vehicule_id, status, demande_id)
+    def seed(self, vehicle_id: str, status: PresenceStatus, request_id: str | None = None) -> None:
+        self.set_status(vehicle_id, status, request_id)
 
 
 @dataclass
 class FakeAccessRepo:
-    demandes: dict[str, DemandeAcces] = field(default_factory=dict)
-    autorisations: dict[str, AutorisationAcces] = field(default_factory=dict)
-    evenements: dict[str, EvenementAcces] = field(default_factory=dict)
+    requests: dict[str, AccessRequest] = field(default_factory=dict)
+    authorizations: dict[str, AccessAuthorization] = field(default_factory=dict)
+    events: dict[str, AccessEvent] = field(default_factory=dict)
 
-    def save_demande(self, demande: DemandeAcces) -> None:
-        self.demandes[demande.id] = demande
+    def save_request(self, request: AccessRequest) -> None:
+        self.requests[request.id] = request
 
-    def save_autorisation(self, autorisation: AutorisationAcces) -> None:
-        self.autorisations[autorisation.demande_id] = autorisation
+    def save_authorization(self, authorization: AccessAuthorization) -> None:
+        self.authorizations[authorization.request_id] = authorization
 
-    def save_evenement(self, evenement: EvenementAcces) -> None:
-        self.evenements[evenement.demande_id] = evenement
+    def save_event(self, event: AccessEvent) -> None:
+        self.events[event.request_id] = event
 
-    def get_demande(self, demande_id: str) -> DemandeAcces | None:
-        return self.demandes.get(demande_id)
+    def get_request(self, request_id: str) -> AccessRequest | None:
+        return self.requests.get(request_id)
 
-    def list_demandes(self, filters: AccessFilters) -> list[DemandeAcces]:
-        results = list(self.demandes.values())
-        if filters.vehicule_id is not None:
-            results = [d for d in results if d.vehicule_id == filters.vehicule_id]
+    def list_requests(self, filters: AccessFilters) -> list[AccessRequest]:
+        results = list(self.requests.values())
+        if filters.vehicle_id is not None:
+            results = [r for r in results if r.vehicle_id == filters.vehicle_id]
         if filters.type is not None:
-            results = [d for d in results if d.type == filters.type]
+            results = [r for r in results if r.type == filters.type]
         return results
 
-    def get_autorisation_by_demande(self, demande_id: str) -> AutorisationAcces | None:
-        return self.autorisations.get(demande_id)
+    def get_authorization_by_request(self, request_id: str) -> AccessAuthorization | None:
+        return self.authorizations.get(request_id)
 
-    def get_evenement_by_demande(self, demande_id: str) -> EvenementAcces | None:
-        return self.evenements.get(demande_id)
+    def get_event_by_request(self, request_id: str) -> AccessEvent | None:
+        return self.events.get(request_id)
 
-    def list_evenements(self, limit: int = 100, offset: int = 0) -> list[EvenementAcces]:
-        return list(self.evenements.values())[offset : offset + limit]
+    def list_events(self, limit: int = 100, offset: int = 0) -> list[AccessEvent]:
+        return list(self.events.values())[offset : offset + limit]
 
 
 class FakeEventPublisher:
     def __init__(self) -> None:
-        self.published: list[EvenementAcces] = []
+        self.published: list[AccessEvent] = []
 
-    def publish(self, evenement: EvenementAcces) -> None:
-        self.published.append(evenement)
+    def publish(self, event: AccessEvent) -> None:
+        self.published.append(event)

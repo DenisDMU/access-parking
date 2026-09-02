@@ -14,24 +14,24 @@ class SqliteVehiclePresenceRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def get_status(self, vehicule_id: str) -> PresenceStatus | None:
-        row = self._session.get(VehiclePresenceModel, vehicule_id)
-        return PresenceStatus(row.statut) if row else None
+    def get_status(self, vehicle_id: str) -> PresenceStatus | None:
+        row = self._session.get(VehiclePresenceModel, vehicle_id)
+        return PresenceStatus(row.status) if row else None
 
-    def get_current_demande_id(self, vehicule_id: str) -> str | None:
-        row = self._session.get(VehiclePresenceModel, vehicule_id)
-        return row.demande_id_courante if row else None
+    def get_current_request_id(self, vehicle_id: str) -> str | None:
+        row = self._session.get(VehiclePresenceModel, vehicle_id)
+        return row.current_request_id if row else None
 
     def set_status(
         self,
-        vehicule_id: str,
+        vehicle_id: str,
         status: PresenceStatus,
-        demande_id: str | None,
+        request_id: str | None,
     ) -> None:
         row = VehiclePresenceModel(
-            vehicule_id=vehicule_id,
-            statut=int(status),
-            demande_id_courante=demande_id,
+            vehicle_id=vehicle_id,
+            status=int(status),
+            current_request_id=request_id,
             updated_at=datetime.now(timezone.utc),
         )
         self._session.merge(row)

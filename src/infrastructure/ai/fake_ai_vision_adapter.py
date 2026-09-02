@@ -20,7 +20,7 @@ class FakeAIVisionAdapter:
     def analyze(self, photo: bytes | None) -> AICheckResult:
         confidence = 0.95 if photo else 0.0
         return AICheckResult(
-            model_ai=self._model_name,
+            ai_model=self._model_name,
             confidence=confidence,
             timestamp=datetime.now(timezone.utc),
         )

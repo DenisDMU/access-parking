@@ -13,6 +13,6 @@ from src.domain.value_objects.dto import VehicleInfo
 
 
 class VehiclesServicePort(Protocol):
-    def get_vehicle_info(self, plaque_brute: str) -> VehicleInfo | None:
+    def get_vehicle_info(self, raw_plate: str) -> VehicleInfo | None:
         """Résout une plaque brute en identité pseudonymisée, ou `None` si inconnue."""
         ...

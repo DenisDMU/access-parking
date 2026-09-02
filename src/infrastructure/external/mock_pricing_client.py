@@ -13,8 +13,8 @@ from decimal import ROUND_HALF_UP, Decimal
 
 from src.domain.value_objects.dto import PlaceType
 
-_FORFAIT_BASE = Decimal("2.00")
-_TARIF_HORAIRE = Decimal("1.50")
+_BASE_FEE = Decimal("2.00")
+_HOURLY_RATE = Decimal("1.50")
 
 
 class MockPricingClient:
@@ -22,12 +22,12 @@ class MockPricingClient:
 
     def calculate_price(
         self,
-        vehicule_id: str,
-        date_entree: datetime,
-        date_sortie: datetime,
-        type_place: PlaceType,
+        vehicle_id: str,
+        entry_date: datetime,
+        exit_date: datetime,
+        place_type: PlaceType,
     ) -> Decimal:
-        duree_secondes = max((date_sortie - date_entree).total_seconds(), 0)
-        duree_heures = Decimal(duree_secondes) / Decimal(3600)
-        montant = _FORFAIT_BASE + (_TARIF_HORAIRE * duree_heures)
-        return montant.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        duration_seconds = max((exit_date - entry_date).total_seconds(), 0)
+        duration_hours = Decimal(duration_seconds) / Decimal(3600)
+        amount = _BASE_FEE + (_HOURLY_RATE * duration_hours)
+        return amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)

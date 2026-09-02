@@ -3,61 +3,65 @@
 Toutes les valeurs numériques sont figées par la spécification (section 6 du
 cahier des charges) : ne pas les modifier sans mettre à jour le README et la
 base existante, ces entiers sont persistés tels quels en base SQLite.
+
+Noms en anglais (identifiants de code) ; correspondance avec les termes
+français de la spec d'origine rappelée entre parenthèses pour traçabilité.
 """
 
 from enum import IntEnum
 
 
-class TypeDemande(IntEnum):
-    """Type d'une Demande d'accès."""
+class RequestType(IntEnum):
+    """Type d'une demande d'accès (spec FR : "Demande d'accès" / "type")."""
 
-    ENTREE = 1
-    SORTIE = 2
+    ENTRY = 1
+    EXIT = 2
 
 
-class StatutDemande(IntEnum):
-    """Statut d'une Demande d'accès.
+class RequestStatus(IntEnum):
+    """Statut d'une demande d'accès (spec FR : "statut").
 
-    REJETEE est réservé au cas particulier "véhicule inconnu de Vehicles"
+    REJECTED est réservé au cas particulier "véhicule inconnu de Vehicles"
     (rejet avant même le déroulé complet des règles métier). Tout autre
     aboutissement (autorisé, refusé, confirmation requise) correspond à une
-    demande normalement TRAITEE.
+    demande normalement PROCESSED.
     """
 
-    EN_COURS = 1
-    TRAITEE = 2
-    REJETEE = 3
+    IN_PROGRESS = 1
+    PROCESSED = 2
+    REJECTED = 3
 
 
-class ResultatAutorisation(IntEnum):
-    """Résultat d'une Autorisation d'accès."""
+class AuthorizationResult(IntEnum):
+    """Résultat d'une autorisation d'accès (spec FR : "resultat")."""
 
-    AUTORISE = 1
-    REFUSE = 2
-    CONFIRMATION_REQUISE = 3
-
-
-class TypeEvenement(IntEnum):
-    """Type d'un Événement d'accès."""
-
-    VEHICULE_ENTRE = 1
-    VEHICULE_SORTI = 2
-    ACCES_REFUSE = 3
-    AUTRE = 4
+    AUTHORIZED = 1
+    REFUSED = 2
+    CONFIRMATION_REQUIRED = 3
 
 
-class SourceDetection(IntEnum):
-    """Source de détection à l'origine d'une Demande d'accès.
+class EventType(IntEnum):
+    """Type d'un événement d'accès (spec FR : "Événement d'accès")."""
 
-    Pour une sortie, BORNE et APP_MOBILE sont tous les deux valides (le
+    VEHICLE_ENTERED = 1
+    VEHICLE_EXITED = 2
+    ACCESS_REFUSED = 3
+    OTHER = 4
+
+
+class DetectionSource(IntEnum):
+    """Source de détection à l'origine d'une demande d'accès (spec FR :
+    "source" — CAMERA/BORNE/LPR/APP_MOBILE).
+
+    Pour une sortie, TERMINAL et MOBILE_APP sont tous les deux valides (le
     conducteur peut avoir l'application ou non) : aucune restriction de
     source n'est appliquée selon le type de demande.
     """
 
     CAMERA = 1
-    BORNE = 2
+    TERMINAL = 2
     LPR = 3
-    APP_MOBILE = 4
+    MOBILE_APP = 4
 
 
 class PresenceStatus(IntEnum):
@@ -70,5 +74,5 @@ class PresenceStatus(IntEnum):
 class VehicleCategory(IntEnum):
     """Catégorie "gabarit" d'un véhicule ou d'une place (2 roues / 4 roues)."""
 
-    DEUX_ROUES = 1
-    QUATRE_ROUES = 2
+    TWO_WHEELER = 1
+    FOUR_WHEELER = 2

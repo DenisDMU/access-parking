@@ -5,8 +5,8 @@
   qu'aucune table ne contient de valeur correspondant au format plaque."
 
 Exerce plusieurs plaques du registre mock (dont certaines déclenchent un
-refus, une confirmation PMR, ou un rejet "véhicule inconnu") puis inspecte
-directement chaque table SQLite.
+refus, une confirmation d'accessibilité, ou un rejet "véhicule inconnu")
+puis inspecte directement chaque table SQLite.
 """
 
 from __future__ import annotations
@@ -20,14 +20,14 @@ from tests.integration.conftest import AUTH_HEADERS
 PLATE_PATTERN = re.compile(r"^[A-Z]{2}-\d{3}-[A-Z]{2}$")
 
 _SCENARIOS = [
-    {"plaque": "AA-111-AA", "type": 1, "date": "2026-09-02T10:00:00Z", "source": 3},
-    {"plaque": "AA-111-AA", "type": 2, "date": "2026-09-02T11:00:00Z", "source": 2},
-    {"plaque": "FF-666-FF", "type": 1, "date": "2026-09-02T10:00:00Z", "source": 3},
-    {"plaque": "HH-888-HH", "type": 1, "date": "2026-09-02T10:00:00Z", "source": 3},
-    {"plaque": "HH-888-HH", "type": 2, "date": "2026-09-02T11:00:00Z", "source": 2},
-    {"plaque": "GG-777-GG", "type": 1, "date": "2026-09-02T10:00:00Z", "source": 3},
-    {"plaque": "UN-000-KN", "type": 1, "date": "2026-09-02T10:00:00Z", "source": 3},
-    {"plaque": "CC-333-CC", "type": 2, "date": "2026-09-02T11:00:00Z", "source": 2},
+    {"plate": "AA-111-AA", "type": 1, "date": "2026-09-02T10:00:00Z", "source": 3},
+    {"plate": "AA-111-AA", "type": 2, "date": "2026-09-02T11:00:00Z", "source": 2},
+    {"plate": "FF-666-FF", "type": 1, "date": "2026-09-02T10:00:00Z", "source": 3},
+    {"plate": "HH-888-HH", "type": 1, "date": "2026-09-02T10:00:00Z", "source": 3},
+    {"plate": "HH-888-HH", "type": 2, "date": "2026-09-02T11:00:00Z", "source": 2},
+    {"plate": "GG-777-GG", "type": 1, "date": "2026-09-02T10:00:00Z", "source": 3},
+    {"plate": "UN-000-KN", "type": 1, "date": "2026-09-02T10:00:00Z", "source": 3},
+    {"plate": "CC-333-CC", "type": 2, "date": "2026-09-02T11:00:00Z", "source": 2},
 ]
 
 
@@ -35,7 +35,7 @@ def _contains_plate(value: str) -> bool:
     return bool(PLATE_PATTERN.search(value))
 
 
-def test_aucune_plaque_en_clair_dans_aucune_table(client):
+def test_no_raw_plate_in_any_table(client):
     for scenario in _SCENARIOS:
         response = client.post(
             "/api/v1/access/requests", json=scenario, headers=AUTH_HEADERS

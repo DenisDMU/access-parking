@@ -8,11 +8,11 @@ from src.domain.value_objects.dto import PlaceAssignment, VehicleType
 
 
 class ParkingServicePort(Protocol):
-    def request_place(self, type_vehicule: VehicleType) -> PlaceAssignment | None:
+    def request_place(self, vehicle_type: VehicleType) -> PlaceAssignment | None:
         """Demande l'attribution d'une place adaptée, ou `None` si aucune disponible."""
         ...
 
-    def mark_place_occupied(self, place_id: str, vehicule_id: str) -> bool:
+    def mark_place_occupied(self, place_id: str, vehicle_id: str) -> bool:
         """Passe la place en état occupé."""
         ...
 
