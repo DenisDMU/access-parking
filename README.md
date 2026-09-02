@@ -189,8 +189,13 @@ logique de décision.
 
 ## 5. Brancher un vrai microservice à la place d'un mock
 
-`USE_MOCKS` (dans `.env`) est **le point de bascule unique**, et les 5
-squelettes HTTP existent déjà (`infrastructure/external/http_*_client.py`),
+Chaque service externe a sa **propre bascule mock/réel**
+(`VEHICLES_USE_MOCK`, `BOOKING_USE_MOCK`, `PARKING_USE_MOCK`,
+`PRICING_USE_MOCK`, `PAYMENT_USE_MOCK`) — `USE_MOCKS` reste la valeur par
+défaut globale tant qu'aucune bascule individuelle n'est définie. **C'est
+volontaire** : vos camarades finissent leur service chacun à son rythme, pas
+question d'attendre que les 5 soient prêts pour en brancher un premier. Les
+5 squelettes HTTP existent déjà (`infrastructure/external/http_*_client.py`),
 chacun avec des `TODO` explicites listant ce qui reste à confirmer avec
 l'équipe du service concerné (route exacte, méthode HTTP, noms de champs
 JSON, codes d'erreur). Pour finaliser Vehicles par exemple :
@@ -198,9 +203,19 @@ JSON, codes d'erreur). Pour finaliser Vehicles par exemple :
 1. Ouvrez `src/infrastructure/external/http_vehicles_client.py` et traitez
    chaque `TODO[VEHICLES-*]` avec la vraie spec de l'équipe Vehicles (route,
    méthode, champs de réponse, code "inconnu").
-2. Passez `USE_MOCKS=false` dans `.env` et renseignez `VEHICLES_SERVICE_URL`.
+2. Renseignez `VEHICLES_SERVICE_URL` (son URL réelle) et ajoutez
+   `VEHICLES_USE_MOCK=false` — dans `.env` en local, ou dans **Render →
+   access-api → Environment** pour la version déployée.
 3. C'est tout — `deps.py::get_vehicles_port()` bascule automatiquement sur
-   `HttpVehiclesClient` dès que `USE_MOCKS=false`.
+   `HttpVehiclesClient` dès que `VEHICLES_USE_MOCK=false`, **sans toucher au
+   `USE_MOCKS` global** ni aux 4 autres services qui restent mockés en
+   attendant.
+
+> ⚠️ **CORS n'a rien à voir avec ce branchement.** `CORS_ALLOWED_ORIGINS`
+> ne concerne que du JavaScript exécuté **dans un navigateur** qui
+> appellerait l'API Access depuis un autre domaine — pas les appels
+> serveur-à-serveur (Access → Vehicles via `httpx`, ou l'inverse). Rien à
+> configurer côté CORS pour brancher un microservice de l'équipe.
 
 **Aucune autre couche à toucher** : ni `domain`, ni `application`, ni les
 routers, ni les schémas — c'est toute la promesse de l'architecture
@@ -505,7 +520,10 @@ public partagé :
   dans les variables d'environnement Render de `access-api`, je complète le
   squelette HTTP correspondant (`infrastructure/external/http_*_client.py`,
   déjà prêt avec des `TODO` précis, section 5) avec leur vrai contrat
-  d'API, puis bascule `USE_MOCKS=false` — aucune autre couche à toucher.
+  d'API, puis bascule la variable **de ce service uniquement**
+  (`VEHICLES_USE_MOCK=false`, `BOOKING_USE_MOCK=false`, etc.) — les autres
+  restent mockés tant que leurs équipes ne sont pas prêtes, aucune autre
+  couche à toucher.
 - **Ils veulent recevoir les événements d'Access** (`VEHICLE_ENTERED` /
   `VEHICLE_EXITED` / `ACCESS_REFUSED`) : deux options, au choix de chacun —
   soit ils exposent une route webhook chez eux et me donnent l'URL pour

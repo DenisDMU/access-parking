@@ -45,6 +45,11 @@ services:
       - key: CORS_ALLOWED_ORIGINS
         value: "*"
       - key: USE_MOCKS
+        # Valeur par défaut pour les 5 services. Dès qu'un camarade a un
+        # vrai service prêt : ajoute ICI, à la main dans Render > Environment,
+        # une variable dédiée pour CE service uniquement (ex.
+        # VEHICLES_USE_MOCK=false) sans toucher à USE_MOCKS ni aux autres —
+        # voir README section 5.
         value: "true"
       - key: VEHICLES_SERVICE_URL
         value: http://localhost:8001

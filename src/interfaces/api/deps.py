@@ -1,14 +1,15 @@
 """Composition root — injection de dépendances FastAPI.
 
 Seul endroit de la codebase où le domaine/l'application sont reliés aux
-implémentations concrètes de `infrastructure`. `USE_MOCKS` est LE point de
-bascule pour brancher un vrai microservice à la place d'un mock (section 3
-point 2, section 14 point 5 du README) : basculez `settings.use_mocks` à
-`False`, chaque `get_*_port()` ci-dessous instancie alors automatiquement le
-client HTTP correspondant dans `infrastructure/external/http_*_client.py`.
-Ces clients sont des SQUELETTES (routes/champs à confirmer avec chaque
-équipe, voir les TODO dans chaque fichier) — aucune autre couche à toucher
-une fois finalisés.
+implémentations concrètes de `infrastructure`. Chaque service externe a sa
+propre bascule mock/réel (`VEHICLES_USE_MOCK`, `BOOKING_USE_MOCK`, etc., avec
+`USE_MOCKS` comme valeur par défaut globale si aucune n'est définie — voir
+`infrastructure/config.py`) : passez celle d'un service à `false` dès que
+son équipe est prête, sans attendre les 4 autres. Chaque `get_*_port()`
+ci-dessous instancie alors automatiquement le client HTTP correspondant dans
+`infrastructure/external/http_*_client.py`. Ces clients sont des SQUELETTES
+(routes/champs à confirmer avec chaque équipe, voir les TODO dans chaque
+fichier) — aucune autre couche à toucher une fois finalisés.
 """
 
 from __future__ import annotations
@@ -100,7 +101,7 @@ def get_outbox_repository(
 
 def get_vehicles_port() -> VehiclesServicePort:
     settings = get_settings()
-    if settings.use_mocks:
+    if settings.vehicles_use_mock:
         return MockVehiclesClient()
     # ⚠️ Squelette : routes/champs à confirmer avec l'équipe Vehicles avant
     # utilisation réelle — voir les TODO dans http_vehicles_client.py.
@@ -109,7 +110,7 @@ def get_vehicles_port() -> VehiclesServicePort:
 
 def get_booking_port() -> BookingServicePort:
     settings = get_settings()
-    if settings.use_mocks:
+    if settings.booking_use_mock:
         return MockBookingClient()
     # ⚠️ Squelette : routes/champs à confirmer avec l'équipe Booking avant
     # utilisation réelle — voir les TODO dans http_booking_client.py.
@@ -118,7 +119,7 @@ def get_booking_port() -> BookingServicePort:
 
 def get_parking_port() -> ParkingServicePort:
     settings = get_settings()
-    if settings.use_mocks:
+    if settings.parking_use_mock:
         return MockParkingClient()
     # ⚠️ Squelette : routes/champs à confirmer avec l'équipe Parking avant
     # utilisation réelle — voir les TODO dans http_parking_client.py.
@@ -127,7 +128,7 @@ def get_parking_port() -> ParkingServicePort:
 
 def get_pricing_port() -> PricingServicePort:
     settings = get_settings()
-    if settings.use_mocks:
+    if settings.pricing_use_mock:
         return MockPricingClient()
     # ⚠️ Squelette : routes/champs à confirmer avec l'équipe Pricing avant
     # utilisation réelle — voir les TODO dans http_pricing_client.py.
@@ -136,7 +137,7 @@ def get_pricing_port() -> PricingServicePort:
 
 def get_payment_port() -> PaymentServicePort:
     settings = get_settings()
-    if settings.use_mocks:
+    if settings.payment_use_mock:
         return MockPaymentClient()
     # ⚠️ Squelette : routes/champs à confirmer avec l'équipe Payment avant
     # utilisation réelle — voir les TODO dans http_payment_client.py.

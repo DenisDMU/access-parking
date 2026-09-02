@@ -20,6 +20,13 @@ def _split_urls(raw: str) -> list[str]:
     return [url.strip() for url in raw.split(",") if url.strip()]
 
 
+def _bool_env(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() == "true"
+
+
 @dataclass(frozen=True)
 class Settings:
     port: int = int(os.getenv("PORT", "8000"))
@@ -32,12 +39,35 @@ class Settings:
         )
     )
 
-    use_mocks: bool = os.getenv("USE_MOCKS", "true").lower() == "true"
+    # Bascule GLOBALE (garde le comportement historique : tout mocké par
+    # défaut). Chaque service a en plus sa PROPRE bascule ci-dessous
+    # (VEHICLES_USE_MOCK, etc.) qui, si elle est définie, prend le dessus sur
+    # USE_MOCKS — indispensable pour brancher les services de l'équipe un
+    # par un au fur et à mesure qu'ils sont prêts, sans attendre que les 5
+    # soient terminés (voir README section 5).
+    use_mocks: bool = field(default_factory=lambda: _bool_env("USE_MOCKS", True))
+
     vehicles_service_url: str = os.getenv("VEHICLES_SERVICE_URL", "http://localhost:8001")
     booking_service_url: str = os.getenv("BOOKING_SERVICE_URL", "http://localhost:8002")
     parking_service_url: str = os.getenv("PARKING_SERVICE_URL", "http://localhost:8003")
     pricing_service_url: str = os.getenv("PRICING_SERVICE_URL", "http://localhost:8004")
     payment_service_url: str = os.getenv("PAYMENT_SERVICE_URL", "http://localhost:8005")
+
+    vehicles_use_mock: bool = field(
+        default_factory=lambda: _bool_env("VEHICLES_USE_MOCK", _bool_env("USE_MOCKS", True))
+    )
+    booking_use_mock: bool = field(
+        default_factory=lambda: _bool_env("BOOKING_USE_MOCK", _bool_env("USE_MOCKS", True))
+    )
+    parking_use_mock: bool = field(
+        default_factory=lambda: _bool_env("PARKING_USE_MOCK", _bool_env("USE_MOCKS", True))
+    )
+    pricing_use_mock: bool = field(
+        default_factory=lambda: _bool_env("PRICING_USE_MOCK", _bool_env("USE_MOCKS", True))
+    )
+    payment_use_mock: bool = field(
+        default_factory=lambda: _bool_env("PAYMENT_USE_MOCK", _bool_env("USE_MOCKS", True))
+    )
 
     ai_model_name: str = os.getenv("AI_MODEL_NAME", "fake-vision-v1")
 
