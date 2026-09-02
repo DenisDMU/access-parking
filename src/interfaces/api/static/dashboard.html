@@ -47,12 +47,26 @@
     font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   }
   header {
-    padding: 20px 24px 12px;
+    padding: 20px 24px 0;
     border-bottom: 1px solid var(--border);
     background: var(--panel);
   }
   h1 { margin: 0 0 4px; font-size: 18px; }
-  .subtitle { color: var(--muted); font-size: 13px; }
+  .subtitle { color: var(--muted); font-size: 13px; margin-bottom: 14px; }
+  .tabs { display: flex; gap: 4px; }
+  .tab-btn {
+    font: inherit;
+    font-weight: 600;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    padding: 10px 16px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+  }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
   .toolbar {
     display: flex;
     flex-wrap: wrap;
@@ -93,14 +107,14 @@
     text-align: center;
     padding: 60px 0;
   }
-  .events { display: flex; flex-direction: column; gap: 8px; }
-  .event {
+  .events, .req-list { display: flex; flex-direction: column; gap: 8px; }
+  .event, .req-card {
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 10px 14px;
   }
-  .event-head {
+  .event-head, .req-head {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -113,11 +127,11 @@
     border-radius: 999px;
     white-space: nowrap;
   }
-  .badge-entre { color: var(--ok); background: var(--ok-bg); }
+  .badge-entre, .badge-authorized { color: var(--ok); background: var(--ok-bg); }
   .badge-sorti { color: var(--info); background: var(--info-bg); }
-  .badge-refuse { color: var(--danger); background: var(--danger-bg); }
-  .badge-autre { color: var(--neutral); background: var(--neutral-bg); }
-  .event-summary { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .badge-refuse, .badge-refused { color: var(--danger); background: var(--danger-bg); }
+  .badge-autre, .badge-pending { color: var(--neutral); background: var(--neutral-bg); }
+  .event-summary, .req-summary { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .event-time { color: var(--muted); font-size: 12px; white-space: nowrap; }
   .event-toggle { color: var(--muted); font-size: 11px; }
   pre {
@@ -130,16 +144,33 @@
     font-size: 12px;
     display: none;
   }
-  .event.open pre { display: block; }
-  .event.open .event-toggle::after { content: "▲"; }
-  .event:not(.open) .event-toggle::after { content: "▼"; }
+  .event.open pre, .req-card.open pre { display: block; }
+  .event.open .event-toggle::after, .req-card.open .event-toggle::after { content: "▲"; }
+  .event:not(.open) .event-toggle::after, .req-card:not(.open) .event-toggle::after { content: "▼"; }
+  .search-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 16px; }
+  .search-hint { color: var(--muted); font-size: 12px; margin-top: -4px; margin-bottom: 16px; }
+  .req-list-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .req-list-item:hover { border-color: var(--accent); }
 </style>
 </head>
 <body>
 <header>
   <h1>Access — Journal de bord</h1>
   <div class="subtitle">
-    Lecture live de <code>GET /access/events</code> (outbox) — endpoint de démo/observabilité en l'absence de vrai broker.
+    Lecture live de <code>GET /access/events</code> (outbox) et recherche ponctuelle de demandes.
+  </div>
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="journal">Journal</button>
+    <button class="tab-btn" data-tab="search">Recherche</button>
   </div>
 </header>
 
@@ -160,7 +191,29 @@
 </div>
 
 <main>
-  <div id="content" class="empty">Renseigne ta clé API ci-dessus pour charger les événements.</div>
+  <section id="tab-journal" class="tab-panel active">
+    <div id="content" class="empty">Renseigne ta clé API ci-dessus pour charger les événements.</div>
+  </section>
+
+  <section id="tab-search" class="tab-panel">
+    <div class="search-bar">
+      <select id="searchType">
+        <option value="requestId">ID de demande (requestId)</option>
+        <option value="vehicleId">ID véhicule (vehicleId)</option>
+        <option value="plate">Plaque (AB-123-CD)</option>
+      </select>
+      <input id="searchValue" type="text" placeholder="Ex : v_standard_4wheeler" />
+      <button id="searchBtn">Rechercher</button>
+      <span id="searchStatus" class="status">—</span>
+    </div>
+    <div class="search-hint">
+      Une recherche par plaque résout d'abord l'identifiant pseudonymisé
+      auprès de Vehicles (<code>/access/plates/{plate}/known</code>), puis
+      liste son historique — Access ne stocke jamais la plaque brute, donc
+      il n'existe pas de recherche directe "par plaque" sur les demandes.
+    </div>
+    <div id="searchResults" class="empty">Choisis un type de recherche et une valeur, puis "Rechercher".</div>
+  </section>
 </main>
 
 <script>
@@ -172,14 +225,43 @@
   const statusEl = document.getElementById("status");
   const content = document.getElementById("content");
 
-  let timer = null;
+  const searchType = document.getElementById("searchType");
+  const searchValue = document.getElementById("searchValue");
+  const searchBtn = document.getElementById("searchBtn");
+  const searchStatusEl = document.getElementById("searchStatus");
+  const searchResults = document.getElementById("searchResults");
 
-  const TYPE_META = {
+  let timer = null;
+  // Ids des cartes actuellement dépliées par l'utilisateur — reconstruit à
+  // chaque re-rendu pour que l'auto-refresh ne referme pas ce qui est ouvert.
+  const expandedEventIds = new Set();
+
+  const EVENT_TYPE_META = {
     1: { label: "VÉHICULE ENTRÉ", cls: "badge-entre" },
     2: { label: "VÉHICULE SORTI", cls: "badge-sorti" },
     3: { label: "ACCÈS REFUSÉ", cls: "badge-refuse" },
     4: { label: "AUTRE", cls: "badge-autre" },
   };
+  const REQUEST_TYPE_LABEL = { 1: "ENTRY", 2: "EXIT" };
+  const STATUS_LABEL = { 1: "IN_PROGRESS", 2: "PROCESSED", 3: "REJECTED" };
+  const RESULT_META = {
+    1: { label: "AUTHORIZED", cls: "badge-authorized" },
+    2: { label: "REFUSED", cls: "badge-refused" },
+    3: { label: "CONFIRMATION_REQUIRED", cls: "badge-pending" },
+  };
+
+  // --- Tabs ------------------------------------------------------------
+
+  document.querySelectorAll(".tab-btn").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
+      document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
+      btn.classList.add("active");
+      document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
+    });
+  });
+
+  // --- Clé API partagée entre les deux onglets --------------------------
 
   function loadKey() {
     try {
@@ -204,7 +286,15 @@
     statusEl.classList.toggle("error", Boolean(isError));
   }
 
-  function summarize(evenement) {
+  function escapeHtml(str) {
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  // --- Onglet Journal ----------------------------------------------------
+
+  function summarizeEvent(evenement) {
     const p = evenement.payload || {};
     const bits = [];
     if (p.vehicleId) bits.push(p.vehicleId);
@@ -214,7 +304,7 @@
     return bits.join(" · ") || "(sans détail)";
   }
 
-  function render(events) {
+  function renderJournal(events) {
     if (!events.length) {
       content.className = "empty";
       content.textContent = "Aucun événement pour l'instant.";
@@ -223,19 +313,24 @@
     content.className = "events";
     content.innerHTML = "";
     events.forEach(function (evenement) {
-      const meta = TYPE_META[evenement.type] || TYPE_META[4];
+      const meta = EVENT_TYPE_META[evenement.type] || EVENT_TYPE_META[4];
       const row = document.createElement("div");
-      row.className = "event";
+      row.className = "event" + (expandedEventIds.has(evenement.id) ? " open" : "");
 
       const head = document.createElement("div");
       head.className = "event-head";
       head.innerHTML =
         '<span class="badge ' + meta.cls + '">' + meta.label + "</span>" +
-        '<span class="event-summary">' + escapeHtml(summarize(evenement)) + "</span>" +
+        '<span class="event-summary">' + escapeHtml(summarizeEvent(evenement)) + "</span>" +
         '<span class="event-time">' + new Date(evenement.createdAt).toLocaleString("fr-FR") + "</span>" +
         '<span class="event-toggle"></span>';
       head.addEventListener("click", function () {
         row.classList.toggle("open");
+        if (row.classList.contains("open")) {
+          expandedEventIds.add(evenement.id);
+        } else {
+          expandedEventIds.delete(evenement.id);
+        }
       });
 
       const pre = document.createElement("pre");
@@ -247,13 +342,7 @@
     });
   }
 
-  function escapeHtml(str) {
-    const div = document.createElement("div");
-    div.textContent = str;
-    return div.innerHTML;
-  }
-
-  async function refresh() {
+  async function refreshJournal() {
     const key = apiKeyInput.value.trim();
     if (!key) {
       setStatus("En attente d'une clé API…");
@@ -274,7 +363,7 @@
         return;
       }
       const events = await response.json();
-      render(events);
+      renderJournal(events);
       setStatus(events.length + " événement(s) — dernière mise à jour " + new Date().toLocaleTimeString("fr-FR"));
     } catch (err) {
       setStatus("Impossible de contacter Access (" + err.message + ")", true);
@@ -285,15 +374,146 @@
     if (timer) clearInterval(timer);
     const ms = Number(intervalSelect.value);
     if (ms > 0) {
-      timer = setInterval(refresh, ms);
+      timer = setInterval(refreshJournal, ms);
     }
   }
 
-  refreshBtn.addEventListener("click", refresh);
+  refreshBtn.addEventListener("click", refreshJournal);
   intervalSelect.addEventListener("change", scheduleAutoRefresh);
-  apiKeyInput.addEventListener("change", refresh);
+  apiKeyInput.addEventListener("change", refreshJournal);
 
-  refresh();
+  // --- Onglet Recherche ---------------------------------------------------
+
+  function setSearchStatus(text, isError) {
+    searchStatusEl.textContent = text;
+    searchStatusEl.classList.toggle("error", Boolean(isError));
+  }
+
+  function renderSearchEmpty(message) {
+    searchResults.className = "empty";
+    searchResults.textContent = message || "Aucun résultat.";
+  }
+
+  function requestCard(reqOut, openByDefault) {
+    const row = document.createElement("div");
+    row.className = "req-card" + (openByDefault ? " open" : "");
+
+    const auth = reqOut.authorization;
+    const resultMeta = auth ? (RESULT_META[auth.result] || RESULT_META[3]) : null;
+
+    const head = document.createElement("div");
+    head.className = "req-head";
+    head.innerHTML =
+      '<span class="badge">' + (REQUEST_TYPE_LABEL[reqOut.type] || reqOut.type) + "</span>" +
+      (resultMeta ? '<span class="badge ' + resultMeta.cls + '">' + resultMeta.label + "</span>" : "") +
+      '<span class="req-summary">' +
+        escapeHtml(reqOut.requestId) + " · " + escapeHtml(reqOut.vehicleId || "(inconnu)") +
+      "</span>" +
+      '<span class="event-time">' + (reqOut.date ? new Date(reqOut.date).toLocaleString("fr-FR") : "") + "</span>" +
+      '<span class="event-toggle"></span>';
+    head.addEventListener("click", function () {
+      row.classList.toggle("open");
+    });
+
+    const pre = document.createElement("pre");
+    pre.textContent = JSON.stringify(reqOut, null, 2);
+
+    row.appendChild(head);
+    row.appendChild(pre);
+    return row;
+  }
+
+  function renderSearchDetail(reqOut) {
+    searchResults.className = "req-list";
+    searchResults.innerHTML = "";
+    searchResults.appendChild(requestCard(reqOut, true));
+  }
+
+  function renderSearchList(items, headerNote) {
+    if (!items.length) {
+      renderSearchEmpty("Aucune demande trouvée" + (headerNote ? " pour " + headerNote : "") + ".");
+      return;
+    }
+    searchResults.className = "req-list";
+    searchResults.innerHTML = "";
+    items.forEach(function (item) {
+      const row = document.createElement("div");
+      row.className = "req-list-item";
+      row.innerHTML =
+        '<span class="badge">' + (REQUEST_TYPE_LABEL[item.type] || item.type) + "</span>" +
+        '<span class="badge badge-autre">' + (STATUS_LABEL[item.status] || item.status) + "</span>" +
+        '<span class="req-summary">' +
+          escapeHtml(item.requestId) + " · " + escapeHtml(item.vehicleId || "(inconnu)") +
+        "</span>" +
+        '<span class="event-time">' + new Date(item.date).toLocaleString("fr-FR") + "</span>";
+      row.title = "Cliquer pour voir le détail complet";
+      row.addEventListener("click", function () {
+        searchType.value = "requestId";
+        searchValue.value = item.requestId;
+        runSearch();
+      });
+      searchResults.appendChild(row);
+    });
+  }
+
+  async function runSearch() {
+    const key = apiKeyInput.value.trim();
+    if (!key) {
+      setSearchStatus("Renseigne d'abord ta clé API ci-dessus.", true);
+      return;
+    }
+    const type = searchType.value;
+    const value = searchValue.value.trim();
+    if (!value) {
+      setSearchStatus("Renseigne une valeur à rechercher.", true);
+      return;
+    }
+
+    setSearchStatus("Recherche…");
+    const headers = { "X-API-Key": key };
+
+    try {
+      if (type === "requestId") {
+        const res = await fetch(`/api/v1/access/requests/${encodeURIComponent(value)}`, { headers });
+        if (res.status === 401) { setSearchStatus("Clé API invalide (401)", true); return; }
+        if (res.status === 404) { renderSearchEmpty("Aucune demande avec cet id."); setSearchStatus("Introuvable (404)"); return; }
+        if (!res.ok) { renderSearchEmpty(""); setSearchStatus("Erreur " + res.status, true); return; }
+        renderSearchDetail(await res.json());
+        setSearchStatus("1 résultat");
+      } else if (type === "vehicleId") {
+        const res = await fetch(`/api/v1/access/requests?vehicleId=${encodeURIComponent(value)}`, { headers });
+        if (res.status === 401) { setSearchStatus("Clé API invalide (401)", true); return; }
+        if (!res.ok) { renderSearchEmpty(""); setSearchStatus("Erreur " + res.status, true); return; }
+        const list = await res.json();
+        renderSearchList(list);
+        setSearchStatus(list.length + " résultat(s)");
+      } else {
+        const res = await fetch(`/api/v1/access/plates/${encodeURIComponent(value)}/known`, { headers });
+        if (res.status === 401) { setSearchStatus("Clé API invalide (401)", true); return; }
+        if (res.status === 422) { renderSearchEmpty("Format de plaque invalide (attendu AB-123-CD)."); setSearchStatus("Format invalide (422)", true); return; }
+        if (!res.ok) { renderSearchEmpty(""); setSearchStatus("Erreur " + res.status, true); return; }
+        const known = await res.json();
+        if (!known.known) {
+          renderSearchEmpty("Plaque inconnue de Vehicles.");
+          setSearchStatus("Inconnue");
+          return;
+        }
+        const res2 = await fetch(`/api/v1/access/requests?vehicleId=${encodeURIComponent(known.vehicleId)}`, { headers });
+        const list2 = res2.ok ? await res2.json() : [];
+        renderSearchList(list2, "vehicleId " + known.vehicleId);
+        setSearchStatus("Plaque connue → vehicleId " + known.vehicleId + " — " + list2.length + " demande(s)");
+      }
+    } catch (err) {
+      setSearchStatus("Erreur réseau (" + err.message + ")", true);
+    }
+  }
+
+  searchBtn.addEventListener("click", runSearch);
+  searchValue.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") runSearch();
+  });
+
+  refreshJournal();
   scheduleAutoRefresh();
 })();
 </script>

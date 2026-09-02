@@ -15,7 +15,7 @@
 # dans les envVars de `access-api` ci-dessous (voir README section
 # "Publication d'événements : webhook ou RabbitMQ").
 #
-# ⚠️ Autres points à vérifier (voir README section "Déploiement sur Render") :
+# Autres points à vérifier (voir README section "Déploiement sur Render") :
 #   - Plan Free : disque éphémère (la base SQLite est réinitialisée à
 #     chaque redéploiement/redémarrage) et mise en veille après 15 min
 #     d'inactivité (premier appel après veille plus lent, cold start).
