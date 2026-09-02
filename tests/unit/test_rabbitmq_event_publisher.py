@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 
 from src.domain.entities.access_event import AccessEvent
 from src.domain.value_objects.enums import EventType
-from src.infrastructure.events.rabbitmq_event_publisher import RabbitMQEventPublisher
+from src.infrastructure.external.rabbitmq_event_publisher import RabbitMQEventPublisher
 from tests.unit.fakes import FakeAccessRepo
 
 # Port fermé en local : la connexion échoue immédiatement (connexion refusée),

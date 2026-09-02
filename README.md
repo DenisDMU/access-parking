@@ -156,9 +156,10 @@ src/
 │
 ├── infrastructure/     # Implémentations concrètes des ports
 │   ├── db/              # SQLAlchemy : modèles, session, repositories SQLite
-│   ├── external/        # Mocks + squelettes HTTP (un par service : Vehicles/Booking/Parking/Pricing/Payment)
+│   ├── external/        # Mocks + squelettes HTTP (5 services) + OutboxEventPublisher/
+│   │                      # RabbitMQEventPublisher (publication d'événements — aussi des
+│   │                      # appels vers l'extérieur, donc regroupés ici plutôt qu'à part)
 │   ├── ai/              # Adaptateur LPR/vision fake déterministe
-│   ├── events/          # OutboxEventPublisher (webhook) + RabbitMQEventPublisher (broker)
 │   ├── security/        # Authentification X-API-Key
 │   ├── config.py        # Lecture centralisée de l'environnement (.env)
 │   └── logging_config.py# Logs + filtre anti-fuite de plaque
@@ -245,19 +246,29 @@ diffusion est loggé mais ne bloque jamais la décision d'accès :
   `EVENT_SUBSCRIBERS_URLS` (voir `outbox_event_publisher.py`). Pas de vrai
   broker : chaque coéquipier expose sa propre route (ex. `POST
   /webhooks/access`) et te donne son URL.
-- **`rabbitmq`** — publie sur un exchange topic `access.events` (routing key
-  `access.<event_type>`, ex. `access.vehicle_entered`) via
-  `rabbitmq_event_publisher.py`. Pour tester en local :
+- **`rabbitmq`** (utilisé actuellement) — publie sur l'exchange **partagé
+  de l'équipe** `microservice-event-bus` (routing keys `access.entry` /
+  `access.exit` / `access.refused` / `access.other`) via
+  `rabbitmq_event_publisher.py`, hébergé sur **CloudAMQP** (broker externe,
+  gratuit, pas de service Render supplémentaire). Dans `.env` :
+  `EVENT_PUBLISHER=rabbitmq` et `RABBITMQ_URL=amqps://user:pass@host/vhost`
+  (fourni par CloudAMQP). ⚠️ L'exchange est créé/administré ailleurs (par
+  l'équipe) : Access le vérifie en passif (`exchange_declare(...,
+  passive=True)`) sans jamais tenter de le recréer — évite l'erreur `406
+  PRECONDITION_FAILED` si les paramètres ne correspondent pas exactement.
+  Chaque coéquipier intéressé déclare sa propre queue et la lie aux routing
+  keys qui l'intéressent (`access.#` pour tout recevoir de nous). Pour
+  tester avec un broker RabbitMQ local à la place (Docker) :
 
   ```bash
-  docker run -d --name access-rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:3-management
+  docker run -d --name local-rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:3-management
   ```
 
-  Puis dans `.env` : `EVENT_PUBLISHER=rabbitmq` et
-  `RABBITMQ_URL=amqp://guest:guest@localhost:5672/%2F`. Interface de gestion
-  sur http://localhost:15672 (guest/guest). Chaque service intéressé déclare
-  sa propre queue et la lie aux routing keys qui l'intéressent (`access.#`
-  pour tout recevoir).
+  Puis `RABBITMQ_URL=amqp://guest:guest@localhost:5672/%2F` — mais il
+  faudra déclarer l'exchange toi-même (`durable=True`, pas seulement
+  `passive=True`) puisqu'il n'existera pas encore localement ; voir
+  l'historique git de `rabbitmq_event_publisher.py` pour un exemple de
+  déclaration active si besoin.
 
 Dans les deux cas, `GET /access/events` reste disponible pour relire les
 événements journalisés côté Access (utile même avec RabbitMQ, pour du debug
@@ -449,20 +460,23 @@ id).
 ## 14. Déploiement sur Render
 
 Un [`render.yaml`](render.yaml) (Render Blueprint) décrit **un seul service**
-pour l'instant :
+(pas de service RabbitMQ Render, cf. ci-dessous) :
 
 - **`access-api`** — le microservice Access (FastAPI), public, plan Free,
-  publication d'événements en mode **`webhook`** (fan-out HTTP, gratuit,
-  sans broker — cf. section 6).
+  publication d'événements en mode **`rabbitmq`** (cf. section 6) vers le
+  bus d'événements partagé de l'équipe (CloudAMQP, exchange
+  `microservice-event-bus`) — **pas** vers un service RabbitMQ hébergé par
+  Render : zéro coût supplémentaire côté Render.
 
-**RabbitMQ en attente** : le service privé `access-rabbitmq` (image
-`rabbitmq:3-management`) est présent dans `render.yaml` mais **commenté** —
-un service privé Render nécessite en général un plan payant, mis de côté
-pour l'instant pour ne rien payer. Le code (`RabbitMQEventPublisher`) est
-déjà prêt et testé ; pour l'activer plus tard il suffira de décommenter le
-bloc en bas de `render.yaml` et d'ajouter `EVENT_PUBLISHER=rabbitmq` +
-`RABBITMQ_URL` dans les envVars de `access-api` — aucune couche métier à
-toucher.
+**`RABBITMQ_URL` n'est PAS renseigné automatiquement** — contrairement à
+`API_KEY` (que Render peut générer lui-même), l'URL du broker CloudAMQP est
+un secret externe fourni par l'équipe, que Render ne peut pas deviner. Le
+blueprint la déclare avec `sync: false`, ce qui veut juste dire "cette
+variable existe, mais Render ne mettra jamais sa valeur dans le fichier
+versionné" — **il faut la coller toi-même dans le dashboard Render** une
+fois le service créé (voir étape 2bis ci-dessous). Tant qu'elle est vide,
+le reste de l'API fonctionne normalement (best-effort : la publication
+échoue silencieusement, loggée, sans bloquer les décisions d'accès).
 
 ### Marche à suivre
 
@@ -473,6 +487,10 @@ toucher.
    valeur générée automatiquement pour `API_KEY` (Render la génère au
    premier déploiement, `generateValue: true` dans le blueprint) — c'est
    cette clé qu'il faut mettre dans Postman/`.env`, pas `change-me`.
+2bis. **Toujours dans Environment**, trouvez `RABBITMQ_URL` (probablement
+   affiché vide/"à définir" à cause de `sync: false`) et collez-y l'URL
+   CloudAMQP du bus partagé de l'équipe (`amqps://...`) — sans ça, Access ne
+   publiera aucun événement (le reste marche quand même).
 3. Récupérez l'URL publique du service (en haut de la page `access-api`,
    type `https://access-api-xxxx.onrender.com`).
 4. Ouvrez `postman/Access-Render.postman_environment.json` dans Postman et
@@ -500,11 +518,15 @@ premier déploiement :
 - **CORS** : `CORS_ALLOWED_ORIGINS=*` par défaut dans le blueprint (démo
   publique/équipe) — à restreindre à vos vraies origines une fois un front
   ou un domaine d'équipe fixé.
-- **RabbitMQ plus tard** : quand vous serez prêts à payer le plan du service
-  privé, voir le bloc commenté en bas de `render.yaml` — si
-  `access-rabbitmq:5672` ne résout pas au démarrage une fois activé, vérifie
-  le nom exact dans le dashboard Render (le nom d'hôte interne correspond en
-  principe au champ `name` du service privé) et ajuste `RABBITMQ_URL`.
+- **`RABBITMQ_URL` vide ou incorrect** : si tu vois `Échec de publication
+  RabbitMQ pour l'événement ...` dans les logs `access-api`, vérifie
+  d'abord que la variable est bien renseignée dans Environment (étape 2bis),
+  et que l'URL CloudAMQP est toujours valide (pas de rotation de mot de
+  passe côté CloudAMQP entre-temps).
+- **Ancienne option abandonnée** : un service RabbitMQ auto-hébergé sur
+  Render (privé, payant) reste en commentaire tout en bas de `render.yaml`
+  au cas où le broker CloudAMQP externe serait un jour abandonné — pas
+  utilisé actuellement.
 
 ---
 
@@ -525,17 +547,16 @@ public partagé :
   restent mockés tant que leurs équipes ne sont pas prêtes, aucune autre
   couche à toucher.
 - **Ils veulent recevoir les événements d'Access** (`VEHICLE_ENTERED` /
-  `VEHICLE_EXITED` / `ACCESS_REFUSED`) : deux options, au choix de chacun —
-  soit ils exposent une route webhook chez eux et me donnent l'URL pour
-  l'ajouter à `EVENT_SUBSCRIBERS_URLS` (fan-out HTTP, `EVENT_PUBLISHER=webhook`),
-  soit ils branchent leur propre consommateur RabbitMQ sur l'exchange
-  `access.events` (topic, routing key `access.<event_type>`) si
-  `EVENT_PUBLISHER=rabbitmq` est activé (section 6) — dans ce cas il leur
-  faudra l'URL AMQP de `access-rabbitmq`, à demander une fois le service
-  Render en place (probablement un accès externe à prévoir si RabbitMQ doit
-  être joignable depuis un service qui n'est pas dans ton propre compte
-  Render — à voir ensemble selon comment vous organisez vos déploiements
-  respectifs).
+  `VEHICLE_EXITED` / `ACCESS_REFUSED`) : c'est déjà fait pour tout le monde
+  qui écoute le bus partagé de l'équipe — Access publie sur l'exchange
+  **`microservice-event-bus`** (CloudAMQP) avec les routing keys
+  `access.entry` / `access.exit` / `access.refused` / `access.other`
+  (section 6). N'importe quel camarade déclare sa propre queue et la lie à
+  `access.#` (tout recevoir) ou une clé précise, avec les mêmes identifiants
+  CloudAMQP que le reste de l'équipe — rien à me redemander. L'alternative
+  webhook (`EVENT_SUBSCRIBERS_URLS`, `EVENT_PUBLISHER=webhook`) reste
+  disponible pour quelqu'un qui préfère une route HTTP dédiée plutôt que le
+  bus commun.
 
 ---
 

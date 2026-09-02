@@ -47,8 +47,8 @@ from src.infrastructure.db.repositories.sqlite_vehicle_presence_repository impor
     SqliteVehiclePresenceRepository,
 )
 from src.infrastructure.db.session import make_engine, make_session_factory
-from src.infrastructure.events.outbox_event_publisher import OutboxEventPublisher
-from src.infrastructure.events.rabbitmq_event_publisher import RabbitMQEventPublisher
+from src.infrastructure.external.outbox_event_publisher import OutboxEventPublisher
+from src.infrastructure.external.rabbitmq_event_publisher import RabbitMQEventPublisher
 from src.infrastructure.external.http_booking_client import HttpBookingClient
 from src.infrastructure.external.http_parking_client import HttpParkingClient
 from src.infrastructure.external.http_payment_client import HttpPaymentClient
@@ -158,6 +158,7 @@ def get_event_publisher(
             access_repo=access_repo,
             outbox_repo=outbox_repo,
             amqp_url=settings.rabbitmq_url,
+            exchange_name=settings.rabbitmq_exchange,
         )
     return OutboxEventPublisher(
         access_repo=access_repo,

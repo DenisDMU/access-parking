@@ -3,17 +3,23 @@
 # Déploie 1 seul service pour l'instant :
 #   - access-api : le microservice Access (FastAPI), public, plan Free.
 #
-# Publication d'événements en mode "webhook" (fan-out HTTP, sans broker,
-# gratuit — cf. section 3 point 3 de la spec) : suffisant tant que personne
-# n'écoute encore, `EVENT_SUBSCRIBERS_URLS` reste vide par défaut.
+# Publication d'événements en mode "rabbitmq", via un broker EXTERNE hébergé
+# (CloudAMQP) — pas de service Render supplémentaire, donc pas de coût
+# additionnel côté Render. Access publie sur l'exchange partagé de l'équipe
+# "microservice-event-bus" (routing keys access.entry/access.exit/access.refused).
 #
-# RabbitMQ (service privé `pserv`) volontairement PAS déployé pour l'instant
-# — un service privé Render nécessite en général un plan payant. Le code est
-# déjà prêt (`src/infrastructure/events/rabbitmq_event_publisher.py`) : pour
-# l'activer plus tard, voir le bloc commenté en bas de ce fichier, à
-# décommenter, plus `EVENT_PUBLISHER=rabbitmq` et `RABBITMQ_URL` à ajouter
-# dans les envVars de `access-api` ci-dessous (voir README section
-# "Publication d'événements : webhook ou RabbitMQ").
+# ⚠️ RABBITMQ_URL n'est PAS généré automatiquement par Render (ce n'est pas
+# un secret que Render peut inventer lui-même, contrairement à API_KEY) :
+# `sync: false` ci-dessous fait juste apparaître la variable comme "à
+# renseigner" dans Render > access-api > Environment — colle-la-toi-même
+# une fois le service créé (valeur au format
+# amqps://user:pass@host/vhost, fournie par CloudAMQP). Le service ne
+# publiera aucun événement tant que cette variable est vide (ça n'empêche
+# pas le reste de l'API de fonctionner, cf. best-effort de la spec).
+#
+# Ancienne option (RabbitMQ auto-hébergé en service privé Render) laissée en
+# commentaire tout en bas — plus nécessaire maintenant qu'on a un broker
+# externe gratuit, mais utile si CloudAMQP devait un jour être abandonné.
 #
 # Autres points à vérifier (voir README section "Déploiement sur Render") :
 #   - Plan Free : disque éphémère (la base SQLite est réinitialisée à
@@ -70,15 +76,18 @@ services:
       - key: RATE_LIMIT_ACCESS_REQUESTS
         value: "20/minute"
       - key: EVENT_PUBLISHER
-        value: webhook
+        value: rabbitmq
+      - key: RABBITMQ_EXCHANGE
+        value: microservice-event-bus
+      - key: RABBITMQ_URL
+        sync: false  # secret : à coller manuellement dans Render > Environment (voir note en haut de fichier)
 
-# --- RabbitMQ (désactivé pour l'instant, cf. note en haut de fichier) -------
-# Pour activer plus tard : décommenter ce service, ajouter dans les envVars
-# de access-api ci-dessus :
-#   - key: EVENT_PUBLISHER
-#     value: rabbitmq
-#   - key: RABBITMQ_URL
-#     value: amqp://guest:guest@access-rabbitmq:5672/%2F
+# --- Ancienne option : RabbitMQ auto-hébergé sur Render (service privé) -----
+# Laissée en commentaire — plus utilisée depuis qu'on a un broker externe
+# (CloudAMQP) gratuit. Pour y revenir un jour : décommenter ce service, et
+# remplacer la valeur de RABBITMQ_URL ci-dessus par
+# amqp://guest:guest@access-rabbitmq:5672/%2F (plus besoin de sync: false
+# dans ce cas, ce ne serait plus un secret externe).
 #
 #  - type: pserv
 #    name: access-rabbitmq

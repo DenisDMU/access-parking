@@ -77,9 +77,13 @@ class Settings:
     event_publish_timeout_ms: int = int(os.getenv("EVENT_PUBLISH_TIMEOUT_MS", "1000"))
 
     # "webhook" (fan-out HTTP, par défaut, cf. section 3 point 3 de la spec)
-    # ou "rabbitmq" (voir infrastructure/events/rabbitmq_event_publisher.py).
+    # ou "rabbitmq" (voir infrastructure/external/rabbitmq_event_publisher.py).
     event_publisher: str = os.getenv("EVENT_PUBLISHER", "webhook")
     rabbitmq_url: str = os.getenv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/%2F")
+    # Exchange partagé de l'équipe (bus d'événements commun à tous les
+    # microservices) — chacun publie sous sa propre routing key
+    # (access.entry, access.exit, ... pour Access) sur le même exchange.
+    rabbitmq_exchange: str = os.getenv("RABBITMQ_EXCHANGE", "microservice-event-bus")
 
     rate_limit_access_requests: str = os.getenv("RATE_LIMIT_ACCESS_REQUESTS", "20/minute")
 

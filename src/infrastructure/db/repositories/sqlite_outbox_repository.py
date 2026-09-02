@@ -1,9 +1,9 @@
 """Implémentation SQLite de la persistance `outbox_events`.
 
 Utilisée uniquement par `OutboxEventPublisher`/`RabbitMQEventPublisher`
-(infrastructure/events) — n'est pas exposée via un port du domaine, c'est un
-détail d'implémentation du mécanisme de publication d'événements (section 3
-point 3 de la spec).
+(infrastructure/external) — n'est pas exposée via un port du domaine, c'est
+un détail d'implémentation du mécanisme de publication d'événements
+(section 3 point 3 de la spec).
 """
 
 from __future__ import annotations
