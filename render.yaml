@@ -1,0 +1,76 @@
+# Render Blueprint — voir https://render.com/docs/blueprint-spec
+#
+# Déploie 2 services :
+#   1. access-api       : le microservice Access (FastAPI), public.
+#   2. access-rabbitmq  : broker RabbitMQ (image officielle), PRIVÉ —
+#      jamais exposé sur Internet, joignable uniquement par access-api via
+#      le réseau interne Render, à l'adresse `access-rabbitmq:5672`.
+#
+# ⚠️ À vérifier avant/après le premier déploiement (voir README section
+# "Déploiement sur Render" pour le détail) :
+#   - Les services privés (`type: pserv`) nécessitent en général un plan
+#     payant côté Render (pas le plan Free) — à confirmer dans ton dashboard.
+#   - `access-api` en plan Free : disque éphémère (la base SQLite est
+#     réinitialisée à chaque redéploiement/redémarrage) et mise en veille
+#     après 15 min d'inactivité (premier appel après veille plus lent).
+#   - API_KEY est généré automatiquement par Render à la création du
+#     service — va le récupérer dans Render > access-api > Environment
+#     avant de configurer Postman.
+
+services:
+  - type: web
+    name: access-api
+    env: python
+    plan: free
+    region: frankfurt
+    branch: main
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "uvicorn src.interfaces.api.main:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.1
+      - key: API_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        value: sqlite:///./access.db
+      - key: LOG_LEVEL
+        value: INFO
+      - key: CORS_ALLOWED_ORIGINS
+        value: "*"
+      - key: USE_MOCKS
+        value: "true"
+      - key: VEHICLES_SERVICE_URL
+        value: http://localhost:8001
+      - key: BOOKING_SERVICE_URL
+        value: http://localhost:8002
+      - key: PARKING_SERVICE_URL
+        value: http://localhost:8003
+      - key: PRICING_SERVICE_URL
+        value: http://localhost:8004
+      - key: PAYMENT_SERVICE_URL
+        value: http://localhost:8005
+      - key: AI_MODEL_NAME
+        value: fake-vision-v1
+      - key: EVENT_SUBSCRIBERS_URLS
+        value: ""
+      - key: EVENT_PUBLISH_TIMEOUT_MS
+        value: "1000"
+      - key: RATE_LIMIT_ACCESS_REQUESTS
+        value: "20/minute"
+      - key: EVENT_PUBLISHER
+        value: rabbitmq
+      - key: RABBITMQ_URL
+        # Adresse interne Render du service privé ci-dessous (nom de
+        # service = nom d'hôte sur le réseau privé Render). Si la
+        # résolution échoue au démarrage, repasser EVENT_PUBLISHER=webhook
+        # le temps de diagnostiquer (aucune couche métier à toucher).
+        value: amqp://guest:guest@access-rabbitmq:5672/%2F
+
+  - type: pserv
+    name: access-rabbitmq
+    env: image
+    plan: starter
+    region: frankfurt
+    image:
+      url: docker.io/library/rabbitmq:3-management

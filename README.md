@@ -11,7 +11,7 @@
 > métier retournés au format texte (`reason`, ex. "Accès autorisé") restent
 > volontairement en **français** : ce sont des données/du contenu destiné à
 > des usagers/exploitants français, pas des identifiants de code — voir
-> détail en [section 12](#12-écarts-assumés-par-rapport-à-la-spec).
+> détail en [section 16](#16-écarts-assumés-par-rapport-à-la-spec).
 
 ---
 
@@ -30,7 +30,9 @@
 11. [Endpoints](#11-endpoints)
 12. [Journal de bord (dashboard)](#12-journal-de-bord-dashboard)
 13. [Postman](#13-postman)
-14. [Écarts assumés par rapport à la spec](#14-écarts-assumés-par-rapport-à-la-spec)
+14. [Déploiement sur Render](#14-déploiement-sur-render)
+15. [Rejoindre l'équipe : brancher vos microservices](#15-rejoindre-léquipe--brancher-vos-microservices)
+16. [Écarts assumés par rapport à la spec](#16-écarts-assumés-par-rapport-à-la-spec)
 
 ---
 
@@ -408,7 +410,11 @@ Un dossier [`postman/`](postman/) contient :
   simple, réservation, accessibilité, véhicule inconnu, sortie payée,
   paiement refusé...).
 - `Access-Microservice.postman_environment.json` — variables `baseUrl` et
-  `apiKey` à ajuster selon votre `.env`.
+  `apiKey` à ajuster selon votre `.env`, pour tester en **local**.
+- `Access-Render.postman_collection.json` + `Access-Render.postman_environment.json`
+  — strictement les mêmes requêtes, prêtes à pointer vers le **déploiement
+  public Render** (section 14) plutôt que `localhost` : pratique pour que
+  toute l'équipe teste la même instance sans rien installer.
 
 Le dossier **"Errors — edge cases"** contient volontairement des requêtes
 invalides (pas de clé API, plaque mal formée, type invalide, champ manquant,
@@ -416,15 +422,105 @@ invalides (pas de clé API, plaque mal formée, type invalide, champ manquant,
 de test Postman qui vérifie le code HTTP attendu, pour voir concrètement à
 quoi ressemblent les erreurs de l'API.
 
-**Import** : Postman → *Import* → sélectionnez les deux fichiers → choisissez
-l'environnement "Access — Local" en haut à droite. La requête "Entry —
-standard vehicle" capture automatiquement `requestId`/`vehicleId` dans des
-variables de collection, réutilisées par les requêtes suivantes (sortie,
-détail par id).
+**Import** : Postman → *Import* → sélectionnez les fichiers voulus (locaux
+et/ou Render) → choisissez l'environnement correspondant ("Access — Local"
+ou "Access — Render") en haut à droite. La requête "Entry — standard
+vehicle" capture automatiquement `requestId`/`vehicleId` dans des variables
+de collection, réutilisées par les requêtes suivantes (sortie, détail par
+id).
 
 ---
 
-## 14. Écarts assumés par rapport à la spec
+## 14. Déploiement sur Render
+
+Un [`render.yaml`](render.yaml) (Render Blueprint) décrit deux services :
+
+1. **`access-api`** — le microservice Access (FastAPI), public, plan Free.
+2. **`access-rabbitmq`** — broker RabbitMQ (image officielle
+   `rabbitmq:3-management`), déployé en **service privé** (`type: pserv`) :
+   jamais exposé sur Internet, joignable uniquement par `access-api` via le
+   réseau interne Render (`amqp://guest:guest@access-rabbitmq:5672/%2F`).
+
+### Marche à suivre
+
+1. Sur [render.com](https://render.com), **New +** → **Blueprint** → connectez
+   le repo GitHub `DenisDMU/access-parking` → Render détecte `render.yaml` et
+   propose de créer les deux services → **Apply**.
+2. Une fois `access-api` déployé, allez dans **access-api → Environment** et
+   récupérez la valeur générée automatiquement pour `API_KEY` (Render la
+   génère au premier déploiement, `generateValue: true` dans le blueprint) —
+   c'est cette clé qu'il faut mettre dans Postman/`.env`, pas `change-me`.
+3. Récupérez l'URL publique du service (en haut de la page `access-api`,
+   type `https://access-api-xxxx.onrender.com`).
+4. Ouvrez `postman/Access-Render.postman_environment.json` dans Postman et
+   renseignez `baseUrl` (l'URL de l'étape 3) et `apiKey` (la clé de l'étape 2) —
+   ou envoyez-moi l'URL, je peux mettre à jour le fichier directement.
+5. Vérifiez `GET /health` puis un scénario complet (voir tableau de plaques
+   de démo, section 3) avec la collection **"Access — Render"**.
+
+### ⚠️ Points à vérifier / limites connues
+
+Je n'ai pas d'accès direct à ton compte Render pour tester ce blueprint en
+conditions réelles — voici ce qui mérite une vérification de ta part au
+premier déploiement :
+
+- **Services privés (`pserv`)** : nécessitent généralement un plan payant
+  côté Render (pas le plan Free) — vérifie le coût annoncé avant de valider
+  le déploiement de `access-rabbitmq`. Si tu préfères éviter ce coût pour
+  l'instant, repasse `EVENT_PUBLISHER` à `webhook` dans les variables
+  d'environnement de `access-api` (aucune couche métier à toucher, aucun
+  service RabbitMQ à déployer) — le fan-out HTTP reste la solution "sans
+  broker" prévue par la spec pour le MVP.
+- **Disque éphémère (plan Free)** : le fichier SQLite (`access.db`) est
+  réinitialisé à chaque redéploiement/redémarrage du service `access-api`
+  sur le plan Free (pas de disque persistant sans upgrade). Acceptable pour
+  une démo/tests d'intégration entre camarades, mais les données ne
+  survivent pas dans la durée. Si besoin de persistance, il faudra un plan
+  payant avec un **Disk** Render monté (ex. `/var/data`) et
+  `DATABASE_URL=sqlite:////var/data/access.db`.
+- **Mise en veille (plan Free)** : `access-api` s'endort après ~15 min
+  d'inactivité ; le premier appel suivant peut prendre 30-60s (cold start) —
+  normal, pas un bug.
+- **Résolution réseau interne `access-rabbitmq:5672`** : le nom d'hôte
+  interne Render correspond en principe au champ `name` du service privé —
+  si `EVENT_PUBLISHER=rabbitmq` échoue au démarrage (logs `access-api`),
+  vérifie ce nom exact dans le dashboard Render et ajuste `RABBITMQ_URL` en
+  conséquence, ou repasse en `webhook` (cf. point ci-dessus).
+- **CORS** : `CORS_ALLOWED_ORIGINS=*` par défaut dans le blueprint (démo
+  publique/équipe) — à restreindre à vos vraies origines une fois un front
+  ou un domaine d'équipe fixé.
+
+---
+
+## 15. Rejoindre l'équipe : brancher vos microservices
+
+Une fois Access déployé sur Render, tes camarades peuvent l'appeler
+directement sans rien installer — c'est tout l'intérêt d'un déploiement
+public partagé :
+
+- **Ils veulent qu'Access les appelle (Vehicles, Booking, Parking, Pricing,
+  Payment)** : une fois leur propre service déployé (Render ou ailleurs),
+  donne-moi son URL publique → je mets à jour `VEHICLES_SERVICE_URL` (etc.)
+  dans les variables d'environnement Render de `access-api`, je complète le
+  squelette HTTP correspondant (`infrastructure/external/http_*_client.py`,
+  déjà prêt avec des `TODO` précis, section 5) avec leur vrai contrat
+  d'API, puis bascule `USE_MOCKS=false` — aucune autre couche à toucher.
+- **Ils veulent recevoir les événements d'Access** (`VEHICLE_ENTERED` /
+  `VEHICLE_EXITED` / `ACCESS_REFUSED`) : deux options, au choix de chacun —
+  soit ils exposent une route webhook chez eux et me donnent l'URL pour
+  l'ajouter à `EVENT_SUBSCRIBERS_URLS` (fan-out HTTP, `EVENT_PUBLISHER=webhook`),
+  soit ils branchent leur propre consommateur RabbitMQ sur l'exchange
+  `access.events` (topic, routing key `access.<event_type>`) si
+  `EVENT_PUBLISHER=rabbitmq` est activé (section 6) — dans ce cas il leur
+  faudra l'URL AMQP de `access-rabbitmq`, à demander une fois le service
+  Render en place (probablement un accès externe à prévoir si RabbitMQ doit
+  être joignable depuis un service qui n'est pas dans ton propre compte
+  Render — à voir ensemble selon comment vous organisez vos déploiements
+  respectifs).
+
+---
+
+## 16. Écarts assumés par rapport à la spec
 
 Pour rester fidèle au modèle de données figé (section 6 de la spec) tout en
 répondant aux besoins fonctionnels du use case "Sortie" (retrouver la place

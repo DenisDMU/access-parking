@@ -1,0 +1,857 @@
+{
+  "info": {
+    "_postman_id": "b3a1f7b0-3333-4000-8000-accessrender1",
+    "name": "Access — Render",
+    "description": "Meme collection que 'Access - Microservice Parking', pointee sur le deploiement public Render au lieu de localhost. Importer aussi l'environnement 'Access - Render' fourni a cote (baseUrl + apiKey a renseigner avec les valeurs de ton dashboard Render).\n\nNote : sur le plan Free, le service se met en veille apres 15 min d'inactivite - le tout premier appel peut prendre 30-60s le temps du reveil (cold start), c'est normal.\n\nCollection de test pour le microservice Access (workflow entrée/sortie parking). Importer aussi l'environnement 'Access — Local' fourni à côté.\n\nContrat REST entièrement en anglais (requestId, vehicleId, status, authorization{result, reason, ...}) ; les messages métier (reason) restent en français car Access sert des usagers/exploitants français.\n\nRegistre de plaques de démo câblé dans le mock Vehicles :\n- AA-111-AA : v_standard_4wheeler (4 roues standard)\n- BB-222-BB : v_2wheeler (2 roues)\n- CC-333-CC : v_xl (4 roues XL)\n- DD-444-DD : v_electric (4 roues électrique)\n- EE-555-EE : v_disabled_ok (4 roues handicapé, AVEC justificatif)\n- FF-666-FF : v_disabled_no_permit (4 roues handicapé, SANS justificatif)\n- GG-777-GG : v_with_reservation (4 roues standard, réservation active)\n- HH-888-HH : v_payment_fail (4 roues standard, paiement toujours refusé)\n- toute autre plaque : inconnue de Vehicles (rejet)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      {
+        "key": "key",
+        "value": "X-API-Key",
+        "type": "string"
+      },
+      {
+        "key": "value",
+        "value": "{{apiKey}}",
+        "type": "string"
+      },
+      {
+        "key": "in",
+        "value": "header",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "GET /health",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Healthcheck, non authentifié."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Access — Entry",
+      "item": [
+        {
+          "name": "Entry — standard vehicle (authorized, Parking assignment)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Authorized', () => pm.expect(body.authorization.result).to.eql(1));",
+                  "pm.collectionVariables.set('requestId', body.requestId);",
+                  "pm.collectionVariables.set('vehicleId', body.vehicleId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plate\": \"AA-111-AA\",\n  \"type\": 1,\n  \"date\": \"2026-09-02T10:15:00Z\",\n  \"source\": 3,\n  \"photoBase64\": null\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/access/requests",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "access",
+                "requests"
+              ]
+            },
+            "description": "Entrée d'un véhicule 4 roues standard, sans réservation : Parking lui attribue une place, autorisation accordée."
+          },
+          "response": []
+        },
+        {
+          "name": "Entry — with active reservation (Booking)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plate\": \"GG-777-GG\",\n  \"type\": 1,\n  \"date\": \"2026-09-02T10:15:00Z\",\n  \"source\": 3,\n  \"photoBase64\": null\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/access/requests",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "access",
+                "requests"
+              ]
+            },
+            "description": "Ce véhicule a une réservation active chez Booking (mock) : la place réservée est utilisée directement, sans appel à Parking."
+          },
+          "response": []
+        },
+        {
+          "name": "Entry — disabled without permit (confirmation required)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plate\": \"FF-666-FF\",\n  \"type\": 1,\n  \"date\": \"2026-09-02T10:15:00Z\",\n  \"source\": 3,\n  \"photoBase64\": null\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/access/requests",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "access",
+                "requests"
+              ]
+            },
+            "description": "Véhicule handicapé sans justificatif d'accessibilité valide : résultat CONFIRMATION_REQUIRED (3), pas un refus direct."
+          },
+          "response": []
+        },
+        {
+          "name": "Entry — disabled with permit (authorized)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plate\": \"EE-555-EE\",\n  \"type\": 1,\n  \"date\": \"2026-09-02T10:15:00Z\",\n  \"source\": 3,\n  \"photoBase64\": null\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/access/requests",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "access",
+                "requests"
+              ]
+            },
+            "description": "Véhicule handicapé AVEC justificatif valide : autorisation accordée sur une place handicapé."
+          },
+          "response": []
+        },
+        {
+          "name": "Entry — XL vehicle example",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plate\": \"CC-333-CC\",\n  \"type\": 1,\n  \"date\": \"2026-09-02T10:15:00Z\",\n  \"source\": 3,\n  \"photoBase64\": null\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/access/requests",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "access",
+                "requests"
+              ]
+            },
+            "description": "Le mock Parking attribue toujours une place du type exact demandé (comportement idéal) : le scénario d'incompatibilité volontaire est couvert par les tests automatisés (doubles de test dédiés), pas reproductible tel quel via ce mock."
+          },
+          "response": []
+        },
+        {
+          "name": "Entry — vehicle already present (refused)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plate\": \"AA-111-AA\",\n  \"type\": 1,\n  \"date\": \"2026-09-02T10:20:00Z\",\n  \"source\": 3,\n  \"photoBase64\": null\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/access/requests",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "access",
+                "requests"
+              ]
+            },
+            "description": "À rejouer juste après 'Entry — standard vehicle' (même plaque) : le véhicule est déjà IN, refus attendu (result=2)."
+          },
+          "response": []
+        },
+        {
+          "name": "Entry — vehicle unknown to Vehicles (rejected)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plate\": \"UN-000-KN\",\n  \"type\": 1,\n  \"date\": \"2026-09-02T10:15:00Z\",\n  \"source\": 3,\n  \"photoBase64\": null\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/access/requests",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "access",
+                "requests"
+              ]
+            },
+            "description": "Plaque absente du registre mock Vehicles : vehicleId=null, status=REJECTED (3), authorization=CONFIRMATION_REQUIRED (procédure alternative)."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Access — Exit",
+      "item": [
+        {
+          "name": "Exit — payment OK (authorized)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plate\": \"AA-111-AA\",\n  \"type\": 2,\n  \"date\": \"2026-09-02T11:15:00Z\",\n  \"source\": 2,\n  \"photoBase64\": null\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/access/requests",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "access",
+                "requests"
+              ]
+            },
+            "description": "À rejouer après une entrée réussie sur AA-111-AA. Pricing calcule un montant, Payment (mock) l'accepte, la place est libérée."
+          },
+          "response": []
+        },
+        {
+          "name": "Exit — payment refused",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plate\": \"HH-888-HH\",\n  \"type\": 2,\n  \"date\": \"2026-09-02T11:15:00Z\",\n  \"source\": 2,\n  \"photoBase64\": null\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/access/requests",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "access",
+                "requests"
+              ]
+            },
+            "description": "Faire d'abord entrer HH-888-HH (POST type=1), puis rejouer cette requête : le mock Payment refuse toujours ce véhicule (result=2, reason='Paiement refusé')."
+          },
+          "response": []
+        },
+        {
+          "name": "Exit — vehicle not present (refused)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plate\": \"CC-333-CC\",\n  \"type\": 2,\n  \"date\": \"2026-09-02T11:15:00Z\",\n  \"source\": 2,\n  \"photoBase64\": null\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/access/requests",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "access",
+                "requests"
+              ]
+            },
+            "description": "Sans entrée préalable pour ce véhicule : refus 'Véhicule non présent dans le parking'."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Access — Lookup",
+      "item": [
+        {
+          "name": "GET /access/requests/{{requestId}}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/access/requests/{{requestId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "access",
+                "requests",
+                "{{requestId}}"
+              ]
+            },
+            "description": "Détail d'une demande + décision. {{requestId}} est renseigné automatiquement par 'Entry — standard vehicle'."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /access/requests?vehicleId=",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/access/requests?vehicleId={{vehicleId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "access",
+                "requests"
+              ],
+              "query": [
+                {
+                  "key": "vehicleId",
+                  "value": "{{vehicleId}}"
+                }
+              ]
+            },
+            "description": "Liste/filtre des demandes (audit) — filtre exclusivement sur vehicleId pseudonymisé."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /access/plates/AA-111-AA/known",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/access/plates/AA-111-AA/known",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "access",
+                "plates",
+                "AA-111-AA",
+                "known"
+              ]
+            },
+            "description": "Résolution à la volée, sans workflow complet et sans persistance. Ne renvoie jamais la plaque, uniquement known + vehicleId."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /access/plates/ZZ-999-ZZ/known (unknown)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/access/plates/ZZ-999-ZZ/known",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "access",
+                "plates",
+                "ZZ-999-ZZ",
+                "known"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Events",
+      "item": [
+        {
+          "name": "GET /access/events",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/access/events?limit=50&offset=0",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "access",
+                "events"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            },
+            "description": "Liste les événements publiés par Access (outbox) — endpoint de démo/observabilité en l'absence de vrai broker. Voir aussi le journal de bord visuel : {{baseUrl}}/static/dashboard.html"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Errors — edge cases (\"tests foireux\")",
+      "description": "Requêtes volontairement invalides pour vérifier que les erreurs sont propres : jamais de stack trace, toujours un JSON {detail: ...} avec le bon code HTTP.",
+      "item": [
+        {
+          "name": "401 — no API key",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));",
+                  "pm.test('Body = {detail: ...}, no stack trace', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.have.property('detail');",
+                  "  pm.expect(JSON.stringify(body)).to.not.include('Traceback');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plate\": \"AA-111-AA\",\n  \"type\": 1,\n  \"date\": \"2026-09-02T10:15:00Z\",\n  \"source\": 3\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/access/requests",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "access",
+                "requests"
+              ]
+            },
+            "description": "En-tête X-API-Key absent : doit être refusé avant même de toucher au workflow métier."
+          },
+          "response": []
+        },
+        {
+          "name": "422 — invalid plate format",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422 Unprocessable Entity', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plate\": \"NOT-A-PLATE\",\n  \"type\": 1,\n  \"date\": \"2026-09-02T10:15:00Z\",\n  \"source\": 3\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/access/requests",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "access",
+                "requests"
+              ]
+            },
+            "description": "Ne respecte pas ^[A-Z]{2}-\\d{3}-[A-Z]{2}$ : validation Pydantic rejetée avant d'atteindre le use case."
+          },
+          "response": []
+        },
+        {
+          "name": "422 — invalid request type (neither 1 nor 2)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422 Unprocessable Entity', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plate\": \"AA-111-AA\",\n  \"type\": 9,\n  \"date\": \"2026-09-02T10:15:00Z\",\n  \"source\": 3\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/access/requests",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "access",
+                "requests"
+              ]
+            },
+            "description": "RequestType est un IntEnum {1,2} : toute autre valeur est rejetée par Pydantic."
+          },
+          "response": []
+        },
+        {
+          "name": "422 — missing required field (date)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422 Unprocessable Entity', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plate\": \"AA-111-AA\",\n  \"type\": 1,\n  \"source\": 3\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/access/requests",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "access",
+                "requests"
+              ]
+            },
+            "description": "Le champ 'date' est obligatoire et absent ici."
+          },
+          "response": []
+        },
+        {
+          "name": "400 — malformed photoBase64",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Bad Request', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plate\": \"AA-111-AA\",\n  \"type\": 1,\n  \"date\": \"2026-09-02T10:15:00Z\",\n  \"source\": 3,\n  \"photoBase64\": \"@@@this-is-not-base64@@@\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/access/requests",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "access",
+                "requests"
+              ]
+            },
+            "description": "photoBase64 syntaxiquement invalide : décodage base64 échoue avant d'appeler l'IA vision."
+          },
+          "response": []
+        },
+        {
+          "name": "404 — request not found",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/access/requests/this-does-not-exist",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "access",
+                "requests",
+                "this-does-not-exist"
+              ]
+            },
+            "description": "Identifiant de demande inexistant."
+          },
+          "response": []
+        },
+        {
+          "name": "422 — invalid plate on /plates/.../known",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422 Unprocessable Entity', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/access/plates/not-a-plate/known",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "access",
+                "plates",
+                "not-a-plate",
+                "known"
+              ]
+            },
+            "description": "Le path param plate doit aussi respecter ^[A-Z]{2}-\\d{3}-[A-Z]{2}$."
+          },
+          "response": []
+        },
+        {
+          "name": "429 — rate limit exceeded (run via Collection Runner)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 429) {",
+                  "  pm.test('429 Too Many Requests', () => pm.response.to.have.status(429));",
+                  "} else {",
+                  "  console.log('Status ' + pm.response.code + ' — re-run via Runner with 25+ iterations to trigger 429 (default limit 20/minute).');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plate\": \"AA-111-AA\",\n  \"type\": 1,\n  \"date\": \"2026-09-02T10:15:00Z\",\n  \"source\": 3\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/access/requests",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "access",
+                "requests"
+              ]
+            },
+            "description": "Un seul appel ne suffit pas à déclencher le rate limit (RATE_LIMIT_ACCESS_REQUESTS=20/minute par défaut). Pour voir un vrai 429 : clic droit sur ce dossier > Run folder > 25+ itérations, délai 0 ms."
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "requestId",
+      "value": ""
+    },
+    {
+      "key": "vehicleId",
+      "value": ""
+    }
+  ]
+}
