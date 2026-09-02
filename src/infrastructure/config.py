@@ -1,0 +1,70 @@
+"""Configuration centralisée du service, lue depuis l'environnement (.env).
+
+Fichier ajouté par rapport à l'arborescence indicative de la spec (section
+4) : un point unique de lecture des variables d'environnement (section 12)
+évite de disperser des `os.environ.get(...)` dans `deps.py` et les
+adaptateurs. Reste dans `infrastructure`, ne fuit pas vers `domain`.
+"""
+
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass, field
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
+def _split_urls(raw: str) -> list[str]:
+    return [url.strip() for url in raw.split(",") if url.strip()]
+
+
+@dataclass(frozen=True)
+class Settings:
+    port: int = int(os.getenv("PORT", "8000"))
+    database_url: str = os.getenv("DATABASE_URL", "sqlite:///./access.db")
+    api_key: str = os.getenv("API_KEY", "change-me")
+    log_level: str = os.getenv("LOG_LEVEL", "INFO")
+    cors_allowed_origins: list[str] = field(
+        default_factory=lambda: _split_urls(
+            os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000")
+        )
+    )
+
+    use_mocks: bool = os.getenv("USE_MOCKS", "true").lower() == "true"
+    vehicles_service_url: str = os.getenv("VEHICLES_SERVICE_URL", "http://localhost:8001")
+    booking_service_url: str = os.getenv("BOOKING_SERVICE_URL", "http://localhost:8002")
+    parking_service_url: str = os.getenv("PARKING_SERVICE_URL", "http://localhost:8003")
+    pricing_service_url: str = os.getenv("PRICING_SERVICE_URL", "http://localhost:8004")
+    payment_service_url: str = os.getenv("PAYMENT_SERVICE_URL", "http://localhost:8005")
+
+    ai_model_name: str = os.getenv("AI_MODEL_NAME", "fake-vision-v1")
+
+    event_subscribers_urls: list[str] = field(
+        default_factory=lambda: _split_urls(os.getenv("EVENT_SUBSCRIBERS_URLS", ""))
+    )
+    event_publish_timeout_ms: int = int(os.getenv("EVENT_PUBLISH_TIMEOUT_MS", "1000"))
+
+    rate_limit_access_requests: str = os.getenv("RATE_LIMIT_ACCESS_REQUESTS", "20/minute")
+
+
+_settings: Settings | None = None
+
+
+def get_settings() -> Settings:
+    """Singleton simple — relit l'environnement une seule fois par process.
+
+    Les tests qui ont besoin d'une configuration différente peuvent appeler
+    `reset_settings_cache()` après avoir modifié `os.environ`.
+    """
+
+    global _settings
+    if _settings is None:
+        _settings = Settings()
+    return _settings
+
+
+def reset_settings_cache() -> None:
+    global _settings
+    _settings = None
