@@ -115,6 +115,7 @@ class ProcessEntryRequest:
             )
 
         reservation = self._booking_port.get_reservation(vehicle_id)
+        is_reservation = reservation is not None
         if reservation is not None:
             place_type = reservation.reserved_place_type
             place_id = reservation.place_id
@@ -185,6 +186,7 @@ class ProcessEntryRequest:
                         "reason": authorization.reason,
                         "placeId": place_id,
                         "placeType": _place_type_to_payload(place_type),
+                        "reservation": is_reservation,
                     },
                     created_at=date,
                 )
@@ -234,6 +236,7 @@ class ProcessEntryRequest:
                     "vehicleId": vehicle_id,
                     "placeId": place_id,
                     "placeType": _place_type_to_payload(place_type),
+                    "reservation": is_reservation,
                 },
                 created_at=date,
             )

@@ -77,8 +77,10 @@ class FakePricingPort:
         self.amount = amount
         self.calls: list[tuple] = []
 
-    def calculate_price(self, vehicle_id, entry_date, exit_date, place_type) -> Decimal:
-        self.calls.append((vehicle_id, entry_date, exit_date, place_type))
+    def calculate_price(
+        self, vehicle_id, entry_date, exit_date, place_type, is_reservation=False
+    ) -> Decimal:
+        self.calls.append((vehicle_id, entry_date, exit_date, place_type, is_reservation))
         return self.amount
 
 

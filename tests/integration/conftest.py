@@ -11,8 +11,19 @@ import os
 
 # Variables d'environnement de test — définies AVANT tout import de `src.*`
 # pour que `infrastructure.config.get_settings()` les lise dès le départ.
+# Chaque bascule PAR SERVICE est fixée explicitement (pas seulement
+# USE_MOCKS) pour que les tests restent hermétiques même si le `.env` local
+# du développeur active un vrai service (ex. PRICING_USE_MOCK=false) —
+# sinon `load_dotenv()` (appelé par `infrastructure/config.py`) le ferait
+# fuiter dans l'environnement de test, rendant la suite dépendante du
+# réseau et non déterministe.
 os.environ["API_KEY"] = "test-api-key"
 os.environ["USE_MOCKS"] = "true"
+os.environ["VEHICLES_USE_MOCK"] = "true"
+os.environ["BOOKING_USE_MOCK"] = "true"
+os.environ["PARKING_USE_MOCK"] = "true"
+os.environ["PRICING_USE_MOCK"] = "true"
+os.environ["PAYMENT_USE_MOCK"] = "true"
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 os.environ["EVENT_SUBSCRIBERS_URLS"] = ""
 

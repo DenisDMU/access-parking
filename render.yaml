@@ -64,7 +64,9 @@ services:
       - key: PARKING_SERVICE_URL
         value: http://localhost:8003
       - key: PRICING_SERVICE_URL
-        value: http://localhost:8004
+        value: https://pricing-9khk.onrender.com
+      - key: PRICING_USE_MOCK
+        value: "false"  # premier service reel branche - voir README section 5
       - key: PAYMENT_SERVICE_URL
         value: http://localhost:8005
       - key: AI_MODEL_NAME

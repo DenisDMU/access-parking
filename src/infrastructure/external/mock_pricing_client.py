@@ -26,7 +26,11 @@ class MockPricingClient:
         entry_date: datetime,
         exit_date: datetime,
         place_type: PlaceType,
+        is_reservation: bool = False,
     ) -> Decimal:
+        # is_reservation non utilisé par ce mock (formule volontairement
+        # simple) — le vrai service Pricing, lui, applique un tarif
+        # walk_in/reserved différent par zone (cf. http_pricing_client.py).
         duration_seconds = max((exit_date - entry_date).total_seconds(), 0)
         duration_hours = Decimal(duration_seconds) / Decimal(3600)
         amount = _BASE_FEE + (_HOURLY_RATE * duration_hours)

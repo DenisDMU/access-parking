@@ -116,8 +116,11 @@ class ProcessExitRequest:
         entry_date = entry_request.date if entry_request else date
         place_id = entry_event.payload.get("placeId") if entry_event else None
         place_type = _place_type_from_payload(entry_event.payload if entry_event else None)
+        is_reservation = bool(entry_event.payload.get("reservation", False)) if entry_event else False
 
-        amount = self._pricing_port.calculate_price(vehicle_id, entry_date, date, place_type)
+        amount = self._pricing_port.calculate_price(
+            vehicle_id, entry_date, date, place_type, is_reservation
+        )
 
         payment_result = self._payment_port.request_payment(vehicle_id, amount)
         if not payment_result.success:

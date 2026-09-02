@@ -1,4 +1,12 @@
-"""Port vers le service Pricing."""
+"""Port vers le service Pricing.
+
+`is_reservation` a été ajouté (écart mineur assumé, cf. README section 14)
+après intégration du vrai service Pricing de l'équipe : son API distingue
+tarifairement une entrée réservée ("reserved") d'une entrée walk-in
+("walk_in"), information qu'Access connaît déjà à l'entrée (résultat de
+`BookingServicePort.get_reservation`) mais que la spec initiale ne faisait
+pas remonter jusqu'à ce port.
+"""
 
 from __future__ import annotations
 
@@ -16,6 +24,7 @@ class PricingServicePort(Protocol):
         entry_date: datetime,
         exit_date: datetime,
         place_type: PlaceType,
+        is_reservation: bool,
     ) -> Decimal:
         """Calcule le montant dû pour ce stationnement."""
         ...

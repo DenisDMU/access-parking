@@ -229,7 +229,7 @@ même fichier `deps.py`) — chaque squelette liste ses propres `TODO` :
 | Vehicles | `http_vehicles_client.py`  | Route/méthode, code "inconnu", noms de champs |
 | Booking  | `http_booking_client.py`   | Route/méthode, code "pas de réservation", `placeId` déjà assigné ou non |
 | Parking  | `http_parking_client.py`   | Routes allocate/occupy/free, `placeId` réutilisable ou non (cf. consignes 2.1) |
-| Pricing  | `http_pricing_client.py`   | Route/méthode, type du champ montant, traçabilité de la grille tarifaire (consignes 2.5) |
+| **Pricing** | `http_pricing_client.py` | **✅ Branché** (`PRICING_USE_MOCK=false`) contre le vrai service (`POST /quote`) — mapping `PlaceType → zone` et arrondi de durée pour les réservations restent des hypothèses documentées dans le fichier, voir aussi section 16 |
 | Payment  | `http_payment_client.py`   | Route/méthode, clé d'idempotence (consignes 2.6), statuts intermédiaires |
 
 ---
