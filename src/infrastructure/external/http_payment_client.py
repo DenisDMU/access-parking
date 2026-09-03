@@ -37,7 +37,7 @@ from src.domain.value_objects.dto import PaymentResult
 class HttpPaymentClient:
     """Implémente `PaymentServicePort` via un vrai appel HTTP à Payment."""
 
-    def __init__(self, base_url: str, timeout_s: float = 5.0) -> None:
+    def __init__(self, base_url: str, timeout_s: float = 20.0) -> None:
         self._base_url = base_url.rstrip("/")
         self._timeout_s = timeout_s
 

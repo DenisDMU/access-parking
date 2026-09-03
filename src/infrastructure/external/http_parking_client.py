@@ -52,11 +52,16 @@ TODO restés ouverts (à confirmer avec l'équipe Parking si besoin) :
 
 from __future__ import annotations
 
+import logging
+
 import httpx
 
 from src.domain.ports.parking_service_port import ParkingServicePort
 from src.domain.value_objects.dto import PlaceAssignment, PlaceType, VehicleType
 from src.domain.value_objects.enums import VehicleCategory
+
+logger = logging.getLogger(__name__)
+
 
 def _map_category(vehicle_type: VehicleType) -> str:
     """Traduit un `VehicleType` en une des 5 catégories réelles de Parking
@@ -85,9 +90,16 @@ def _place_type_from_category(category: str) -> PlaceType:
 
 
 class HttpParkingClient:
-    """Implémente `ParkingServicePort` via un vrai appel HTTP à Parking."""
+    """Implémente `ParkingServicePort` via un vrai appel HTTP à Parking.
 
-    def __init__(self, base_url: str, timeout_s: float = 3.0) -> None:
+    `timeout_s=20.0` par défaut (au lieu des 3-5s habituels) : les services
+    de l'équipe tournent sur le plan Free de Render, qui met le service en
+    veille après 15 min d'inactivité — un cold start peut prendre plusieurs
+    secondes à se réveiller. Un timeout trop court provoquait un
+    `httpx.ReadTimeout` en production sur une requête pourtant valide.
+    """
+
+    def __init__(self, base_url: str, timeout_s: float = 20.0) -> None:
         self._base_url = base_url.rstrip("/")
         self._timeout_s = timeout_s
 
@@ -97,9 +109,17 @@ class HttpParkingClient:
         category = _map_category(vehicle_type)
         commercial_type = "booking" if is_reservation else "walkin"
         payload = {"category_name": category, "commercial_type": commercial_type}
-        with httpx.Client(timeout=self._timeout_s) as client:
-            response = client.post(f"{self._base_url}/parking/hold", json=payload)
-        response.raise_for_status()
+        try:
+            with httpx.Client(timeout=self._timeout_s) as client:
+                response = client.post(f"{self._base_url}/parking/hold", json=payload)
+            response.raise_for_status()
+        except httpx.HTTPError as exc:
+            # Panne/429/timeout Parking : hors périmètre MVP (section 16 de
+            # la spec), traité comme "aucune place disponible" plutôt que de
+            # planter le use case avec une 500 — l'entrée est refusée
+            # proprement (ProcessEntryRequest gère déjà `None` ainsi).
+            logger.warning("Parking indisponible sur request_place (%s/%s) : %s", category, commercial_type, exc)
+            return None
 
         if not response.json().get("success", False):
             return None
@@ -113,18 +133,28 @@ class HttpParkingClient:
         # `vehicle_id` non utilisé par ce client : Parking ne connaît que
         # des compteurs de catégories, aucun véhicule (cf. docstring module).
         category, commercial_type = place_id.split(":", 1)
-        with httpx.Client(timeout=self._timeout_s) as client:
-            response = client.post(
-                f"{self._base_url}/parking/confirm_entry",
-                json={"category_name": category, "commercial_type": commercial_type},
-            )
+        try:
+            with httpx.Client(timeout=self._timeout_s) as client:
+                response = client.post(
+                    f"{self._base_url}/parking/confirm_entry",
+                    json={"category_name": category, "commercial_type": commercial_type},
+                )
+        except httpx.HTTPError as exc:
+            # Best-effort, comme la publication d'événements : la décision
+            # d'autorisation a déjà été prise à ce stade, on ne bloque pas.
+            logger.warning("Parking indisponible sur mark_place_occupied (%s) : %s", place_id, exc)
+            return False
         return response.status_code < 300
 
     def mark_place_free(self, place_id: str) -> bool:
         category, commercial_type = place_id.split(":", 1)
-        with httpx.Client(timeout=self._timeout_s) as client:
-            response = client.post(
-                f"{self._base_url}/parking/free",
-                json={"category_name": category, "commercial_type": commercial_type},
-            )
+        try:
+            with httpx.Client(timeout=self._timeout_s) as client:
+                response = client.post(
+                    f"{self._base_url}/parking/free",
+                    json={"category_name": category, "commercial_type": commercial_type},
+                )
+        except httpx.HTTPError as exc:
+            logger.warning("Parking indisponible sur mark_place_free (%s) : %s", place_id, exc)
+            return False
         return response.status_code < 300

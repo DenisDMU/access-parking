@@ -42,11 +42,14 @@ comportement inattendu apparaît) :
 
 from __future__ import annotations
 
+import logging
 import math
 from datetime import datetime
 from decimal import Decimal
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 from src.domain.ports.pricing_service_port import PricingServicePort
 from src.domain.value_objects.dto import PlaceType
@@ -81,7 +84,7 @@ def _duration_minutes(entry_date: datetime, exit_date: datetime, is_reservation:
 class HttpPricingClient:
     """Implémente `PricingServicePort` via un vrai appel HTTP à Pricing."""
 
-    def __init__(self, base_url: str, timeout_s: float = 3.0) -> None:
+    def __init__(self, base_url: str, timeout_s: float = 20.0) -> None:
         self._base_url = base_url.rstrip("/")
         self._timeout_s = timeout_s
 
@@ -92,15 +95,22 @@ class HttpPricingClient:
         exit_date: datetime,
         place_type: PlaceType,
         is_reservation: bool = False,
-    ) -> Decimal:
+    ) -> Decimal | None:
         payload = {
             "zone": _map_zone(place_type),
             "mode": "reserved" if is_reservation else "walk_in",
             "duration_min": _duration_minutes(entry_date, exit_date, is_reservation),
         }
-        with httpx.Client(timeout=self._timeout_s) as client:
-            response = client.post(f"{self._base_url}/quote", json=payload)
-        response.raise_for_status()
+        try:
+            with httpx.Client(timeout=self._timeout_s) as client:
+                response = client.post(f"{self._base_url}/quote", json=payload)
+            response.raise_for_status()
+        except httpx.HTTPError as exc:
+            # Panne/429/timeout Pricing : hors périmètre MVP. On ne fabrique
+            # jamais un montant inventé — None fait refuser la sortie
+            # proprement côté ProcessExitRequest (jamais de 500 brute).
+            logger.warning("Pricing indisponible sur calculate_price (%s) : %s", vehicle_id, exc)
+            return None
 
         data = response.json()
         return Decimal(str(data["amount_eur"]))

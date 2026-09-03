@@ -4,9 +4,14 @@
 from src.domain.value_objects.dto import VehicleType
 from src.domain.value_objects.enums import VehicleCategory
 from src.infrastructure.external.http_parking_client import (
+    HttpParkingClient,
     _map_category,
     _place_type_from_category,
 )
+
+# Port fermé en local : connexion refusée immédiatement, pas de reseau reel
+# necessaire ni de delai notable (meme principe que pour RabbitMQ).
+_UNREACHABLE_URL = "http://127.0.0.1:59999"
 
 FOUR = VehicleCategory.FOUR_WHEELER
 TWO = VehicleCategory.TWO_WHEELER
@@ -51,3 +56,19 @@ def test_place_type_from_category_roundtrips_each_category():
         assert place.is_electric == vehicle.is_electric
         assert place.is_handicap == vehicle.is_handicap
         assert place.category == vehicle.category
+
+
+def test_request_place_returns_none_when_parking_unreachable():
+    client = HttpParkingClient(_UNREACHABLE_URL, timeout_s=1.0)
+    result = client.request_place(VehicleType(category=FOUR))  # ne doit jamais lever
+    assert result is None
+
+
+def test_mark_place_occupied_returns_false_when_parking_unreachable():
+    client = HttpParkingClient(_UNREACHABLE_URL, timeout_s=1.0)
+    assert client.mark_place_occupied("STANDARD:walkin", "v1") is False
+
+
+def test_mark_place_free_returns_false_when_parking_unreachable():
+    client = HttpParkingClient(_UNREACHABLE_URL, timeout_s=1.0)
+    assert client.mark_place_free("STANDARD:walkin") is False

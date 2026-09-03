@@ -120,6 +120,29 @@ def test_exit_refused_payment_failed():
     assert parking.freed == []
 
 
+def test_exit_refused_pricing_unavailable():
+    vehicles = FakeVehiclesPort(
+        {"AA-111-AA": VehicleInfo(vehicle_id="v1", vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER))}
+    )
+    presence = FakePresenceRepo()
+    access_repo = FakeAccessRepo()
+    _seed_vehicle_present(access_repo, presence)
+    parking = FakeParkingPort()
+    pricing = FakePricingPort(amount=None)  # simule Pricing indisponible (429/5xx/timeout)
+    payment = FakePaymentPort()
+    use_case = make_use_case(vehicles, parking, pricing, payment, presence, access_repo)
+
+    decision = use_case.execute("AA-111-AA", EXIT_AT, DetectionSource.TERMINAL)
+
+    assert decision.result is AuthorizationResult.REFUSED
+    assert decision.reason == "Service de tarification indisponible, réessayez plus tard"
+    assert decision.payment_amount is None
+    # Jamais de paiement tente sans montant fiable, jamais la place liberee.
+    assert payment.calls == []
+    assert parking.freed == []
+    assert presence.get_status("v1") is PresenceStatus.IN
+
+
 def test_exit_refused_vehicle_not_present():
     vehicles = FakeVehiclesPort(
         {"CC-333-CC": VehicleInfo(vehicle_id="v_absent", vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER))}

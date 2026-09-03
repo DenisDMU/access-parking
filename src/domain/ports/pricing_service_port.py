@@ -25,6 +25,11 @@ class PricingServicePort(Protocol):
         exit_date: datetime,
         place_type: PlaceType,
         is_reservation: bool,
-    ) -> Decimal:
-        """Calcule le montant dû pour ce stationnement."""
+    ) -> Decimal | None:
+        """Calcule le montant dû pour ce stationnement.
+
+        `None` si Pricing est indisponible (429/5xx/timeout) — traité comme
+        un refus propre de la sortie par `ProcessExitRequest`, jamais comme
+        un montant inventé (cf. même principe que `ParkingServicePort`,
+        écarts assumés section 16 du README)."""
         ...

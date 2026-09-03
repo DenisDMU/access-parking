@@ -15,6 +15,42 @@
 
 ---
 
+## Fiche d'identité (rendu)
+
+| | |
+|---|---|
+| **Rôle** | Décide si un véhicule peut entrer/sortir du parking et coordonne les échanges avec Vehicles, Booking, Parking, Pricing, Payment (aucune donnée métier des autres services). |
+| **Version actuelle** | `2.0.0` |
+| **URL du service déployé** | https://access-api-a1u7.onrender.com |
+| **Documentation Swagger/OpenAPI** | https://access-api-a1u7.onrender.com/docs (ReDoc : `/redoc`, spec brute : `/openapi.json`) |
+| **Dépendances (services appelés)** | Vehicles *(mocké)*, Booking *(mocké)*, **Parking** *(réel)*, **Pricing** *(réel)*, Payment *(mocké)* |
+| **Tester le service** | Collection Postman `postman/Access-Render.postman_collection.json` + environnement `Access — Render` (clé dans l'en-tête `X-API-Key`) — voir [section 13](#13-postman). Sans clé : `GET /health`. |
+
+### Fonctionnalités
+
+- [x] Résoudre une plaque en identifiant pseudonymisé, sans jamais la stocker/logger/renvoyer.
+- [x] Autoriser l'entrée d'un véhicule sans réservation (place attribuée automatiquement).
+- [x] Autoriser l'entrée d'un véhicule avec réservation active.
+- [x] Refuser l'entrée d'un véhicule déjà présent.
+- [x] Refuser l'entrée en cas d'incompatibilité véhicule/place.
+- [x] Demander une confirmation (pas un refus direct) si le justificatif PMR manque.
+- [x] Calculer et faire payer une sortie (montant réel, paiement mocké).
+- [x] Refuser une sortie en cas de paiement refusé ou de véhicule non présent.
+- [x] Publier un événement (webhook ou RabbitMQ) à chaque entrée/sortie/refus.
+- [x] Lister/consulter l'historique des demandes et des événements publiés (audit).
+- [x] Protéger toutes les routes (sauf `/health`) par clé API.
+- [x] Résoudre un véhicule via le vrai service **Vehicles**.
+- [ ] Vérifier une réservation via le vrai service **Booking**.
+- [x] Attribuer/occuper/libérer une place via le vrai service **Parking**.
+- [x] Calculer un prix via le vrai service **Pricing**.
+- [ ] Exécuter un paiement via le vrai service **Payment**.
+
+> Une case n'est cochée que si le comportement est réellement vérifié —
+> montants Pricing et compteurs Parking réels confirmés dans `JOURNAL.md`
+> et `reponse.md`.
+
+---
+
 ## Sommaire
 
 1. [Présentation](#1-présentation)
@@ -185,6 +221,58 @@ FastAPI/SQLAlchemy/httpx, permet de les tester unitairement en une fraction
 de seconde, et de changer n'importe quel détail d'infrastructure (base de
 données, broker d'événements, vrais clients HTTP) sans jamais toucher à la
 logique de décision.
+
+### Comment une requête traverse les couches
+
+Exemple concret, `POST /access/requests` (entrée) :
+
+1. **`interfaces/api`** reçoit le JSON, le valide via un schéma Pydantic
+   (`AccessRequestIn`), résout les dépendances via `deps.py` (composition
+   root), et appelle `ProcessEntryRequest.execute(...)`.
+2. **`application`** (`ProcessEntryRequest`) orchestre l'appel : résout le
+   véhicule, vérifie la présence, cherche une réservation ou une place,
+   applique les règles de compatibilité/accessibilité — **en ne
+   manipulant que des types de `domain`** (`VehicleInfo`, `PlaceType`,
+   `AuthorizationResult`...), jamais un détail HTTP ou SQL.
+3. **`domain/rules`** exécute les fonctions pures (`is_compatible`,
+   `requires_disability_confirmation`...) — aucune dépendance, testables
+   isolément.
+4. **`infrastructure`** exécute le travail concret derrière chaque port
+   appelé par le use case : `HttpParkingClient` fait le vrai appel HTTP,
+   `SqliteAccessRepository` écrit en base, `RabbitMQEventPublisher` publie
+   sur le bus.
+5. Le use case renvoie un DTO (`EntryDecision`) à `interfaces/api`, qui le
+   sérialise en JSON de réponse.
+
+À aucun moment `ProcessEntryRequest` ne sait si `ParkingServicePort` est
+un mock, un vrai appel HTTP, ou (en test) un double — **c'est tout l'intérêt**.
+
+### Preuve concrète : la résilience, gratuite grâce au découpage
+
+Quand Parking ou Pricing renvoient une erreur inattendue (429, 5xx,
+timeout — cf. `infrastructure/external/http_parking_client.py` et
+`http_pricing_client.py`), Access doit refuser proprement plutôt que
+planter. Grâce au découpage hexagonal, **ce correctif tient entièrement
+dans la couche `infrastructure`** :
+
+```python
+# domain/ports/pricing_service_port.py — le contrat autorise déjà l'échec
+def calculate_price(...) -> Decimal | None: ...  # None = indisponible
+
+# infrastructure/external/http_pricing_client.py — seul endroit qui change
+try:
+    response = client.post(f"{self._base_url}/quote", json=payload)
+    response.raise_for_status()
+except httpx.HTTPError:
+    return None  # jamais un montant inventé, jamais un crash
+```
+
+`ProcessExitRequest` (couche `application`) n'a **pas eu besoin d'être
+réécrit** : il savait déjà gérer un port qui répond "indisponible" pour
+Parking (`request_place` renvoie déjà `None` → refus "Aucune place
+disponible" depuis l'intégration initiale) — il a suffi d'ajouter la même
+vérification pour le montant Pricing. Aucun test existant n'a cassé,
+aucune route, aucun schéma n'a changé.
 
 ---
 
@@ -514,7 +602,13 @@ premier déploiement :
   `DATABASE_URL=sqlite:////var/data/access.db`.
 - **Mise en veille (plan Free)** : `access-api` s'endort après ~15 min
   d'inactivité ; le premier appel suivant peut prendre 30-60s (cold start) —
-  normal, pas un bug.
+  normal, pas un bug. Les services de l'équipe (Parking, Pricing...) sont
+  logés pareil : un appel sortant d'Access vers l'un d'eux peut donc aussi
+  déclencher son réveil. Les clients HTTP réels utilisent un timeout de
+  **20s** (`infrastructure/external/http_*_client.py`) pour l'encaisser, et
+  toute erreur (429/5xx/timeout/connexion refusée) est traitée comme un
+  refus métier propre plutôt qu'un crash — voir l'exemple en
+  [section 4](#4-architecture-hexagonale).
 - **CORS** : `CORS_ALLOWED_ORIGINS=*` par défaut dans le blueprint (démo
   publique/équipe) — à restreindre à vos vraies origines une fois un front
   ou un domaine d'équipe fixé.
@@ -591,6 +685,12 @@ non intrusives** ont été ajoutées :
   `http_parking_client.py` pour que le reste du code (qui a besoin d'un
   identifiant pour "quelle place libérer" à la sortie) continue de
   fonctionner sans changement.
+- `PricingServicePort.calculate_price` renvoie désormais `Decimal | None`
+  (au lieu de toujours `Decimal`) : `None` signale que Pricing est
+  indisponible (429/5xx/timeout), traité par `ProcessExitRequest` comme un
+  refus propre de la sortie (jamais un montant inventé, jamais de paiement
+  tenté). Même principe déjà en place pour `ParkingServicePort.request_place`
+  côté entrée — voir l'exemple commenté en [section 4](#4-architecture-hexagonale).
 
 **Nommage anglais vs. contenu français** : tous les identifiants de code
 (classes d'entités, champs, colonnes SQL, clés JSON) sont en anglais — la

@@ -121,6 +121,17 @@ class ProcessExitRequest:
         amount = self._pricing_port.calculate_price(
             vehicle_id, entry_date, date, place_type, is_reservation
         )
+        if amount is None:
+            # Pricing indisponible (429/5xx/timeout) : jamais de montant
+            # inventé, jamais de paiement tenté — refus propre plutôt qu'un
+            # plantage (même principe que Parking, écarts assumés README).
+            return self._refuse(
+                request_id=request_id,
+                vehicle_id=vehicle_id,
+                date=date,
+                source=source,
+                reason="Service de tarification indisponible, réessayez plus tard",
+            )
 
         payment_result = self._payment_port.request_payment(vehicle_id, amount)
         if not payment_result.success:

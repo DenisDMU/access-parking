@@ -6,12 +6,17 @@ from datetime import datetime, timezone
 from src.domain.value_objects.dto import PlaceType
 from src.domain.value_objects.enums import VehicleCategory
 from src.infrastructure.external.http_pricing_client import (
+    HttpPricingClient,
     _duration_minutes,
     _map_zone,
 )
 
 FOUR = VehicleCategory.FOUR_WHEELER
 TWO = VehicleCategory.TWO_WHEELER
+
+# Port fermé en local : connexion refusée immédiatement, pas de réseau réel
+# nécessaire ni de délai notable (même principe que pour Parking/RabbitMQ).
+_UNREACHABLE_URL = "http://127.0.0.1:59999"
 
 
 def test_map_zone_standard():
@@ -65,3 +70,11 @@ def test_duration_minutes_reservation_never_below_60():
     entry = datetime(2026, 1, 1, 10, 0, tzinfo=timezone.utc)
     exit_ = datetime(2026, 1, 1, 10, 5, tzinfo=timezone.utc)  # 5 min seulement
     assert _duration_minutes(entry, exit_, is_reservation=True) == 60
+
+
+def test_calculate_price_returns_none_when_pricing_unreachable():
+    client = HttpPricingClient(_UNREACHABLE_URL, timeout_s=1.0)
+    entry = datetime(2026, 1, 1, 10, 0, tzinfo=timezone.utc)
+    exit_ = datetime(2026, 1, 1, 11, 0, tzinfo=timezone.utc)
+    result = client.calculate_price("v1", entry, exit_, PlaceType(category=FOUR))
+    assert result is None  # ne doit jamais lever, ni inventer un montant
