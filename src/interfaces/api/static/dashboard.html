@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Access — Journal de bord</title>
+<title>Access — Borne et journal</title>
 <style>
   :root {
     color-scheme: light dark;
@@ -160,16 +160,70 @@
     cursor: pointer;
   }
   .req-list-item:hover { border-color: var(--accent); }
+  /* --- Onglet Borne --- */
+  .borne { display: grid; grid-template-columns: minmax(280px, 380px) minmax(0, 1fr); gap: 16px; align-items: start; }
+  .borne > * { min-width: 0; } /* autorise les colonnes à rétrécir sous la largeur de leur contenu */
+  @media (max-width: 760px) {
+    main { padding: 16px 16px 40px; }
+    .borne { grid-template-columns: minmax(0, 1fr); }
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .panel h2 { margin: 0 0 12px; font-size: 15px; }
+  .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+  .field > span { color: var(--muted); font-size: 12px; }
+  #bornePlate {
+    width: 100%;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-align: center;
+    text-transform: uppercase;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .chip {
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    font-weight: 500;
+    font-size: 12px;
+    padding: 3px 8px;
+  }
+  .chip:hover { border-color: var(--accent); opacity: 1; }
+  .hint { color: var(--muted); font-size: 12px; margin: -4px 0 12px; }
+  .borne-actions { display: flex; gap: 8px; }
+  .borne-actions button { flex: 1; padding: 12px; font-size: 15px; }
+  .borne-actions button:disabled { opacity: 0.5; cursor: wait; }
+  .btn-exit { background: #0e7490; } /* couleur fixe : lisible en blanc dans les deux thèmes */
+  .gate { display: flex; align-items: center; gap: 12px; font-size: 20px; font-weight: 700; margin-bottom: 12px; }
+  .gate-light { width: 18px; height: 18px; border-radius: 50%; flex: none; background: var(--neutral); }
+  .gate-ok .gate-light { background: var(--ok); }
+  .gate-refused .gate-light { background: var(--danger); }
+  .gate-pending .gate-light { background: #d29922; }
+  .gate-wait .gate-light { animation: blink 1s infinite; }
+  @keyframes blink { 50% { opacity: 0.25; } }
+  .facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 0; }
+  .facts dt { color: var(--muted); }
+  .facts dd { margin: 0; overflow-wrap: anywhere; }
+  .link { color: var(--accent); cursor: pointer; text-decoration: underline; }
+  .borne-history { margin-top: 16px; }
+  .borne-history h2 { font-size: 13px; color: var(--muted); margin: 0 0 8px; }
 </style>
 </head>
 <body>
 <header>
-  <h1>Access — Journal de bord</h1>
+  <h1>Access — Borne et journal de bord</h1>
   <div class="subtitle">
-    Lecture live de <code>GET /access/events</code> (outbox) et recherche ponctuelle de demandes.
+    Simulation d'une borne d'entrée/sortie, lecture live de <code>GET /access/events</code> (outbox) et recherche de demandes.
   </div>
   <div class="tabs">
-    <button class="tab-btn active" data-tab="journal">Journal</button>
+    <button class="tab-btn active" data-tab="borne">Borne</button>
+    <button class="tab-btn" data-tab="journal">Journal</button>
     <button class="tab-btn" data-tab="search">Recherche</button>
   </div>
 </header>
@@ -191,7 +245,48 @@
 </div>
 
 <main>
-  <section id="tab-journal" class="tab-panel active">
+  <section id="tab-borne" class="tab-panel active">
+    <div class="borne">
+      <div class="panel">
+        <h2>Passage à la borne</h2>
+        <label class="field">
+          <span>Plaque lue (format AB-123-CD)</span>
+          <input id="bornePlate" type="text" maxlength="9" placeholder="AA-111-AA" autocomplete="off" />
+        </label>
+        <div class="field"><span>Plaques de démonstration (Vehicles mocké)</span></div>
+        <div id="borneChips" class="chips"></div>
+        <label class="field">
+          <span>Heure de passage</span>
+          <select id="borneOffset">
+            <option value="0" selected>Maintenant</option>
+            <option value="60">Dans 1 h</option>
+            <option value="150">Dans 2 h 30</option>
+            <option value="1440">Dans 1 jour</option>
+          </select>
+        </label>
+        <div class="hint">
+          Pour une sortie juste après l'entrée, choisis « Dans 2 h 30 » : ça simule la
+          durée de stationnement (sinon la 1re heure gratuite donne 0 €, donc aucun paiement).
+        </div>
+        <div class="borne-actions">
+          <button id="borneEntry">Entrée</button>
+          <button id="borneExit" class="btn-exit">Sortie</button>
+        </div>
+      </div>
+      <div>
+        <div id="borneResult" class="panel">
+          <div class="gate"><span class="gate-light"></span>En attente d'un véhicule</div>
+          <div class="hint">Saisis une plaque puis « Entrée » ou « Sortie ». La décision d'Access s'affiche ici.</div>
+        </div>
+        <div class="borne-history">
+          <h2>Passages de cette session</h2>
+          <div id="borneHistory" class="req-list"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-journal" class="tab-panel">
     <div id="content" class="empty">Renseigne ta clé API ci-dessus pour charger les événements.</div>
   </section>
 
@@ -252,16 +347,19 @@
 
   // --- Tabs ------------------------------------------------------------
 
+  function activateTab(name) {
+    document.querySelectorAll(".tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
+    document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
+    document.getElementById("tab-" + name).classList.add("active");
+  }
+
   document.querySelectorAll(".tab-btn").forEach(function (btn) {
     btn.addEventListener("click", function () {
-      document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
-      document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
-      btn.classList.add("active");
-      document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
+      activateTab(btn.dataset.tab);
     });
   });
 
-  // --- Clé API partagée entre les deux onglets --------------------------
+  // --- Clé API partagée entre les onglets --------------------------------
 
   function loadKey() {
     try {
@@ -512,6 +610,219 @@
   searchBtn.addEventListener("click", runSearch);
   searchValue.addEventListener("keydown", function (e) {
     if (e.key === "Enter") runSearch();
+  });
+
+  // --- Onglet Borne --------------------------------------------------------
+
+  const PLATE_REGEX = /^[A-Z]{2}-\d{3}-[A-Z]{2}$/;
+  // Registre du mock Vehicles (README section 3) — à retirer quand Vehicles sera réel.
+  const DEMO_PLATES = [
+    ["AA-111-AA", "Standard"],
+    ["BB-222-BB", "2 roues"],
+    ["CC-333-CC", "XL"],
+    ["DD-444-DD", "Électrique"],
+    ["EE-555-EE", "PMR avec justificatif"],
+    ["FF-666-FF", "PMR sans justificatif"],
+    ["GG-777-GG", "Avec réservation"],
+    ["HH-888-HH", "Standard"],
+    ["UN-000-KN", "Inconnue"],
+  ];
+  // Source de détection envoyée à Access : lecture de plaque à l'entrée,
+  // borne de paiement à la sortie.
+  const SOURCE_BY_TYPE = { 1: 3, 2: 2 };
+  const SOURCE_LABEL = { 1: "caméra", 2: "borne", 3: "lecture de plaque (LPR)", 4: "application mobile" };
+  const GATE_META = {
+    1: { cls: "gate-ok", text: "Barrière ouverte" },
+    2: { cls: "gate-refused", text: "Barrière fermée" },
+    3: { cls: "gate-pending", text: "Intervention d'un agent requise" },
+  };
+
+  const bornePlate = document.getElementById("bornePlate");
+  const borneOffset = document.getElementById("borneOffset");
+  const borneEntry = document.getElementById("borneEntry");
+  const borneExit = document.getElementById("borneExit");
+  const borneResult = document.getElementById("borneResult");
+  const borneHistory = document.getElementById("borneHistory");
+  const borneChips = document.getElementById("borneChips");
+
+  DEMO_PLATES.forEach(function ([plate, label]) {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "chip";
+    chip.textContent = plate + " · " + label;
+    chip.addEventListener("click", function () {
+      bornePlate.value = plate;
+      bornePlate.focus();
+    });
+    borneChips.appendChild(chip);
+  });
+
+  bornePlate.addEventListener("input", function () {
+    bornePlate.value = bornePlate.value.toUpperCase();
+  });
+
+  function renderGate(gateCls, title, facts, hint) {
+    borneResult.innerHTML = "";
+    const gate = document.createElement("div");
+    gate.className = "gate " + gateCls;
+    gate.innerHTML = '<span class="gate-light"></span>';
+    gate.appendChild(document.createTextNode(title));
+    borneResult.appendChild(gate);
+    if (facts && facts.length) {
+      const dl = document.createElement("dl");
+      dl.className = "facts";
+      facts.forEach(function ([label, value]) {
+        const dt = document.createElement("dt");
+        dt.textContent = label;
+        const dd = document.createElement("dd");
+        if (value instanceof Node) dd.appendChild(value);
+        else dd.textContent = value;
+        dl.appendChild(dt);
+        dl.appendChild(dd);
+      });
+      borneResult.appendChild(dl);
+    }
+    if (hint) {
+      const h = document.createElement("div");
+      h.className = "hint";
+      h.style.marginTop = "12px";
+      h.textContent = hint;
+      borneResult.appendChild(h);
+    }
+  }
+
+  function requestLink(requestId) {
+    const a = document.createElement("span");
+    a.className = "link";
+    a.textContent = requestId;
+    a.title = "Voir le détail dans l'onglet Recherche";
+    a.addEventListener("click", function () {
+      searchType.value = "requestId";
+      searchValue.value = requestId;
+      activateTab("search");
+      runSearch();
+    });
+    return a;
+  }
+
+  // Le paymentId n'est pas dans la réponse de la demande : il est porté par
+  // l'événement VEHICLE_EXITED associé (même source que l'onglet Journal).
+  async function findPaymentId(requestId, headers) {
+    try {
+      const res = await fetch("/api/v1/access/events?limit=20", { headers });
+      if (!res.ok) return null;
+      const events = await res.json();
+      const exitEvent = events.find((e) => e.requestId === requestId && e.type === 2);
+      return exitEvent && exitEvent.payload ? exitEvent.payload.paymentId || null : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function addHistory(type, body, elapsedS) {
+    const auth = body.authorization;
+    const resultMeta = auth ? (RESULT_META[auth.result] || RESULT_META[3]) : null;
+    const row = document.createElement("div");
+    row.className = "req-list-item";
+    // Jamais la plaque, même côté navigateur : uniquement l'identifiant pseudonymisé.
+    row.innerHTML =
+      '<span class="badge">' + (REQUEST_TYPE_LABEL[type] || type) + "</span>" +
+      (resultMeta ? '<span class="badge ' + resultMeta.cls + '">' + resultMeta.label + "</span>" : "") +
+      '<span class="req-summary">' +
+        escapeHtml(body.vehicleId || "(véhicule inconnu)") +
+        (auth && auth.reason ? " · " + escapeHtml(auth.reason) : "") +
+        (auth && auth.paymentAmount != null ? " · " + auth.paymentAmount.toFixed(2) + " €" : "") +
+      "</span>" +
+      '<span class="event-time">' + new Date().toLocaleTimeString("fr-FR") + " · " + elapsedS + " s</span>";
+    row.title = "Cliquer pour voir le détail complet";
+    row.addEventListener("click", function () {
+      searchType.value = "requestId";
+      searchValue.value = body.requestId;
+      activateTab("search");
+      runSearch();
+    });
+    borneHistory.prepend(row);
+    while (borneHistory.children.length > 10) borneHistory.lastChild.remove();
+  }
+
+  async function sendPassage(type) {
+    const key = apiKeyInput.value.trim();
+    if (!key) {
+      renderGate("gate-refused", "Clé API manquante", null, "Renseigne ta clé API dans la barre en haut de page.");
+      return;
+    }
+    const plate = bornePlate.value.trim().toUpperCase();
+    if (!PLATE_REGEX.test(plate)) {
+      renderGate("gate-refused", "Plaque illisible", null, "Format attendu : AB-123-CD (ex. AA-111-AA).");
+      return;
+    }
+    saveKey(key);
+
+    const isExit = type === 2;
+    const date = new Date(Date.now() + Number(borneOffset.value) * 60000);
+    const source = SOURCE_BY_TYPE[type];
+    const steps = isExit
+      ? "Identification (Vehicles), calcul du prix (Pricing), puis paiement (Payment). Le paiement prend environ 15 à 30 s."
+      : "Identification (Vehicles), réservation (Booking), puis attribution d'une place (Parking).";
+    const started = Date.now();
+    const elapsed = () => Math.round((Date.now() - started) / 1000);
+
+    borneEntry.disabled = borneExit.disabled = true;
+    renderGate("gate-wait", (isExit ? "Sortie" : "Entrée") + " en cours… 0 s", null, steps);
+    const ticker = setInterval(function () {
+      const title = borneResult.querySelector(".gate");
+      if (title) title.lastChild.textContent = (isExit ? "Sortie" : "Entrée") + " en cours… " + elapsed() + " s";
+    }, 1000);
+
+    const headers = { "X-API-Key": key, "Content-Type": "application/json" };
+    try {
+      const res = await fetch("/api/v1/access/requests", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ plate, type, date: date.toISOString(), source }),
+      });
+      if (res.status === 401) {
+        renderGate("gate-refused", "Clé API invalide (401)", null, "Vérifie la clé saisie en haut de page.");
+        return;
+      }
+      if (res.status === 429) {
+        renderGate("gate-refused", "Trop de passages (429)", null, "Limite de débit atteinte : attends une minute avant de réessayer.");
+        return;
+      }
+      if (!res.ok) {
+        renderGate("gate-refused", "Erreur " + res.status, null, "La demande n'a pas pu être traitée par Access.");
+        return;
+      }
+      const body = await res.json();
+      const auth = body.authorization || {};
+      const gate = GATE_META[auth.result] || GATE_META[3];
+      const facts = [
+        ["Motif", auth.reason || "—"],
+        ["Véhicule", body.vehicleId || "inconnu de Vehicles"],
+        ["Passage", (isExit ? "sortie" : "entrée") + " · " + date.toLocaleString("fr-FR") + " · " + SOURCE_LABEL[source]],
+      ];
+      if (auth.paymentAmount != null) facts.push(["Montant", auth.paymentAmount.toFixed(2) + " €"]);
+      if (isExit && auth.result === 1) {
+        const paymentId = await findPaymentId(body.requestId, headers);
+        facts.push(["Paiement", paymentId ? "accepté · " + paymentId : auth.paymentAmount ? "accepté" : "aucun (0 €)"]);
+      }
+      facts.push(["Demande", requestLink(body.requestId)]);
+      facts.push(["Temps de traitement", elapsed() + " s"]);
+      renderGate(gate.cls, gate.text, facts);
+      addHistory(type, body, elapsed());
+      refreshJournal();
+    } catch (err) {
+      renderGate("gate-refused", "Access injoignable", null, err.message);
+    } finally {
+      clearInterval(ticker);
+      borneEntry.disabled = borneExit.disabled = false;
+    }
+  }
+
+  borneEntry.addEventListener("click", function () { sendPassage(1); });
+  borneExit.addEventListener("click", function () { sendPassage(2); });
+  bornePlate.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") sendPassage(1);
   });
 
   refreshJournal();
