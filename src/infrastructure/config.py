@@ -63,15 +63,16 @@ class Settings:
     booking_use_mock: bool = field(
         default_factory=lambda: _bool_env("BOOKING_USE_MOCK", _bool_env("USE_MOCKS", True))
     )
-    # Pas de parking_use_mock / pricing_use_mock : Pricing puis Parking sont
-    # les premiers services réellement branchés (voir README section 5) —
+    # Pas de parking_use_mock / pricing_use_mock (ni payment_use_mock, voir
+    # plus bas) : Pricing puis Parking sont les premiers services réellement branchés (voir README section 5) —
     # leurs mocks ont été supprimés, plus de bascule possible pour eux
     # (toujours HttpParkingClient/HttpPricingClient). Les tests automatisés
     # utilisent des dependency overrides dédiés (FakeParkingPort,
     # FakePricingPort), pas ce toggle — voir tests/integration/conftest.py.
-    payment_use_mock: bool = field(
-        default_factory=lambda: _bool_env("PAYMENT_USE_MOCK", _bool_env("USE_MOCKS", True))
-    )
+    # Payment est branché à son tour (mock supprimé) : pas de bascule.
+    # Clé fournie en privé par l'équipe Payment ; vide = pas d'en-tête
+    # X-API-Key envoyé (tant que Payment n'a pas activé son authentification).
+    payment_api_key: str = os.getenv("PAYMENT_API_KEY", "")
 
     ai_model_name: str = os.getenv("AI_MODEL_NAME", "fake-vision-v1")
 

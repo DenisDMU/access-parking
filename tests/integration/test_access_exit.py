@@ -1,6 +1,9 @@
 """Tests d'intégration — workflow "Sortie" (via `TestClient`)."""
 
+from src.interfaces.api import deps
+from src.interfaces.api.main import app
 from tests.integration.conftest import AUTH_HEADERS
+from tests.unit.fakes import FakePaymentPort
 
 
 def _payload(plate: str, type_: int, date: str, source: int = 3) -> dict:
@@ -28,6 +31,7 @@ def test_exit_authorized_pricing_and_payment_ok(client):
 
 
 def test_exit_refused_payment_failed(client):
+    app.dependency_overrides[deps.get_payment_port] = lambda: FakePaymentPort(success=False)
     entry = client.post(
         "/api/v1/access/requests",
         json=_payload("HH-888-HH", 1, "2026-09-02T10:00:00Z"),

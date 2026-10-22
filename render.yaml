@@ -73,7 +73,11 @@ services:
         # aucune bascule possible pour ce service (voir README section 5/16).
         value: https://pricing-9khk.onrender.com
       - key: PAYMENT_SERVICE_URL
-        value: http://localhost:8005
+        # Service reel de l'equipe branche - mock supprime du code,
+        # aucune bascule possible pour ce service (voir README section 5/16).
+        value: https://payment-xp8n.onrender.com
+      - key: PAYMENT_API_KEY
+        sync: false  # secret fourni en privé par l'équipe Payment : à coller dans Render > Environment
       - key: AI_MODEL_NAME
         value: fake-vision-v1
       - key: EVENT_SUBSCRIBERS_URLS

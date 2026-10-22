@@ -6,7 +6,7 @@ Déroulé (section 8 de la spec) :
 3. Règle de présence → refus si le véhicule n'est pas `IN`.
 4. Récupération du stationnement en cours (demande d'entrée associée).
 5. Calcul du prix (Pricing).
-6. Paiement (Payment) → refus si échec.
+6. Paiement (Payment) → refus si échec ou résultat indéterminé.
 7. Autorisation, libération de la place.
 8. Mise à jour de la présence (`OUT`).
 9-11. Persistance + publication de l'événement + retour de la décision.
@@ -133,16 +133,34 @@ class ProcessExitRequest:
                 reason="Service de tarification indisponible, réessayez plus tard",
             )
 
-        payment_result = self._payment_port.request_payment(vehicle_id, amount)
-        if not payment_result.success:
-            return self._refuse(
-                request_id=request_id,
-                vehicle_id=vehicle_id,
-                date=date,
-                source=source,
-                reason="Paiement refusé",
-                amount=amount,
-            )
+        # Le stationnement est identifié par sa demande d'entrée : identifiant
+        # stable, donc rejouer une sortie réutilise le même paiement côté
+        # Payment (idempotence, jamais de double encaissement).
+        stay_id = current_request_id or request_id
+        payment_id = None
+        if amount > 0:  # Payment refuse un montant nul — rien à encaisser
+            payment_result = self._payment_port.request_payment(stay_id, amount)
+            if payment_result is None:
+                # Payment injoignable ou paiement encore en attente : ce n'est
+                # PAS un refus — rejouer la sortie est sans risque (même clé).
+                return self._refuse(
+                    request_id=request_id,
+                    vehicle_id=vehicle_id,
+                    date=date,
+                    source=source,
+                    reason="Paiement en cours de traitement ou service de paiement indisponible, réessayez",
+                    amount=amount,
+                )
+            if not payment_result.success:
+                return self._refuse(
+                    request_id=request_id,
+                    vehicle_id=vehicle_id,
+                    date=date,
+                    source=source,
+                    reason="Paiement refusé",
+                    amount=amount,
+                )
+            payment_id = payment_result.transaction_reference
 
         if place_id:
             self._parking_port.mark_place_free(place_id)
@@ -174,6 +192,7 @@ class ProcessExitRequest:
                     "vehicleId": vehicle_id,
                     "placeId": place_id,
                     "amount": str(amount),
+                    "paymentId": payment_id,
                 },
                 created_at=date,
             )
