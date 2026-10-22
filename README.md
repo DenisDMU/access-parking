@@ -441,7 +441,9 @@ Couverture (108 tests) :
 
 Chaque push sur `main` et chaque pull request déclenche le pipeline
 GitHub Actions [`.github/workflows/ci.yml`](.github/workflows/ci.yml), composé
-de 5 jobs indépendants qui doivent **tous** passer :
+de 5 jobs qui s'enchaînent **en file** (chaque étape attend la réussite de la
+précédente, `needs:` dans le workflow) et doivent **tous** passer — si une
+étape échoue, les suivantes ne sont pas lancées :
 
 | Job | Outil | Ce qu'il vérifie |
 |---|---|---|
