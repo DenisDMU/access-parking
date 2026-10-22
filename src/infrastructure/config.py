@@ -33,6 +33,10 @@ class Settings:
     database_url: str = os.getenv("DATABASE_URL", "sqlite:///./access.db")
     api_key: str = os.getenv("API_KEY", "change-me")
     log_level: str = os.getenv("LOG_LEVEL", "INFO")
+    # SHA du commit déployé, fourni automatiquement par Render à chaque
+    # build — permet de prouver quel code tourne réellement en ligne
+    # (exposé dans /health). "local" hors Render.
+    git_commit: str = os.getenv("RENDER_GIT_COMMIT", "local")
     cors_allowed_origins: list[str] = field(
         default_factory=lambda: _split_urls(
             os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000")

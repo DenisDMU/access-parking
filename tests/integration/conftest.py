@@ -26,6 +26,8 @@ os.environ["BOOKING_USE_MOCK"] = "true"
 os.environ["PAYMENT_USE_MOCK"] = "true"
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 os.environ["EVENT_SUBSCRIBERS_URLS"] = ""
+os.environ["CORS_ALLOWED_ORIGINS"] = "http://localhost:3000"
+os.environ.pop("RENDER_GIT_COMMIT", None)
 
 from decimal import Decimal
 
