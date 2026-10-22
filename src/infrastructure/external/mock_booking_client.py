@@ -17,7 +17,7 @@ format `"{category_name}:{commercial_type}"`.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from src.domain.value_objects.dto import PlaceType, Reservation
 from src.domain.value_objects.enums import VehicleCategory
@@ -27,8 +27,8 @@ _RESERVATIONS: dict[str, Reservation] = {
         id="res-demo-1",
         vehicle_id="v_with_reservation",
         reserved_place_type=PlaceType(category=VehicleCategory.FOUR_WHEELER),
-        start_date=datetime.now(timezone.utc),
-        end_date=datetime.now(timezone.utc) + timedelta(hours=2),
+        start_date=datetime.now(UTC),
+        end_date=datetime.now(UTC) + timedelta(hours=2),
         place_id=None,
     )
 }

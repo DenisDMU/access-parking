@@ -6,7 +6,7 @@ injoignable est loggé mais ne doit jamais empêcher la persistance de
 l'événement ni lever d'exception vers l'appelant.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from src.domain.entities.access_event import AccessEvent
 from src.domain.value_objects.enums import EventType
@@ -32,7 +32,7 @@ def _make_event() -> AccessEvent:
         type=EventType.VEHICLE_ENTERED,
         request_id="request-1",
         payload={"vehicleId": "v1"},
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
 
 
@@ -63,7 +63,7 @@ def test_publish_never_raises_for_any_event_type():
             type=event_type,
             request_id=f"request-{int(event_type)}",
             payload={},
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         publisher.publish(event)
 

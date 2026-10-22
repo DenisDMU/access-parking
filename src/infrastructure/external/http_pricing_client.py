@@ -49,11 +49,10 @@ from decimal import Decimal
 
 import httpx
 
-logger = logging.getLogger(__name__)
-
-from src.domain.ports.pricing_service_port import PricingServicePort
 from src.domain.value_objects.dto import PlaceType
 from src.domain.value_objects.enums import VehicleCategory
+
+logger = logging.getLogger(__name__)
 
 
 def _map_zone(place_type: PlaceType) -> str:

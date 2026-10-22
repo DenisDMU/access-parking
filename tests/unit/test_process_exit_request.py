@@ -1,6 +1,6 @@
 """Tests unitaires du use case `ProcessExitRequest` — tous les ports mockés."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from src.application.use_cases.process_exit_request import ProcessExitRequest
@@ -26,7 +26,7 @@ from tests.unit.fakes import (
     FakeVehiclesPort,
 )
 
-ENTRY_AT = datetime(2026, 9, 2, 10, 0, tzinfo=timezone.utc)
+ENTRY_AT = datetime(2026, 9, 2, 10, 0, tzinfo=UTC)
 EXIT_AT = ENTRY_AT + timedelta(hours=1)
 
 
