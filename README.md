@@ -20,7 +20,7 @@
 | | |
 |---|---|
 | **Rôle** | Décide si un véhicule peut entrer/sortir du parking et coordonne les échanges avec Vehicles, Booking, Parking, Pricing, Payment (aucune donnée métier des autres services). |
-| **Version actuelle** | `2.0.0` |
+| **Version actuelle** | `2.1.0` — la version et le SHA du commit déployé sont exposés par `GET /health` |
 | **URL du service déployé** | https://access-api-a1u7.onrender.com |
 | **Documentation Swagger/OpenAPI** | https://access-api-a1u7.onrender.com/docs (ReDoc : `/redoc`, spec brute : `/openapi.json`) |
 | **Dépendances (services appelés)** | Vehicles *(mocké)*, Booking *(mocké)*, **Parking** *(réel)*, **Pricing** *(réel)*, Payment *(mocké)* |
@@ -39,7 +39,8 @@
 - [x] Publier un événement (webhook ou RabbitMQ) à chaque entrée/sortie/refus.
 - [x] Lister/consulter l'historique des demandes et des événements publiés (audit).
 - [x] Protéger toutes les routes (sauf `/health`) par clé API.
-- [x] Résoudre un véhicule via le vrai service **Vehicles**.
+- [x] Exposer la version et le commit déployés (`/health`) et des métriques d'exploitation (`/metrics`).
+- [ ] Résoudre un véhicule via le vrai service **Vehicles**.
 - [ ] Vérifier une réservation via le vrai service **Booking**.
 - [x] Attribuer/occuper/libérer une place via le vrai service **Parking**.
 - [x] Calculer un prix via le vrai service **Pricing**.
@@ -77,7 +78,8 @@
 Access est le **point central** du workflow d'entrée/sortie du parking. Il ne
 possède **aucune donnée métier des autres services** (identité véhicule,
 réservations, disponibilité des places, tarifs, transactions) : il les
-interroge via 5 ports dédiés (mockés pour ce MVP) et ne conserve en propre
+interroge via 5 ports dédiés (Parking et Pricing réels, les autres encore
+mockés) et ne conserve en propre
 que ses propres objets métier (`AccessRequest`, `AccessAuthorization`,
 `AccessEvent`) plus un cache technique de présence (`vehicle_presence`).
 
@@ -464,7 +466,12 @@ ruff check src tests && pytest && bandit -r src -q && pip-audit -r requirements.
 - **Validation stricte** : Pydantic, y compris le format de plaque française
   (`^[A-Z]{2}-\d{3}-[A-Z]{2}$`) sur la requête d'entrée et sur le path param
   de `/access/plates/{plate}/known`.
-- **CORS restrictif** : liste blanche configurable (`CORS_ALLOWED_ORIGINS`).
+- **CORS restrictif** : liste blanche configurable (`CORS_ALLOWED_ORIGINS`,
+  limitée à l'URL du service sur Render), méthodes `GET`/`POST` et en-têtes
+  `Content-Type`/`X-API-Key` uniquement, sans credentials (l'authentification
+  passe par l'en-tête, pas par des cookies).
+- **Métriques protégées** : `/metrics` expose des informations
+  d'exploitation, donc il exige la clé API comme le reste.
 - **Rate limiting** : `POST /access/requests` limité (`RATE_LIMIT_ACCESS_REQUESTS`,
   `20/minute` par défaut) via `slowapi`.
 - **Gestion d'erreurs centralisée** : `main.py` intercepte `HTTPException`,
@@ -480,7 +487,7 @@ ruff check src tests && pytest && bandit -r src -q && pip-audit -r requirements.
 
 ## 11. Endpoints
 
-Préfixe `/api/v1` (sauf `/health`).
+Préfixe `/api/v1` (sauf `/health` et `/metrics`).
 
 | Méthode | Route | Auth | Description |
 |---|---|---|---|
@@ -489,7 +496,8 @@ Préfixe `/api/v1` (sauf `/health`).
 | GET | `/access/requests?vehicleId=&type=&from=&to=` | Oui | Liste/filtre (audit) |
 | GET | `/access/plates/{plate}/known` | Oui | Vérifie si une plaque est connue, sans rien persister |
 | GET | `/access/events` | Oui | Liste les événements publiés (outbox, démo/observabilité) |
-| GET | `/health` | Non | Healthcheck (API + DB) |
+| GET | `/health` | Non | Healthcheck (API + DB) + version et SHA du commit déployé |
+| GET | `/metrics` | Oui | Métriques Prometheus (requêtes, latences, codes HTTP par route) |
 
 Documentation interactive complète (schémas, exemples, codes d'erreur) sur
 `/docs`.
@@ -636,9 +644,10 @@ premier déploiement :
   toute erreur (429/5xx/timeout/connexion refusée) est traitée comme un
   refus métier propre plutôt qu'un crash — voir l'exemple en
   [section 4](#4-architecture-hexagonale).
-- **CORS** : `CORS_ALLOWED_ORIGINS=*` par défaut dans le blueprint (démo
-  publique/équipe) — à restreindre à vos vraies origines une fois un front
-  ou un domaine d'équipe fixé.
+- **CORS** : `CORS_ALLOWED_ORIGINS` est limité à l'URL du service lui-même
+  dans le blueprint (le dashboard est same-origin). Si un front d'équipe
+  doit appeler Access depuis un navigateur, ajoutez son origine (séparée
+  par une virgule).
 - **`RABBITMQ_URL` vide ou incorrect** : si tu vois `Échec de publication
   RabbitMQ pour l'événement ...` dans les logs `access-api`, vérifie
   d'abord que la variable est bien renseignée dans Environment (étape 2bis),

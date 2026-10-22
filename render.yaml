@@ -49,7 +49,10 @@ services:
       - key: LOG_LEVEL
         value: INFO
       - key: CORS_ALLOWED_ORIGINS
-        value: "*"
+        # Liste blanche des origines navigateur autorisées (séparées par des
+        # virgules). Le dashboard est same-origin et n'en a pas besoin ;
+        # ajouter ici l'URL d'un front d'équipe si un jour il appelle Access.
+        value: "https://access-api-a1u7.onrender.com"
       - key: USE_MOCKS
         # Valeur par défaut pour les 5 services. Dès qu'un camarade a un
         # vrai service prêt : ajoute ICI, à la main dans Render > Environment,
