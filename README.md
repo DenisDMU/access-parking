@@ -38,6 +38,7 @@
 - [x] Refuser une sortie en cas de paiement refusé ou de véhicule non présent.
 - [x] Publier un événement (webhook ou RabbitMQ) à chaque entrée/sortie/refus.
 - [x] Lister/consulter l'historique des demandes et des événements publiés (audit).
+- [x] Simuler une borne d'entrée/sortie depuis le dashboard (décision, montant et paiement en direct).
 - [x] Protéger toutes les routes (sauf `/health`) par clé API.
 - [x] Exposer la version et le commit déployés (`/health`) et des métriques d'exploitation (`/metrics`).
 - [ ] Résoudre un véhicule via le vrai service **Vehicles**.
@@ -65,7 +66,7 @@
 9. [Tests](#9-tests)
 10. [Sécurité](#10-sécurité)
 11. [Endpoints](#11-endpoints)
-12. [Journal de bord (dashboard)](#12-journal-de-bord-dashboard)
+12. [Borne et journal de bord (dashboard)](#12-borne-et-journal-de-bord-dashboard)
 13. [Postman](#13-postman)
 14. [Déploiement sur Render](#14-déploiement-sur-render)
 15. [Rejoindre l'équipe : brancher vos microservices](#15-rejoindre-léquipe--brancher-vos-microservices)
@@ -419,7 +420,7 @@ pytest tests/integration    # endpoints via TestClient FastAPI (SQLite en mémoi
 pytest -v            # détail de chaque cas
 ```
 
-Couverture (108 tests) :
+Couverture (110 tests) :
 
 - **Unitaires** — matrice complète de la règle de compatibilité
   véhicule/place, règle de présence, règle d'accessibilité ; chaque use case
@@ -448,7 +449,7 @@ précédente, `needs:` dans le workflow) et doivent **tous** passer — si une
 | Job | Outil | Ce qu'il vérifie |
 |---|---|---|
 | Lint | `ruff` | Erreurs, imports, bugs probables, règles de sécurité, **formatage homogène** (config : `ruff.toml`) |
-| Tests | `pytest` | Les 108 tests unitaires + intégration, sans aucun secret |
+| Tests | `pytest` | Les 110 tests unitaires + intégration, sans aucun secret |
 | Sécurité du code | `bandit` | Analyse statique (SAST) : injections, appels dangereux, secrets en dur… |
 | Dépendances | `pip-audit` | Vulnérabilités connues (CVE) dans `requirements.txt` |
 | Secrets | `gitleaks` | Aucun secret (clé API, URL CloudAMQP…) dans tout l'historique git |
@@ -542,7 +543,7 @@ Réponse — ne contient jamais la plaque :
 
 ---
 
-## 12. Journal de bord (dashboard)
+## 12. Borne et journal de bord (dashboard)
 
 Une petite page statique (`src/interfaces/api/static/dashboard.html`) est
 servie **par Access lui-même** — pas de port supplémentaire, pas de serveur
@@ -551,9 +552,26 @@ aucun souci CORS). Accessible sur http://localhost:8000/ (redirige
 automatiquement) ou http://localhost:8000/static/dashboard.html.
 
 Renseignez votre `X-API-Key` dans le champ prévu (stockée uniquement dans le
-`localStorage` de votre navigateur) : la liste des événements se rafraîchit
-automatiquement (intervalle configurable), avec un badge coloré par type
-d'événement et le détail JSON dépliable.
+`localStorage` de votre navigateur). Trois onglets :
+
+- **Borne** (par défaut) : simule une borne d'entrée/sortie. On saisit une
+  plaque (ou on clique sur une plaque de démonstration), on choisit l'heure
+  de passage, puis **Entrée** ou **Sortie** : la décision d'Access s'affiche
+  en direct (barrière ouverte / fermée / intervention requise, motif,
+  véhicule pseudonymisé, montant, identifiant du paiement réel). Pendant une
+  sortie, un compteur montre l'attente de Pricing puis Payment (~15-30 s).
+  L'heure de passage « Dans 2 h 30 » simule une durée de stationnement :
+  sans elle, une sortie juste après l'entrée tombe dans la 1re heure
+  gratuite (0 €, aucun paiement). L'historique de la session n'affiche
+  jamais la plaque, seulement le `vehicleId` pseudonymisé.
+- **Journal** : la liste des événements se rafraîchit automatiquement
+  (intervalle configurable), avec un badge coloré par type d'événement et le
+  détail JSON dépliable.
+- **Recherche** : une demande par `requestId`, l'historique d'un
+  `vehicleId`, ou d'une plaque (résolue d'abord en `vehicleId`).
+
+Testé dans Chrome (clair, sombre, mobile 390 px) : entrée puis sortie payée
+de bout en bout avec Pricing et Payment réels.
 
 ---
 
