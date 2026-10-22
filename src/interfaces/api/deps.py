@@ -53,7 +53,6 @@ from src.infrastructure.external.http_payment_client import HttpPaymentClient
 from src.infrastructure.external.http_pricing_client import HttpPricingClient
 from src.infrastructure.external.http_vehicles_client import HttpVehiclesClient
 from src.infrastructure.external.mock_booking_client import MockBookingClient
-from src.infrastructure.external.mock_payment_client import MockPaymentClient
 from src.infrastructure.external.mock_vehicles_client import MockVehiclesClient
 from src.infrastructure.external.outbox_event_publisher import OutboxEventPublisher
 from src.infrastructure.external.rabbitmq_event_publisher import RabbitMQEventPublisher
@@ -134,12 +133,12 @@ def get_pricing_port() -> PricingServicePort:
 
 
 def get_payment_port() -> PaymentServicePort:
+    # Pas de bascule mock ici : Payment est branché sur le vrai service de
+    # l'équipe (mock_payment_client.py supprimé, voir README section 5/16).
+    # Les tests automatisés remplacent ce provider par un FakePaymentPort
+    # via app.dependency_overrides (tests/integration/conftest.py).
     settings = get_settings()
-    if settings.payment_use_mock:
-        return MockPaymentClient()
-    # ⚠️ Squelette : routes/champs à confirmer avec l'équipe Payment avant
-    # utilisation réelle — voir les TODO dans http_payment_client.py.
-    return HttpPaymentClient(settings.payment_service_url)
+    return HttpPaymentClient(settings.payment_service_url, api_key=settings.payment_api_key)
 
 
 def get_ai_vision_port() -> AIVisionPort:

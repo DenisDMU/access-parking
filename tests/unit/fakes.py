@@ -89,13 +89,18 @@ class FakePricingPort:
 
 
 class FakePaymentPort:
-    def __init__(self, success: bool = True) -> None:
+    """`success=None` simule un résultat indéterminé (Payment injoignable ou
+    paiement encore en attente après le délai de polling)."""
+
+    def __init__(self, success: bool | None = True) -> None:
         self.success = success
         self.calls: list[tuple] = []
 
-    def request_payment(self, vehicle_id: str, amount: Decimal) -> PaymentResult:
-        self.calls.append((vehicle_id, amount))
-        return PaymentResult(success=self.success, transaction_reference="TX-FAKE" if self.success else None)
+    def request_payment(self, stay_id: str, amount: Decimal) -> PaymentResult | None:
+        self.calls.append((stay_id, amount))
+        if self.success is None:
+            return None
+        return PaymentResult(success=self.success, transaction_reference="PAY-FAKE")
 
 
 class FakeAIVisionPort:

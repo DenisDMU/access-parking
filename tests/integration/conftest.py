@@ -16,14 +16,14 @@ import os
 # `.env` local du développeur active un vrai service — sinon
 # `load_dotenv()` (appelé par `infrastructure/config.py`) le ferait fuiter
 # dans l'environnement de test, rendant la suite dépendante du réseau et
-# non déterministe. Pricing et Parking n'ont plus de bascule (mocks
+# non déterministe. Pricing, Parking et Payment n'ont plus de bascule (mocks
 # supprimés du code) : ils sont remplacés ci-dessous par des dependency
 # overrides dédiés.
 os.environ["API_KEY"] = "test-api-key"
 os.environ["USE_MOCKS"] = "true"
 os.environ["VEHICLES_USE_MOCK"] = "true"
 os.environ["BOOKING_USE_MOCK"] = "true"
-os.environ["PAYMENT_USE_MOCK"] = "true"
+os.environ["PAYMENT_API_KEY"] = ""
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 os.environ["EVENT_SUBSCRIBERS_URLS"] = ""
 os.environ["CORS_ALLOWED_ORIGINS"] = "http://localhost:3000"
@@ -41,7 +41,7 @@ from src.infrastructure.db.session import init_db  # noqa: E402
 from src.interfaces.api import deps  # noqa: E402
 from src.interfaces.api.main import app  # noqa: E402
 from src.interfaces.api.rate_limit import limiter  # noqa: E402
-from tests.unit.fakes import FakeParkingPort, FakePricingPort  # noqa: E402
+from tests.unit.fakes import FakeParkingPort, FakePaymentPort, FakePricingPort  # noqa: E402
 
 AUTH_HEADERS = {"X-API-Key": "test-api-key"}
 
@@ -67,7 +67,7 @@ def client():
 
     app.dependency_overrides[deps.get_db_session] = _override_get_db_session
     app.dependency_overrides[deps.get_engine] = _override_get_engine
-    # Pricing et Parking n'ont plus de mock dans infrastructure/external/
+    # Pricing, Parking et Payment n'ont plus de mock dans infrastructure/external/
     # (branchés sur les vrais services de l'équipe) — les tests remplacent
     # ces ports par des doubles déterministes pour ne jamais dépendre du
     # réseau.
@@ -75,6 +75,7 @@ def client():
         amount=Decimal("9.99")
     )
     app.dependency_overrides[deps.get_parking_port] = lambda: FakeParkingPort()
+    app.dependency_overrides[deps.get_payment_port] = lambda: FakePaymentPort()
 
     with TestClient(app) as test_client:
         test_client.test_engine = test_engine  # exposé pour les tests qui inspectent la DB directement

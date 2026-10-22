@@ -23,7 +23,7 @@
 | **Version actuelle** | `2.1.0` — la version et le SHA du commit déployé sont exposés par `GET /health` |
 | **URL du service déployé** | https://access-api-a1u7.onrender.com |
 | **Documentation Swagger/OpenAPI** | https://access-api-a1u7.onrender.com/docs (ReDoc : `/redoc`, spec brute : `/openapi.json`) |
-| **Dépendances (services appelés)** | Vehicles *(mocké)*, Booking *(mocké)*, **Parking** *(réel)*, **Pricing** *(réel)*, Payment *(mocké)* |
+| **Dépendances (services appelés)** | Vehicles *(mocké)*, Booking *(mocké)*, **Parking** *(réel)*, **Pricing** *(réel)*, **Payment** *(réel)* |
 | **Tester le service** | Collection Postman `postman/Access-Render.postman_collection.json` + environnement `Access — Render` (clé dans l'en-tête `X-API-Key`) — voir [section 13](#13-postman). Sans clé : `GET /health`. |
 
 ### Fonctionnalités
@@ -34,7 +34,7 @@
 - [x] Refuser l'entrée d'un véhicule déjà présent.
 - [x] Refuser l'entrée en cas d'incompatibilité véhicule/place.
 - [x] Demander une confirmation (pas un refus direct) si le justificatif PMR manque.
-- [x] Calculer et faire payer une sortie (montant réel, paiement mocké).
+- [x] Calculer et faire payer une sortie (montant et paiement réels).
 - [x] Refuser une sortie en cas de paiement refusé ou de véhicule non présent.
 - [x] Publier un événement (webhook ou RabbitMQ) à chaque entrée/sortie/refus.
 - [x] Lister/consulter l'historique des demandes et des événements publiés (audit).
@@ -44,7 +44,7 @@
 - [ ] Vérifier une réservation via le vrai service **Booking**.
 - [x] Attribuer/occuper/libérer une place via le vrai service **Parking**.
 - [x] Calculer un prix via le vrai service **Pricing**.
-- [ ] Exécuter un paiement via le vrai service **Payment**.
+- [x] Exécuter un paiement via le vrai service **Payment** (idempotent : rejouer une sortie ne débite jamais deux fois).
 
 > Une case n'est cochée que si le comportement est réellement vérifié —
 > montants Pricing et compteurs Parking réels confirmés dans `JOURNAL.md`
@@ -78,8 +78,8 @@
 Access est le **point central** du workflow d'entrée/sortie du parking. Il ne
 possède **aucune donnée métier des autres services** (identité véhicule,
 réservations, disponibilité des places, tarifs, transactions) : il les
-interroge via 5 ports dédiés (Parking et Pricing réels, les autres encore
-mockés) et ne conserve en propre
+interroge via 5 ports dédiés (Parking, Pricing et Payment réels, Vehicles
+et Booking encore mockés) et ne conserve en propre
 que ses propres objets métier (`AccessRequest`, `AccessAuthorization`,
 `AccessEvent`) plus un cache technique de présence (`vehicle_presence`).
 
@@ -107,8 +107,11 @@ sequenceDiagram
     A->>Ve: get_vehicle_info(plate)
     A->>Pr: calculate_price(...)
     Pr-->>A: amount
-    A->>Pa: request_payment(vehicleId, amount)
-    Pa-->>A: succès / échec
+    A->>Pa: POST /payments (clé d'idempotence = stationnement)
+    loop toutes les 2 s, 40 s max
+        A->>Pa: GET /payments/{id}
+    end
+    Pa-->>A: ACCEPTED / REFUSED
     A-->>V: Autorisation de sortie
     A--)A: Publie VEHICLE_EXITED / ACCESS_REFUSED
 ```
@@ -173,7 +176,7 @@ exercer chaque cas manuellement — détail dans
 | `EE-555-EE`  | `v_disabled_ok`          | 4 roues handicapé, **avec** justificatif d'accessibilité       |
 | `FF-666-FF`  | `v_disabled_no_permit`   | 4 roues handicapé, **sans** justificatif (→ confirmation)      |
 | `GG-777-GG`  | `v_with_reservation`     | 4 roues standard, **a une réservation active** (Booking)       |
-| `HH-888-HH`  | `v_payment_fail`         | 4 roues standard, **paiement toujours refusé** à la sortie     |
+| `HH-888-HH`  | `v_payment_fail`         | 4 roues standard (profil historique : Payment est désormais réel, un refus n'arrive qu'aléatoirement, ~5 %) |
 | toute autre  | —                        | inconnue de Vehicles (→ rejet)                                 |
 
 ---
@@ -282,7 +285,8 @@ aucune route, aucun schéma n'a changé.
 
 Chaque service externe a sa **propre bascule mock/réel**
 (`VEHICLES_USE_MOCK`, `BOOKING_USE_MOCK`, `PARKING_USE_MOCK`,
-`PRICING_USE_MOCK`, `PAYMENT_USE_MOCK`) — `USE_MOCKS` reste la valeur par
+`PRICING_USE_MOCK`, `PAYMENT_USE_MOCK` — les trois dernières ont disparu
+depuis que ces services sont branchés en réel) — `USE_MOCKS` reste la valeur par
 défaut globale tant qu'aucune bascule individuelle n'est définie. **C'est
 volontaire** : vos camarades finissent leur service chacun à son rythme, pas
 question d'attendre que les 5 soient prêts pour en brancher un premier. Les
@@ -320,7 +324,7 @@ même fichier `deps.py`) — chaque squelette liste ses propres `TODO` :
 | Booking  | `http_booking_client.py`   | Route/méthode, code "pas de réservation", `placeId` déjà assigné ou non |
 | **Parking** | `http_parking_client.py` | **✅ Branché** (`hold`/`confirm_entry`/`free`, catégories STANDARD/XL/ELECTRIC/HANDICAPPED/TWO_WHEELS) — pas de `placeId` réel, encodage synthétique `"CATEGORIE:walkin\|booking"`, voir section 16 |
 | **Pricing** | `http_pricing_client.py` | **✅ Branché** (`PRICING_USE_MOCK=false`) contre le vrai service (`POST /quote`) — mapping `PlaceType → zone` et arrondi de durée pour les réservations restent des hypothèses documentées dans le fichier, voir aussi section 16 |
-| Payment  | `http_payment_client.py`   | Route/méthode, clé d'idempotence (consignes 2.6), statuts intermédiaires |
+| **Payment** | `http_payment_client.py` | **✅ Branché** (`POST /payments` puis polling `GET /payments/{id}` jusqu'à `ACCEPTED`/`REFUSED`, 2 s / 40 s max) — montant en centimes, clé d'idempotence `access:{stationnement}:exit`, en-tête `X-API-Key` envoyé si `PAYMENT_API_KEY` est renseignée, voir section 16 |
 
 ---
 
@@ -415,12 +419,15 @@ pytest tests/integration    # endpoints via TestClient FastAPI (SQLite en mémoi
 pytest -v            # détail de chaque cas
 ```
 
-Couverture (91 tests) :
+Couverture (108 tests) :
 
 - **Unitaires** — matrice complète de la règle de compatibilité
   véhicule/place, règle de présence, règle d'accessibilité ; chaque use case
   (`ProcessEntryRequest`, `ProcessExitRequest`) avec tous les ports mockés ;
-  comportement best-effort de `RabbitMQEventPublisher` (broker injoignable).
+  comportement best-effort de `RabbitMQEventPublisher` (broker injoignable) ;
+  client Payment contre un faux serveur (`httpx.MockTransport`) : contrat
+  du payload, polling, refus définitif, rejeu idempotent, délai dépassé,
+  erreurs serveur.
 - **Intégration** — entrée autorisée (sans/avec réservation), entrée refusée
   (déjà présent, type incompatible), entrée en confirmation requise
   (accessibilité), entrée rejetée (véhicule inconnu), sortie autorisée,
@@ -439,7 +446,7 @@ de 5 jobs indépendants qui doivent **tous** passer :
 | Job | Outil | Ce qu'il vérifie |
 |---|---|---|
 | Lint | `ruff` | Erreurs, imports, bugs probables, règles de sécurité (config : `ruff.toml`) |
-| Tests | `pytest` | Les 91 tests unitaires + intégration, sans aucun secret |
+| Tests | `pytest` | Les 108 tests unitaires + intégration, sans aucun secret |
 | Sécurité du code | `bandit` | Analyse statique (SAST) : injections, appels dangereux, secrets en dur… |
 | Dépendances | `pip-audit` | Vulnérabilités connues (CVE) dans `requirements.txt` |
 | Secrets | `gitleaks` | Aucun secret (clé API, URL CloudAMQP…) dans tout l'historique git |
@@ -565,6 +572,16 @@ Un dossier [`postman/`](postman/) contient :
   public Render** (section 14) plutôt que `localhost` : pratique pour que
   toute l'équipe teste la même instance sans rien installer.
 
+Le dossier **"Payment — Direct Verification"** prouve l'intégration Payment
+côté Payment lui-même : après une sortie payée, `GET /access/events` capture
+le `paymentId`, puis on consulte ce paiement chez Payment (`ACCEPTED`,
+`source_service=access`, rattaché au stationnement) et on **rejoue la même
+demande** : Payment répond `200` avec le même `payment_id`, preuve qu'une
+sortie rejouée ne débite jamais deux fois. Ces requêtes utilisent la variable
+d'environnement `paymentApiKey` (clé fournie par l'équipe Payment), jamais la
+clé Access. ⏱️ Une sortie prend désormais ~15-30 s : Access attend le statut
+final du paiement (polling), c'est normal.
+
 Le dossier **"Errors — edge cases"** contient volontairement des requêtes
 invalides (pas de clé API, plaque mal formée, type invalide, champ manquant,
 `photoBase64` corrompu, id inexistant, rate limit) — chacune avec un script
@@ -614,6 +631,11 @@ le reste de l'API fonctionne normalement (best-effort : la publication
    affiché vide/"à définir" à cause de `sync: false`) et collez-y l'URL
    CloudAMQP du bus partagé de l'équipe (`amqps://...`) — sans ça, Access ne
    publiera aucun événement (le reste marche quand même).
+2ter. Toujours dans Environment : vérifiez que `PAYMENT_SERVICE_URL` vaut
+   `https://payment-xp8n.onrender.com` et collez dans `PAYMENT_API_KEY` la
+   clé transmise **en privé** par l'équipe Payment (`sync: false` dans le
+   blueprint, comme `RABBITMQ_URL`). Tant que Payment n'a pas activé son
+   authentification, la variable peut rester vide sans rien casser.
 3. Récupérez l'URL publique du service (en haut de la page `access-api`,
    type `https://access-api-xxxx.onrender.com`).
 4. Ouvrez `postman/Access-Render.postman_environment.json` dans Postman et
@@ -727,6 +749,16 @@ non intrusives** ont été ajoutées :
   refus propre de la sortie (jamais un montant inventé, jamais de paiement
   tenté). Même principe déjà en place pour `ParkingServicePort.request_place`
   côté entrée — voir l'exemple commenté en [section 4](#4-architecture-hexagonale).
+- `PaymentServicePort.request_payment(stay_id, amount)` (au lieu de
+  `(vehicle_id, amount)`) renvoie `PaymentResult | None` : conformément au
+  workflow "Sortie" des consignes ("une demande de paiement est envoyée avec
+  l'identifiant du stationnement concerné"), Access transmet l'identifiant
+  du **stationnement** — l'id de la demande d'entrée, stable — qui fonde la
+  clé d'idempotence côté Payment. `None` = résultat indéterminé (Payment
+  injoignable, ou paiement encore `PENDING` après 40 s) : la sortie est
+  refusée avec "réessayez", ce qui est sans risque puisque rejouer la sortie
+  renvoie le même paiement (jamais de double encaissement). Un stationnement
+  à 0 € ne déclenche aucun paiement (Payment refuse un montant nul).
 
 **Nommage anglais vs. contenu français** : tous les identifiants de code
 (classes d'entités, champs, colonnes SQL, clés JSON) sont en anglais — la

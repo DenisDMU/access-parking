@@ -160,3 +160,61 @@ def test_exit_refused_vehicle_not_present():
     assert decision.reason == "Véhicule non présent dans le parking"
     assert pricing.calls == []
     assert payment.calls == []
+
+
+def test_exit_payment_uses_entry_request_as_stay_id():
+    # L'identifiant du stationnement (= demande d'entrée) est stable : c'est
+    # lui qui fonde la clé d'idempotence côté Payment.
+    vehicles = FakeVehiclesPort(
+        {"AA-111-AA": VehicleInfo(vehicle_id="v1", vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER))}
+    )
+    presence = FakePresenceRepo()
+    access_repo = FakeAccessRepo()
+    _seed_vehicle_present(access_repo, presence)
+    payment = FakePaymentPort(success=True)
+    use_case = make_use_case(
+        vehicles, FakeParkingPort(), FakePricingPort(amount=Decimal("7.50")), payment, presence, access_repo
+    )
+
+    use_case.execute("AA-111-AA", EXIT_AT, DetectionSource.TERMINAL)
+
+    assert payment.calls == [("entry-request-1", Decimal("7.50"))]
+
+
+def test_exit_refused_payment_undetermined():
+    vehicles = FakeVehiclesPort(
+        {"AA-111-AA": VehicleInfo(vehicle_id="v1", vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER))}
+    )
+    presence = FakePresenceRepo()
+    access_repo = FakeAccessRepo()
+    _seed_vehicle_present(access_repo, presence)
+    parking = FakeParkingPort()
+    payment = FakePaymentPort(success=None)  # Payment injoignable / toujours PENDING
+    use_case = make_use_case(
+        vehicles, parking, FakePricingPort(amount=Decimal("7.50")), payment, presence, access_repo
+    )
+
+    decision = use_case.execute("AA-111-AA", EXIT_AT, DetectionSource.TERMINAL)
+
+    assert decision.result is AuthorizationResult.REFUSED
+    assert "réessayez" in decision.reason
+    assert parking.freed == []
+    assert presence.get_status("v1") is PresenceStatus.IN
+
+
+def test_exit_free_stay_skips_payment():
+    vehicles = FakeVehiclesPort(
+        {"AA-111-AA": VehicleInfo(vehicle_id="v1", vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER))}
+    )
+    presence = FakePresenceRepo()
+    access_repo = FakeAccessRepo()
+    _seed_vehicle_present(access_repo, presence)
+    payment = FakePaymentPort()
+    use_case = make_use_case(
+        vehicles, FakeParkingPort(), FakePricingPort(amount=Decimal("0")), payment, presence, access_repo
+    )
+
+    decision = use_case.execute("AA-111-AA", EXIT_AT, DetectionSource.TERMINAL)
+
+    assert decision.result is AuthorizationResult.AUTHORIZED
+    assert payment.calls == []

@@ -300,6 +300,7 @@
     if (p.vehicleId) bits.push(p.vehicleId);
     if (p.placeId) bits.push("place " + p.placeId);
     if (p.amount) bits.push(p.amount + " €");
+    if (p.paymentId) bits.push("payé (paiement " + p.paymentId.slice(0, 8) + "…)");
     if (p.reason) bits.push(p.reason);
     return bits.join(" · ") || "(sans détail)";
   }

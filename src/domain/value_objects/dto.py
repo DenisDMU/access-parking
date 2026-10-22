@@ -86,9 +86,10 @@ class PlaceAssignment:
 
 @dataclass(frozen=True)
 class PaymentResult:
-    """Réponse de `PaymentServicePort.request_payment`."""
+    """Réponse de `PaymentServicePort.request_payment` (statut final connu)."""
 
     success: bool
+    # Identifiant du paiement côté Payment (`payment_id`).
     transaction_reference: str | None = None
 
 
