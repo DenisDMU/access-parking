@@ -81,7 +81,9 @@ def _map_category(vehicle_type: VehicleType) -> str:
 
 def _place_type_from_category(category: str) -> PlaceType:
     return PlaceType(
-        category=VehicleCategory.TWO_WHEELER if category == "TWO_WHEELS" else VehicleCategory.FOUR_WHEELER,
+        category=VehicleCategory.TWO_WHEELER
+        if category == "TWO_WHEELS"
+        else VehicleCategory.FOUR_WHEELER,
         is_xl=category == "XL",
         is_electric=category == "ELECTRIC",
         is_handicap=category == "HANDICAPPED",
@@ -117,7 +119,12 @@ class HttpParkingClient:
             # la spec), traité comme "aucune place disponible" plutôt que de
             # planter le use case avec une 500 — l'entrée est refusée
             # proprement (ProcessEntryRequest gère déjà `None` ainsi).
-            logger.warning("Parking indisponible sur request_place (%s/%s) : %s", category, commercial_type, exc)
+            logger.warning(
+                "Parking indisponible sur request_place (%s/%s) : %s",
+                category,
+                commercial_type,
+                exc,
+            )
             return None
 
         if not response.json().get("success", False):

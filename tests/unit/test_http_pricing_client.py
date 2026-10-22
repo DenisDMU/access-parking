@@ -49,9 +49,10 @@ def test_map_zone_priority_disabled_over_everything_else():
 def test_duration_minutes_walk_in_rounds_to_nearest_minute():
     entry = datetime(2026, 1, 1, 10, 0, tzinfo=UTC)
     exit_ = datetime(2026, 1, 1, 10, 32, 30, tzinfo=UTC)  # 32.5 min
-    assert _duration_minutes(entry, exit_, is_reservation=False) == 32 or _duration_minutes(
-        entry, exit_, is_reservation=False
-    ) == 33  # arrondi standard, peu importe le sens exact
+    assert (
+        _duration_minutes(entry, exit_, is_reservation=False) == 32
+        or _duration_minutes(entry, exit_, is_reservation=False) == 33
+    )  # arrondi standard, peu importe le sens exact
 
 
 def test_duration_minutes_reservation_rounds_up_to_multiple_of_60():

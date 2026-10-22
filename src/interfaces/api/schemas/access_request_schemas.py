@@ -59,7 +59,9 @@ class AccessRequestIn(BaseModel):
 class AuthorizationOut(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    result: AuthorizationResult = Field(description="1=AUTHORIZED, 2=REFUSED, 3=CONFIRMATION_REQUIRED")
+    result: AuthorizationResult = Field(
+        description="1=AUTHORIZED, 2=REFUSED, 3=CONFIRMATION_REQUIRED"
+    )
     reason: str | None = None
     vehicle_type_check_ok: bool | None = Field(default=None, alias="vehicleTypeCheckOk")
     disability_check_ok: bool | None = Field(default=None, alias="disabilityCheckOk")
@@ -147,7 +149,7 @@ class HealthOut(BaseModel):
     status: str = Field(examples=["ok"])
     database: str = Field(examples=["connected"])
     uptime_seconds: int = Field(alias="uptimeSeconds", examples=[1234])
-    version: str = Field(examples=["2.1.0"])
+    version: str = Field(examples=["2.2.0"])
     commit: str = Field(examples=["b742756d0c1e9f4a8b3c2d1e0f9a8b7c6d5e4f3a"])
 
     model_config = ConfigDict(populate_by_name=True)

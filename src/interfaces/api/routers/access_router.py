@@ -175,9 +175,7 @@ def list_access_requests(
     date_to: datetime | None = Query(default=None, alias="to"),
     use_case: ListAccessRequests = Depends(deps.get_list_access_requests_use_case),
 ) -> list[AccessRequestListItemOut]:
-    filters = AccessFilters(
-        vehicle_id=vehicleId, type=type_, date_from=date_from, date_to=date_to
-    )
+    filters = AccessFilters(vehicle_id=vehicleId, type=type_, date_from=date_from, date_to=date_to)
     requests = use_case.execute(filters)
     return [
         AccessRequestListItemOut(

@@ -1,4 +1,7 @@
 # Pipeline CI d'Access : chaque push/PR doit passer TOUS les jobs ci-dessous.
+# Les jobs s'enchaînent en file (`needs`) : lint → tests → bandit →
+# pip-audit → gitleaks. Une étape en échec arrête la suite (les suivantes
+# sont "skipped") : on corrige d'abord le plus simple avant d'aller plus loin.
 # Render est configuré en "Auto-Deploy : After CI Checks Pass" : un commit
 # sur main n'est déployé que si l'ensemble de ces vérifications est vert.
 name: CI
@@ -35,9 +38,12 @@ jobs:
           cache-dependency-path: requirements-dev.txt
       - run: pip install -r requirements-dev.txt
       - run: ruff check src tests --output-format=github
+      # Formatage homogène : échoue si un fichier n'est pas formaté (corriger avec `ruff format src tests`)
+      - run: ruff format --check src tests
 
   tests:
     name: Tests (pytest)
+    needs: lint
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -54,6 +60,7 @@ jobs:
 
   sast:
     name: Sécurité du code (bandit)
+    needs: tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -68,6 +75,7 @@ jobs:
 
   dependencies:
     name: Vulnérabilités des dépendances (pip-audit)
+    needs: sast
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -82,6 +90,7 @@ jobs:
 
   secrets:
     name: Détection de secrets (gitleaks)
+    needs: dependencies
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

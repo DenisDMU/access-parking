@@ -55,8 +55,10 @@ def test_api_key_header_sent_when_configured():
 
     def handler(request: httpx.Request) -> httpx.Response:
         seen.append(request.headers.get("x-api-key"))
-        return httpx.Response(202, json=_payment("PENDING")) if request.method == "POST" else httpx.Response(
-            200, json=_payment("ACCEPTED")
+        return (
+            httpx.Response(202, json=_payment("PENDING"))
+            if request.method == "POST"
+            else httpx.Response(200, json=_payment("ACCEPTED"))
         )
 
     _client(handler, api_key="secret").request_payment("entry-42", Decimal("4.60"))

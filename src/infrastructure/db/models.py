@@ -80,8 +80,6 @@ class OutboxEventModel(Base):
     __tablename__ = "outbox_events"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
-    event_id: Mapped[str] = mapped_column(
-        String, ForeignKey("access_events.id"), nullable=False
-    )
+    event_id: Mapped[str] = mapped_column(String, ForeignKey("access_events.id"), nullable=False)
     published: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)

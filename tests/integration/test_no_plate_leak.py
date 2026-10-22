@@ -37,9 +37,7 @@ def _contains_plate(value: str) -> bool:
 
 def test_no_raw_plate_in_any_table(client):
     for scenario in _SCENARIOS:
-        response = client.post(
-            "/api/v1/access/requests", json=scenario, headers=AUTH_HEADERS
-        )
+        response = client.post("/api/v1/access/requests", json=scenario, headers=AUTH_HEADERS)
         assert response.status_code == 200
         # ... et jamais renvoyée par l'API.
         assert not _contains_plate(str(response.json()))

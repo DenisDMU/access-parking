@@ -104,9 +104,7 @@ class ProcessExitRequest:
 
         current_request_id = self._presence_repo.get_current_request_id(vehicle_id)
         entry_request = (
-            self._access_repo.get_request(current_request_id)
-            if current_request_id
-            else None
+            self._access_repo.get_request(current_request_id) if current_request_id else None
         )
         entry_event = (
             self._access_repo.get_event_by_request(current_request_id)
@@ -116,7 +114,9 @@ class ProcessExitRequest:
         entry_date = entry_request.date if entry_request else date
         place_id = entry_event.payload.get("placeId") if entry_event else None
         place_type = _place_type_from_payload(entry_event.payload if entry_event else None)
-        is_reservation = bool(entry_event.payload.get("reservation", False)) if entry_event else False
+        is_reservation = (
+            bool(entry_event.payload.get("reservation", False)) if entry_event else False
+        )
 
         amount = self._pricing_port.calculate_price(
             vehicle_id, entry_date, date, place_type, is_reservation

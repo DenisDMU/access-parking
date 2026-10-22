@@ -105,7 +105,9 @@ class FakePaymentPort:
 
 class FakeAIVisionPort:
     def analyze(self, photo: bytes | None) -> AICheckResult:
-        return AICheckResult(ai_model="fake-test", confidence=1.0 if photo else 0.0, timestamp=datetime(2026, 1, 1))
+        return AICheckResult(
+            ai_model="fake-test", confidence=1.0 if photo else 0.0, timestamp=datetime(2026, 1, 1)
+        )
 
 
 @dataclass
