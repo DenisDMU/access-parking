@@ -6,6 +6,8 @@ import time
 
 from fastapi import APIRouter, Depends, Request
 
+from src import __version__
+from src.infrastructure.config import get_settings
 from src.infrastructure.db.session import check_connection
 from src.interfaces.api import deps
 from src.interfaces.api.schemas.access_request_schemas import HealthOut
@@ -27,4 +29,6 @@ def health(request: Request, engine=Depends(deps.get_engine)) -> HealthOut:
         status="ok" if db_ok else "degraded",
         database="connected" if db_ok else "unavailable",
         uptime_seconds=int(time.time() - start_time),
+        version=__version__,
+        commit=get_settings().git_commit,
     )
