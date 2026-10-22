@@ -48,9 +48,7 @@ class HttpVehiclesClient:
     def get_vehicle_info(self, raw_plate: str) -> VehicleInfo | None:
         # TODO[VEHICLES-1] confirmer route/méthode avec l'équipe Vehicles.
         with httpx.Client(timeout=self._timeout_s) as client:
-            response = client.post(
-                f"{self._base_url}/vehicles/resolve", json={"plate": raw_plate}
-            )
+            response = client.post(f"{self._base_url}/vehicles/resolve", json={"plate": raw_plate})
         # `raw_plate` sort de portée ici — ne plus la référencer au-delà.
 
         # TODO[VEHICLES-2] confirmer le code "véhicule inconnu" (404 supposé).
@@ -64,7 +62,9 @@ class HttpVehiclesClient:
         return VehicleInfo(
             vehicle_id=data["vehicleId"],
             vehicle_type=VehicleType(
-                category=VehicleCategory(vehicle_type_data.get("category", VehicleCategory.FOUR_WHEELER)),
+                category=VehicleCategory(
+                    vehicle_type_data.get("category", VehicleCategory.FOUR_WHEELER)
+                ),
                 is_xl=vehicle_type_data.get("isXl", False),
                 is_electric=vehicle_type_data.get("isElectric", False),
                 is_handicap=vehicle_type_data.get("isHandicap", False),

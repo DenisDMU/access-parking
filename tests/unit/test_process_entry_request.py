@@ -91,7 +91,11 @@ def test_entry_authorized_with_existing_reservation():
 
 def test_entry_refused_vehicle_already_present():
     vehicles = FakeVehiclesPort(
-        {"AA-111-AA": VehicleInfo(vehicle_id="v1", vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER))}
+        {
+            "AA-111-AA": VehicleInfo(
+                vehicle_id="v1", vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER)
+            )
+        }
     )
     presence = FakePresenceRepo()
     presence.seed("v1", PresenceStatus.IN, request_id="previous-request")
@@ -105,7 +109,11 @@ def test_entry_refused_vehicle_already_present():
 
 def test_entry_refused_incompatible_vehicle_type_for_place():
     vehicles = FakeVehiclesPort(
-        {"AA-111-AA": VehicleInfo(vehicle_id="v1", vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER))}
+        {
+            "AA-111-AA": VehicleInfo(
+                vehicle_id="v1", vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER)
+            )
+        }
     )
     # Parking (mal) attribue une place 2 roues à un véhicule 4 roues.
     parking = FakeParkingPort(

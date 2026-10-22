@@ -55,7 +55,9 @@ class HttpBookingClient:
             id=data["id"],
             vehicle_id=vehicle_id,
             reserved_place_type=PlaceType(
-                category=VehicleCategory(place_type_data.get("category", VehicleCategory.FOUR_WHEELER)),
+                category=VehicleCategory(
+                    place_type_data.get("category", VehicleCategory.FOUR_WHEELER)
+                ),
                 is_xl=place_type_data.get("isXl", False),
                 is_electric=place_type_data.get("isElectric", False),
                 is_handicap=place_type_data.get("isHandicap", False),

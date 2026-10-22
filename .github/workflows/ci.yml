@@ -35,6 +35,8 @@ jobs:
           cache-dependency-path: requirements-dev.txt
       - run: pip install -r requirements-dev.txt
       - run: ruff check src tests --output-format=github
+      # Formatage homogène : échoue si un fichier n'est pas formaté (corriger avec `ruff format src tests`)
+      - run: ruff format --check src tests
 
   tests:
     name: Tests (pytest)

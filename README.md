@@ -20,7 +20,7 @@
 | | |
 |---|---|
 | **Rôle** | Décide si un véhicule peut entrer/sortir du parking et coordonne les échanges avec Vehicles, Booking, Parking, Pricing, Payment (aucune donnée métier des autres services). |
-| **Version actuelle** | `2.1.0` — la version et le SHA du commit déployé sont exposés par `GET /health` |
+| **Version actuelle** | `2.2.0` — la version et le SHA du commit déployé sont exposés par `GET /health` |
 | **URL du service déployé** | https://access-api-a1u7.onrender.com |
 | **Documentation Swagger/OpenAPI** | https://access-api-a1u7.onrender.com/docs (ReDoc : `/redoc`, spec brute : `/openapi.json`) |
 | **Dépendances (services appelés)** | Vehicles *(mocké)*, Booking *(mocké)*, **Parking** *(réel)*, **Pricing** *(réel)*, **Payment** *(réel)* |
@@ -445,7 +445,7 @@ de 5 jobs indépendants qui doivent **tous** passer :
 
 | Job | Outil | Ce qu'il vérifie |
 |---|---|---|
-| Lint | `ruff` | Erreurs, imports, bugs probables, règles de sécurité (config : `ruff.toml`) |
+| Lint | `ruff` | Erreurs, imports, bugs probables, règles de sécurité, **formatage homogène** (config : `ruff.toml`) |
 | Tests | `pytest` | Les 108 tests unitaires + intégration, sans aucun secret |
 | Sécurité du code | `bandit` | Analyse statique (SAST) : injections, appels dangereux, secrets en dur… |
 | Dépendances | `pip-audit` | Vulnérabilités connues (CVE) dans `requirements.txt` |
@@ -461,7 +461,7 @@ Reproduire la CI en local :
 
 ```bash
 pip install -r requirements-dev.txt
-ruff check src tests && pytest && bandit -r src -q && pip-audit -r requirements.txt
+ruff check src tests && ruff format --check src tests && pytest && bandit -r src -q && pip-audit -r requirements.txt
 ```
 
 ---

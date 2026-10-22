@@ -76,6 +76,7 @@ def get_db_session() -> Generator[Session, None, None]:
 
 # --- Repositories -----------------------------------------------------------
 
+
 def get_access_repository(
     session: Session = Depends(get_db_session),
 ) -> AccessRepositoryPort:
@@ -95,6 +96,7 @@ def get_outbox_repository(
 
 
 # --- Services externes (bascule USE_MOCKS) ----------------------------------
+
 
 def get_vehicles_port() -> VehiclesServicePort:
     settings = get_settings()
@@ -166,6 +168,7 @@ def get_event_publisher(
 
 
 # --- Use cases ---------------------------------------------------------------
+
 
 def get_process_entry_request_use_case(
     vehicles_port: VehiclesServicePort = Depends(get_vehicles_port),

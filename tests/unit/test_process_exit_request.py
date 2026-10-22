@@ -67,7 +67,9 @@ def _seed_vehicle_present(access_repo, presence_repo, vehicle_id="v1", place_id=
     presence_repo.seed(vehicle_id, PresenceStatus.IN, request_id=request_id)
 
 
-def make_use_case(vehicles_port, parking_port, pricing_port, payment_port, presence_repo, access_repo):
+def make_use_case(
+    vehicles_port, parking_port, pricing_port, payment_port, presence_repo, access_repo
+):
     return ProcessExitRequest(
         vehicles_port=vehicles_port,
         parking_port=parking_port,
@@ -81,7 +83,11 @@ def make_use_case(vehicles_port, parking_port, pricing_port, payment_port, prese
 
 def test_exit_authorized_pricing_and_payment_ok():
     vehicles = FakeVehiclesPort(
-        {"AA-111-AA": VehicleInfo(vehicle_id="v1", vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER))}
+        {
+            "AA-111-AA": VehicleInfo(
+                vehicle_id="v1", vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER)
+            )
+        }
     )
     presence = FakePresenceRepo()
     access_repo = FakeAccessRepo()
@@ -101,7 +107,11 @@ def test_exit_authorized_pricing_and_payment_ok():
 
 def test_exit_refused_payment_failed():
     vehicles = FakeVehiclesPort(
-        {"AA-111-AA": VehicleInfo(vehicle_id="v1", vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER))}
+        {
+            "AA-111-AA": VehicleInfo(
+                vehicle_id="v1", vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER)
+            )
+        }
     )
     presence = FakePresenceRepo()
     access_repo = FakeAccessRepo()
@@ -122,7 +132,11 @@ def test_exit_refused_payment_failed():
 
 def test_exit_refused_pricing_unavailable():
     vehicles = FakeVehiclesPort(
-        {"AA-111-AA": VehicleInfo(vehicle_id="v1", vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER))}
+        {
+            "AA-111-AA": VehicleInfo(
+                vehicle_id="v1", vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER)
+            )
+        }
     )
     presence = FakePresenceRepo()
     access_repo = FakeAccessRepo()
@@ -145,7 +159,12 @@ def test_exit_refused_pricing_unavailable():
 
 def test_exit_refused_vehicle_not_present():
     vehicles = FakeVehiclesPort(
-        {"CC-333-CC": VehicleInfo(vehicle_id="v_absent", vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER))}
+        {
+            "CC-333-CC": VehicleInfo(
+                vehicle_id="v_absent",
+                vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER),
+            )
+        }
     )
     presence = FakePresenceRepo()
     access_repo = FakeAccessRepo()
@@ -166,14 +185,23 @@ def test_exit_payment_uses_entry_request_as_stay_id():
     # L'identifiant du stationnement (= demande d'entrée) est stable : c'est
     # lui qui fonde la clé d'idempotence côté Payment.
     vehicles = FakeVehiclesPort(
-        {"AA-111-AA": VehicleInfo(vehicle_id="v1", vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER))}
+        {
+            "AA-111-AA": VehicleInfo(
+                vehicle_id="v1", vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER)
+            )
+        }
     )
     presence = FakePresenceRepo()
     access_repo = FakeAccessRepo()
     _seed_vehicle_present(access_repo, presence)
     payment = FakePaymentPort(success=True)
     use_case = make_use_case(
-        vehicles, FakeParkingPort(), FakePricingPort(amount=Decimal("7.50")), payment, presence, access_repo
+        vehicles,
+        FakeParkingPort(),
+        FakePricingPort(amount=Decimal("7.50")),
+        payment,
+        presence,
+        access_repo,
     )
 
     use_case.execute("AA-111-AA", EXIT_AT, DetectionSource.TERMINAL)
@@ -183,7 +211,11 @@ def test_exit_payment_uses_entry_request_as_stay_id():
 
 def test_exit_refused_payment_undetermined():
     vehicles = FakeVehiclesPort(
-        {"AA-111-AA": VehicleInfo(vehicle_id="v1", vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER))}
+        {
+            "AA-111-AA": VehicleInfo(
+                vehicle_id="v1", vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER)
+            )
+        }
     )
     presence = FakePresenceRepo()
     access_repo = FakeAccessRepo()
@@ -204,14 +236,23 @@ def test_exit_refused_payment_undetermined():
 
 def test_exit_free_stay_skips_payment():
     vehicles = FakeVehiclesPort(
-        {"AA-111-AA": VehicleInfo(vehicle_id="v1", vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER))}
+        {
+            "AA-111-AA": VehicleInfo(
+                vehicle_id="v1", vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER)
+            )
+        }
     )
     presence = FakePresenceRepo()
     access_repo = FakeAccessRepo()
     _seed_vehicle_present(access_repo, presence)
     payment = FakePaymentPort()
     use_case = make_use_case(
-        vehicles, FakeParkingPort(), FakePricingPort(amount=Decimal("0")), payment, presence, access_repo
+        vehicles,
+        FakeParkingPort(),
+        FakePricingPort(amount=Decimal("0")),
+        payment,
+        presence,
+        access_repo,
     )
 
     decision = use_case.execute("AA-111-AA", EXIT_AT, DetectionSource.TERMINAL)

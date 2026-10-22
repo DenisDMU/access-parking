@@ -88,7 +88,9 @@ class HttpPaymentClient:
                 while data["status"] == "PENDING":
                     if time.monotonic() >= deadline:
                         logger.warning(
-                            "Paiement %s toujours en attente après %ss", payment_id, self._poll_timeout_s
+                            "Paiement %s toujours en attente après %ss",
+                            payment_id,
+                            self._poll_timeout_s,
                         )
                         return None
                     self._sleep(self._poll_interval_s)

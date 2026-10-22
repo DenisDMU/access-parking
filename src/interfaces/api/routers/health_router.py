@@ -20,7 +20,9 @@ router = APIRouter(tags=["Health"])
     response_model=HealthOut,
     summary="Vérifie l'état du service et de la base de données",
     description="Endpoint de healthcheck, non authentifié, à appeler par les outils de supervision.",
-    responses={200: {"description": "Service opérationnel (ou dégradé si la base est injoignable)"}},
+    responses={
+        200: {"description": "Service opérationnel (ou dégradé si la base est injoignable)"}
+    },
 )
 def health(request: Request, engine=Depends(deps.get_engine)) -> HealthOut:
     db_ok = check_connection(engine)

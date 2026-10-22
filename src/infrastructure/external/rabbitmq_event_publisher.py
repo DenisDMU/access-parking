@@ -95,9 +95,7 @@ class RabbitMQEventPublisher:
             self._send_to_rabbitmq(event)
         except AMQPError as exc:
             # Best-effort : un souci RabbitMQ ne bloque jamais la décision d'accès.
-            logger.warning(
-                "Échec de publication RabbitMQ pour l'événement %s: %s", event.id, exc
-            )
+            logger.warning("Échec de publication RabbitMQ pour l'événement %s: %s", event.id, exc)
 
     def _connection_params(self) -> pika.URLParameters:
         params = pika.URLParameters(self._amqp_url)
@@ -118,9 +116,7 @@ class RabbitMQEventPublisher:
                 exchange=self._exchange_name,
                 routing_key=routing_key,
                 body=json.dumps(_serialize(event)).encode("utf-8"),
-                properties=pika.BasicProperties(
-                    content_type="application/json", delivery_mode=2
-                ),
+                properties=pika.BasicProperties(content_type="application/json", delivery_mode=2),
             )
         finally:
             connection.close()

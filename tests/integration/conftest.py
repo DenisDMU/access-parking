@@ -78,7 +78,9 @@ def client():
     app.dependency_overrides[deps.get_payment_port] = lambda: FakePaymentPort()
 
     with TestClient(app) as test_client:
-        test_client.test_engine = test_engine  # exposé pour les tests qui inspectent la DB directement
+        test_client.test_engine = (
+            test_engine  # exposé pour les tests qui inspectent la DB directement
+        )
         yield test_client
 
     app.dependency_overrides.clear()
