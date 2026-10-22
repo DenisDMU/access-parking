@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
@@ -32,7 +32,7 @@ class SqliteVehiclePresenceRepository:
             vehicle_id=vehicle_id,
             status=int(status),
             current_request_id=request_id,
-            updated_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(UTC),
         )
         self._session.merge(row)
         self._session.commit()

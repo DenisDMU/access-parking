@@ -1,0 +1,15 @@
+# Dependabot ouvre automatiquement une PR quand une dépendance (ou une action
+# GitHub utilisée par la CI) a une mise à jour — notamment de sécurité.
+# Chaque PR passe par la CI avant de pouvoir être fusionnée.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

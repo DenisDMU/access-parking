@@ -6,7 +6,7 @@ uniquement un score de confiance et le nom du modèle simulé.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from src.domain.value_objects.dto import AICheckResult
 
@@ -22,5 +22,5 @@ class FakeAIVisionAdapter:
         return AICheckResult(
             ai_model=self._model_name,
             confidence=confidence,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
         )

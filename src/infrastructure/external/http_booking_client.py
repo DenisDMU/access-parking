@@ -25,7 +25,6 @@ from datetime import datetime
 
 import httpx
 
-from src.domain.ports.booking_service_port import BookingServicePort
 from src.domain.value_objects.dto import PlaceType, Reservation
 from src.domain.value_objects.enums import VehicleCategory
 

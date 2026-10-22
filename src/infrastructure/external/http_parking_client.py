@@ -56,7 +56,6 @@ import logging
 
 import httpx
 
-from src.domain.ports.parking_service_port import ParkingServicePort
 from src.domain.value_objects.dto import PlaceAssignment, PlaceType, VehicleType
 from src.domain.value_objects.enums import VehicleCategory
 

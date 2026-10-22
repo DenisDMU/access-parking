@@ -8,7 +8,7 @@ entrante.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -53,7 +53,7 @@ class AccessRequestIn(BaseModel):
         """Toute date sans fuseau est considérée comme UTC — évite les
         comparaisons naive/aware plus loin dans le traitement (Pricing)."""
 
-        return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+        return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
 class AuthorizationOut(BaseModel):

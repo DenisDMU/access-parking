@@ -8,7 +8,7 @@ un détail d'implémentation du mécanisme de publication d'événements
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from sqlalchemy.orm import Session
@@ -25,7 +25,7 @@ class SqliteOutboxRepository:
             id=str(uuid4()),
             event_id=event_id,
             published=True,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         self._session.add(row)
         self._session.commit()

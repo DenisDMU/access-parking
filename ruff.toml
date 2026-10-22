@@ -1,0 +1,17 @@
+# Configuration du linter Ruff (utilisé par la CI, voir .github/workflows/ci.yml).
+target-version = "py312"
+line-length = 100
+
+[lint]
+# E/F : erreurs de base (pyflakes/pycodestyle) · I : tri des imports
+# B : bugs probables (bugbear) · UP : syntaxe Python moderne
+# S : règles de sécurité (équivalent bandit, en complément du job dédié)
+select = ["E", "F", "I", "B", "UP", "S"]
+ignore = [
+    "B008",  # Depends(...) en argument par défaut : idiome standard de FastAPI
+    "E501",  # longueur de ligne : laissée à l'appréciation (docstrings FR longues)
+]
+
+[lint.per-file-ignores]
+# assert est la base de pytest ; les tests utilisent des secrets factices
+"tests/**" = ["S101", "S105", "S106"]

@@ -413,7 +413,7 @@ pytest tests/integration    # endpoints via TestClient FastAPI (SQLite en mémoi
 pytest -v            # détail de chaque cas
 ```
 
-Couverture (69 tests) :
+Couverture (91 tests) :
 
 - **Unitaires** — matrice complète de la règle de compatibilité
   véhicule/place, règle de présence, règle d'accessibilité ; chaque use case
@@ -427,6 +427,33 @@ Couverture (69 tests) :
   scénarios puis inspecte directement chaque table SQLite pour garantir
   qu'aucune valeur au format plaque française n'y apparaît
   (`tests/integration/test_no_plate_leak.py`).
+
+### Intégration continue (CI/CD)
+
+Chaque push sur `main` et chaque pull request déclenche le pipeline
+GitHub Actions [`.github/workflows/ci.yml`](.github/workflows/ci.yml), composé
+de 5 jobs indépendants qui doivent **tous** passer :
+
+| Job | Outil | Ce qu'il vérifie |
+|---|---|---|
+| Lint | `ruff` | Erreurs, imports, bugs probables, règles de sécurité (config : `ruff.toml`) |
+| Tests | `pytest` | Les 91 tests unitaires + intégration, sans aucun secret |
+| Sécurité du code | `bandit` | Analyse statique (SAST) : injections, appels dangereux, secrets en dur… |
+| Dépendances | `pip-audit` | Vulnérabilités connues (CVE) dans `requirements.txt` |
+| Secrets | `gitleaks` | Aucun secret (clé API, URL CloudAMQP…) dans tout l'historique git |
+
+Render est configuré en **Auto-Deploy : After CI Checks Pass** : un commit
+sur `main` n'est déployé que si le pipeline est entièrement vert. En
+complément, **Dependabot** ([`.github/dependabot.yml`](.github/dependabot.yml))
+ouvre chaque semaine une PR de mise à jour des dépendances Python et des
+actions GitHub, elle-même validée par la CI.
+
+Reproduire la CI en local :
+
+```bash
+pip install -r requirements-dev.txt
+ruff check src tests && pytest && bandit -r src -q && pip-audit -r requirements.txt
+```
 
 ---
 

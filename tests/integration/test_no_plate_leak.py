@@ -50,7 +50,8 @@ def test_no_raw_plate_in_any_table(client):
 
     with engine.connect() as conn:
         for table_name in inspector.get_table_names():
-            rows = conn.execute(text(f"SELECT * FROM {table_name}")).fetchall()
+            # table_name vient de l'inspecteur SQLAlchemy (schéma), pas d'une saisie
+            rows = conn.execute(text(f"SELECT * FROM {table_name}")).fetchall()  # noqa: S608
             for row in rows:
                 row_repr = str(tuple(row))
                 if _contains_plate(row_repr):

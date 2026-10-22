@@ -1,6 +1,6 @@
 """Tests unitaires du use case `ProcessEntryRequest` — tous les ports mockés."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from src.application.use_cases.process_entry_request import ProcessEntryRequest
 from src.domain.value_objects.dto import (
@@ -27,7 +27,7 @@ from tests.unit.fakes import (
     FakeVehiclesPort,
 )
 
-NOW = datetime(2026, 9, 2, 10, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 9, 2, 10, 0, tzinfo=UTC)
 
 
 def make_use_case(vehicles_port, booking_port=None, parking_port=None, presence_repo=None):

@@ -47,8 +47,6 @@ from src.infrastructure.db.repositories.sqlite_vehicle_presence_repository impor
     SqliteVehiclePresenceRepository,
 )
 from src.infrastructure.db.session import make_engine, make_session_factory
-from src.infrastructure.external.outbox_event_publisher import OutboxEventPublisher
-from src.infrastructure.external.rabbitmq_event_publisher import RabbitMQEventPublisher
 from src.infrastructure.external.http_booking_client import HttpBookingClient
 from src.infrastructure.external.http_parking_client import HttpParkingClient
 from src.infrastructure.external.http_payment_client import HttpPaymentClient
@@ -57,6 +55,8 @@ from src.infrastructure.external.http_vehicles_client import HttpVehiclesClient
 from src.infrastructure.external.mock_booking_client import MockBookingClient
 from src.infrastructure.external.mock_payment_client import MockPaymentClient
 from src.infrastructure.external.mock_vehicles_client import MockVehiclesClient
+from src.infrastructure.external.outbox_event_publisher import OutboxEventPublisher
+from src.infrastructure.external.rabbitmq_event_publisher import RabbitMQEventPublisher
 
 _settings = get_settings()
 _engine = make_engine(_settings.database_url)

@@ -30,7 +30,6 @@ from decimal import Decimal
 
 import httpx
 
-from src.domain.ports.payment_service_port import PaymentServicePort
 from src.domain.value_objects.dto import PaymentResult
 
 

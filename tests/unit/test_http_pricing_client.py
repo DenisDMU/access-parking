@@ -1,7 +1,7 @@
 """Tests unitaires — fonctions pures de `http_pricing_client.py`
 (mapping zone + calcul de durée), sans appel réseau au vrai service Pricing."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from src.domain.value_objects.dto import PlaceType
 from src.domain.value_objects.enums import VehicleCategory
@@ -47,34 +47,34 @@ def test_map_zone_priority_disabled_over_everything_else():
 
 
 def test_duration_minutes_walk_in_rounds_to_nearest_minute():
-    entry = datetime(2026, 1, 1, 10, 0, tzinfo=timezone.utc)
-    exit_ = datetime(2026, 1, 1, 10, 32, 30, tzinfo=timezone.utc)  # 32.5 min
+    entry = datetime(2026, 1, 1, 10, 0, tzinfo=UTC)
+    exit_ = datetime(2026, 1, 1, 10, 32, 30, tzinfo=UTC)  # 32.5 min
     assert _duration_minutes(entry, exit_, is_reservation=False) == 32 or _duration_minutes(
         entry, exit_, is_reservation=False
     ) == 33  # arrondi standard, peu importe le sens exact
 
 
 def test_duration_minutes_reservation_rounds_up_to_multiple_of_60():
-    entry = datetime(2026, 1, 1, 10, 0, tzinfo=timezone.utc)
-    exit_ = datetime(2026, 1, 1, 11, 5, tzinfo=timezone.utc)  # 65 min
+    entry = datetime(2026, 1, 1, 10, 0, tzinfo=UTC)
+    exit_ = datetime(2026, 1, 1, 11, 5, tzinfo=UTC)  # 65 min
     assert _duration_minutes(entry, exit_, is_reservation=True) == 120
 
 
 def test_duration_minutes_reservation_exact_hour_stays_unchanged():
-    entry = datetime(2026, 1, 1, 10, 0, tzinfo=timezone.utc)
-    exit_ = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)  # exactement 120 min
+    entry = datetime(2026, 1, 1, 10, 0, tzinfo=UTC)
+    exit_ = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)  # exactement 120 min
     assert _duration_minutes(entry, exit_, is_reservation=True) == 120
 
 
 def test_duration_minutes_reservation_never_below_60():
-    entry = datetime(2026, 1, 1, 10, 0, tzinfo=timezone.utc)
-    exit_ = datetime(2026, 1, 1, 10, 5, tzinfo=timezone.utc)  # 5 min seulement
+    entry = datetime(2026, 1, 1, 10, 0, tzinfo=UTC)
+    exit_ = datetime(2026, 1, 1, 10, 5, tzinfo=UTC)  # 5 min seulement
     assert _duration_minutes(entry, exit_, is_reservation=True) == 60
 
 
 def test_calculate_price_returns_none_when_pricing_unreachable():
     client = HttpPricingClient(_UNREACHABLE_URL, timeout_s=1.0)
-    entry = datetime(2026, 1, 1, 10, 0, tzinfo=timezone.utc)
-    exit_ = datetime(2026, 1, 1, 11, 0, tzinfo=timezone.utc)
+    entry = datetime(2026, 1, 1, 10, 0, tzinfo=UTC)
+    exit_ = datetime(2026, 1, 1, 11, 0, tzinfo=UTC)
     result = client.calculate_price("v1", entry, exit_, PlaceType(category=FOUR))
     assert result is None  # ne doit jamais lever, ni inventer un montant

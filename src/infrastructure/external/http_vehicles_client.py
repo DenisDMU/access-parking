@@ -34,7 +34,6 @@ from __future__ import annotations
 
 import httpx
 
-from src.domain.ports.vehicles_service_port import VehiclesServicePort
 from src.domain.value_objects.dto import VehicleInfo, VehicleType
 from src.domain.value_objects.enums import VehicleCategory
 
