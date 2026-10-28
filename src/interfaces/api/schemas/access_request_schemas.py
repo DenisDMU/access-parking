@@ -1,9 +1,8 @@
 """Schémas Pydantic des endpoints `/access/*`.
 
-⚠️ Règle stricte (section 6/11 de la spec) : `AccessRequestIn` contient un
-champ `plate`, mais aucun schéma de réponse ne doit jamais exposer la
-plaque — seul `vehicleId` (pseudonymisé) circule au-delà de la requête
-entrante.
+Access ne reçoit jamais la plaque : `AccessRequestIn` porte le code
+véhicule attribué par Vehicles (qui a identifié la plaque), et seul
+`vehicleId` (pseudonymisé, le `pseudoId` de Vehicles) circule ensuite.
 """
 
 from __future__ import annotations
@@ -19,19 +18,16 @@ from src.domain.value_objects.enums import (
     RequestType,
 )
 
-PLATE_PATTERN = r"^[A-Z]{2}-\d{3}-[A-Z]{2}$"
-
 
 class AccessRequestIn(BaseModel):
-    """Requête entrante. La plaque n'existe que le temps de cette requête —
-    elle n'est jamais persistée ni renvoyée telle quelle."""
+    """Requête entrante, identifiée par le code véhicule de Vehicles."""
 
     model_config = ConfigDict(
         populate_by_name=True,
         json_schema_extra={
             "examples": [
                 {
-                    "plate": "AA-111-AA",
+                    "vehicleCode": 1,
                     "type": 1,
                     "date": "2026-09-02T10:15:00Z",
                     "source": 3,
@@ -41,7 +37,9 @@ class AccessRequestIn(BaseModel):
         },
     )
 
-    plate: str = Field(pattern=PLATE_PATTERN, description="Plaque française, format AB-123-CD")
+    vehicle_code: int = Field(
+        alias="vehicleCode", ge=0, description="Code du véhicule attribué par Vehicles"
+    )
     type: RequestType = Field(description="1=ENTRY, 2=EXIT")
     date: datetime
     source: DetectionSource = Field(description="1=CAMERA, 2=TERMINAL, 3=LPR, 4=MOBILE_APP")
@@ -69,7 +67,7 @@ class AuthorizationOut(BaseModel):
 
 
 class AccessRequestOut(BaseModel):
-    """Réponse de `POST /access/requests` — ne contient jamais la plaque."""
+    """Réponse de `POST /access/requests`."""
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -77,7 +75,7 @@ class AccessRequestOut(BaseModel):
             "examples": [
                 {
                     "requestId": "b3a1f7b0-0000-4000-8000-000000000000",
-                    "vehicleId": "v_standard_4wheeler",
+                    "vehicleId": "301b7c98-3634-4842-8ff5-baf503c53302",
                     "type": 1,
                     "status": 2,
                     "authorization": {
@@ -119,13 +117,8 @@ class AccessRequestListItemOut(BaseModel):
     status: RequestStatus
 
 
-class PlateKnownOut(BaseModel):
-    """Réponse de `GET /access/plates/{plate}/known`.
-
-    Ne renvoie **jamais** la plaque (section 15, Definition of Done) : elle
-    est déjà dans l'URL demandée par le client, l'API n'a pas besoin de
-    l'échoïser.
-    """
+class VehicleKnownOut(BaseModel):
+    """Réponse de `GET /access/vehicles/{vehicle_code}/known`."""
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -149,7 +142,7 @@ class HealthOut(BaseModel):
     status: str = Field(examples=["ok"])
     database: str = Field(examples=["connected"])
     uptime_seconds: int = Field(alias="uptimeSeconds", examples=[1234])
-    version: str = Field(examples=["2.2.0"])
+    version: str = Field(examples=["3.0.0"])
     commit: str = Field(examples=["b742756d0c1e9f4a8b3c2d1e0f9a8b7c6d5e4f3a"])
 
     model_config = ConfigDict(populate_by_name=True)

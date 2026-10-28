@@ -1,8 +1,10 @@
 """Mock du service Booking.
 
-Un seul véhicule du registre `mock_vehicles_client` (`v_with_reservation`,
-plaque de démo `GG-777-GG`) a une réservation active, utile pour exercer le
-workflow "Réservation" du cadrage.
+Un seul `vehicle_id` (`v_with_reservation`) a une réservation active, utile
+pour exercer le workflow "Réservation" du cadrage dans les tests (le
+`FakeVehiclesPort` des tests renvoie cet identifiant). Les `pseudoId` du vrai
+service Vehicles étant des UUID, aucun véhicule réel n'a de réservation tant
+que Booking reste mocké.
 
 `place_id=None` (aucune place déjà assignée) : c'est le cas normal depuis
 l'intégration du vrai service Parking, qui ne gère aucun identifiant de

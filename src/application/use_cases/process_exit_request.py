@@ -1,7 +1,7 @@
 """Use case `ProcessExitRequest` — workflow "Sortie".
 
 Déroulé (section 8 de la spec) :
-1. Résolution Vehicles (seul endroit où la plaque brute est utilisée).
+1. Résolution Vehicles du code véhicule → identifiant pseudonymisé.
 2. Création de la demande d'accès (EXIT).
 3. Règle de présence → refus si le véhicule n'est pas `IN`.
 4. Récupération du stationnement en cours (demande d'entrée associée).
@@ -77,15 +77,13 @@ class ProcessExitRequest:
 
     def execute(
         self,
-        plate: str,
+        vehicle_code: int,
         date: datetime,
         source: DetectionSource,
     ) -> ExitDecision:
         request_id = str(uuid4())
 
-        # Seul endroit de toute la codebase où la plaque brute est utilisée.
-        vehicle_info = self._vehicles_port.get_vehicle_info(plate)
-        del plate  # ne doit plus jamais être référencée ci-dessous
+        vehicle_info = self._vehicles_port.get_vehicle_info(vehicle_code)
 
         if vehicle_info is None:
             return self._reject_unknown_vehicle(request_id, date, source)

@@ -5,10 +5,10 @@ vers `infrastructure`/`interfaces`), conformément à la règle de dépendance
 stricte de l'architecture hexagonale.
 
 Déroulé (section 8 de la spec) :
-1. Réceptionner la plaque brute (valeur volatile, locale à cette méthode).
+1. Réceptionner le code véhicule (Vehicles a déjà identifié la plaque).
 2. Analyse IA optionnelle (photo) → `ai_check`.
-3. Résolution Vehicles (seul endroit où la plaque brute est utilisée).
-4. Véhicule inconnu → rejet journalisé sans plaque, `stop`.
+3. Résolution Vehicles du code → identifiant pseudonymisé + type de véhicule.
+4. Véhicule inconnu → rejet journalisé, `stop`.
 5. Règle de présence → refus si déjà `IN`.
 6. Réservation (Booking) sinon attribution de place (Parking).
 7. Règle de compatibilité véhicule/place → refus si incompatible.
@@ -78,7 +78,7 @@ class ProcessEntryRequest:
 
     def execute(
         self,
-        plate: str,
+        vehicle_code: int,
         date: datetime,
         source: DetectionSource,
         photo: bytes | None = None,
@@ -94,9 +94,7 @@ class ProcessEntryRequest:
                 "timestamp": ai_result.timestamp.isoformat(),
             }
 
-        # Seul endroit de toute la codebase où la plaque brute est utilisée.
-        vehicle_info = self._vehicles_port.get_vehicle_info(plate)
-        del plate  # ne doit plus jamais être référencée ci-dessous
+        vehicle_info = self._vehicles_port.get_vehicle_info(vehicle_code)
 
         if vehicle_info is None:
             return self._reject_unknown_vehicle(request_id, date, source, ai_check)

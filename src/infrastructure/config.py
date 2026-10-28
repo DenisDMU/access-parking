@@ -45,7 +45,7 @@ class Settings:
 
     # Bascule GLOBALE (garde le comportement historique : tout mocké par
     # défaut). Chaque service a en plus sa PROPRE bascule ci-dessous
-    # (VEHICLES_USE_MOCK, etc.) qui, si elle est définie, prend le dessus sur
+    # (BOOKING_USE_MOCK) qui, si elle est définie, prend le dessus sur
     # USE_MOCKS — indispensable pour brancher les services de l'équipe un
     # par un au fur et à mesure qu'ils sont prêts, sans attendre que les 5
     # soient terminés (voir README section 5).
@@ -57,9 +57,6 @@ class Settings:
     pricing_service_url: str = os.getenv("PRICING_SERVICE_URL", "http://localhost:8004")
     payment_service_url: str = os.getenv("PAYMENT_SERVICE_URL", "http://localhost:8005")
 
-    vehicles_use_mock: bool = field(
-        default_factory=lambda: _bool_env("VEHICLES_USE_MOCK", _bool_env("USE_MOCKS", True))
-    )
     booking_use_mock: bool = field(
         default_factory=lambda: _bool_env("BOOKING_USE_MOCK", _bool_env("USE_MOCKS", True))
     )
@@ -69,7 +66,8 @@ class Settings:
     # (toujours HttpParkingClient/HttpPricingClient). Les tests automatisés
     # utilisent des dependency overrides dédiés (FakeParkingPort,
     # FakePricingPort), pas ce toggle — voir tests/integration/conftest.py.
-    # Payment est branché à son tour (mock supprimé) : pas de bascule.
+    # Payment puis Vehicles sont branchés à leur tour (mocks supprimés) : pas
+    # de bascule.
     # Clé fournie en privé par l'équipe Payment ; vide = pas d'en-tête
     # X-API-Key envoyé (tant que Payment n'a pas activé son authentification).
     payment_api_key: str = os.getenv("PAYMENT_API_KEY", "")

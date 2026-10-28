@@ -84,7 +84,7 @@ def make_use_case(
 def test_exit_authorized_pricing_and_payment_ok():
     vehicles = FakeVehiclesPort(
         {
-            "AA-111-AA": VehicleInfo(
+            1: VehicleInfo(
                 vehicle_id="v1", vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER)
             )
         }
@@ -97,7 +97,7 @@ def test_exit_authorized_pricing_and_payment_ok():
     payment = FakePaymentPort(success=True)
     use_case = make_use_case(vehicles, parking, pricing, payment, presence, access_repo)
 
-    decision = use_case.execute("AA-111-AA", EXIT_AT, DetectionSource.TERMINAL)
+    decision = use_case.execute(1, EXIT_AT, DetectionSource.TERMINAL)
 
     assert decision.result is AuthorizationResult.AUTHORIZED
     assert decision.payment_amount == Decimal("7.50")
@@ -108,7 +108,7 @@ def test_exit_authorized_pricing_and_payment_ok():
 def test_exit_refused_payment_failed():
     vehicles = FakeVehiclesPort(
         {
-            "AA-111-AA": VehicleInfo(
+            1: VehicleInfo(
                 vehicle_id="v1", vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER)
             )
         }
@@ -121,7 +121,7 @@ def test_exit_refused_payment_failed():
     payment = FakePaymentPort(success=False)
     use_case = make_use_case(vehicles, parking, pricing, payment, presence, access_repo)
 
-    decision = use_case.execute("AA-111-AA", EXIT_AT, DetectionSource.MOBILE_APP)
+    decision = use_case.execute(1, EXIT_AT, DetectionSource.MOBILE_APP)
 
     assert decision.result is AuthorizationResult.REFUSED
     assert decision.reason == "Paiement refusé"
@@ -133,7 +133,7 @@ def test_exit_refused_payment_failed():
 def test_exit_refused_pricing_unavailable():
     vehicles = FakeVehiclesPort(
         {
-            "AA-111-AA": VehicleInfo(
+            1: VehicleInfo(
                 vehicle_id="v1", vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER)
             )
         }
@@ -146,7 +146,7 @@ def test_exit_refused_pricing_unavailable():
     payment = FakePaymentPort()
     use_case = make_use_case(vehicles, parking, pricing, payment, presence, access_repo)
 
-    decision = use_case.execute("AA-111-AA", EXIT_AT, DetectionSource.TERMINAL)
+    decision = use_case.execute(1, EXIT_AT, DetectionSource.TERMINAL)
 
     assert decision.result is AuthorizationResult.REFUSED
     assert decision.reason == "Service de tarification indisponible, réessayez plus tard"
@@ -160,7 +160,7 @@ def test_exit_refused_pricing_unavailable():
 def test_exit_refused_vehicle_not_present():
     vehicles = FakeVehiclesPort(
         {
-            "CC-333-CC": VehicleInfo(
+            3: VehicleInfo(
                 vehicle_id="v_absent",
                 vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER),
             )
@@ -173,7 +173,7 @@ def test_exit_refused_vehicle_not_present():
     payment = FakePaymentPort()
     use_case = make_use_case(vehicles, parking, pricing, payment, presence, access_repo)
 
-    decision = use_case.execute("CC-333-CC", EXIT_AT, DetectionSource.TERMINAL)
+    decision = use_case.execute(3, EXIT_AT, DetectionSource.TERMINAL)
 
     assert decision.result is AuthorizationResult.REFUSED
     assert decision.reason == "Véhicule non présent dans le parking"
@@ -186,7 +186,7 @@ def test_exit_payment_uses_entry_request_as_stay_id():
     # lui qui fonde la clé d'idempotence côté Payment.
     vehicles = FakeVehiclesPort(
         {
-            "AA-111-AA": VehicleInfo(
+            1: VehicleInfo(
                 vehicle_id="v1", vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER)
             )
         }
@@ -204,7 +204,7 @@ def test_exit_payment_uses_entry_request_as_stay_id():
         access_repo,
     )
 
-    use_case.execute("AA-111-AA", EXIT_AT, DetectionSource.TERMINAL)
+    use_case.execute(1, EXIT_AT, DetectionSource.TERMINAL)
 
     assert payment.calls == [("entry-request-1", Decimal("7.50"))]
 
@@ -212,7 +212,7 @@ def test_exit_payment_uses_entry_request_as_stay_id():
 def test_exit_refused_payment_undetermined():
     vehicles = FakeVehiclesPort(
         {
-            "AA-111-AA": VehicleInfo(
+            1: VehicleInfo(
                 vehicle_id="v1", vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER)
             )
         }
@@ -226,7 +226,7 @@ def test_exit_refused_payment_undetermined():
         vehicles, parking, FakePricingPort(amount=Decimal("7.50")), payment, presence, access_repo
     )
 
-    decision = use_case.execute("AA-111-AA", EXIT_AT, DetectionSource.TERMINAL)
+    decision = use_case.execute(1, EXIT_AT, DetectionSource.TERMINAL)
 
     assert decision.result is AuthorizationResult.REFUSED
     assert "réessayez" in decision.reason
@@ -237,7 +237,7 @@ def test_exit_refused_payment_undetermined():
 def test_exit_free_stay_skips_payment():
     vehicles = FakeVehiclesPort(
         {
-            "AA-111-AA": VehicleInfo(
+            1: VehicleInfo(
                 vehicle_id="v1", vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER)
             )
         }
@@ -255,7 +255,7 @@ def test_exit_free_stay_skips_payment():
         access_repo,
     )
 
-    decision = use_case.execute("AA-111-AA", EXIT_AT, DetectionSource.TERMINAL)
+    decision = use_case.execute(1, EXIT_AT, DetectionSource.TERMINAL)
 
     assert decision.result is AuthorizationResult.AUTHORIZED
     assert payment.calls == []

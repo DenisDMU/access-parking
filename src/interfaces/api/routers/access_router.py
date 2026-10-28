@@ -1,7 +1,7 @@
-"""Endpoints `/access/requests` et `/access/plates/{plate}/known`.
+"""Endpoints `/access/requests` et `/access/vehicles/{vehicle_code}/known`.
 
-⚠️ Discipline RGPD (section 6/11 de la spec) : la variable `plate`/`body`
-n'est jamais passée à un logger, jamais incluse dans un schéma de réponse.
+Access ne reçoit jamais la plaque : les demandes portent le code véhicule
+attribué par Vehicles, seul l'identifiant pseudonymisé circule ensuite.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, status
 
-from src.application.use_cases.check_plate_known import CheckPlateKnown
+from src.application.use_cases.check_vehicle_known import CheckVehicleKnown
 from src.application.use_cases.get_access_request import GetAccessRequest
 from src.application.use_cases.list_access_requests import ListAccessRequests
 from src.application.use_cases.process_entry_request import ProcessEntryRequest
@@ -24,13 +24,12 @@ from src.infrastructure.security.api_key_auth import verify_api_key
 from src.interfaces.api import deps
 from src.interfaces.api.rate_limit import limiter
 from src.interfaces.api.schemas.access_request_schemas import (
-    PLATE_PATTERN,
     AccessRequestDetailOut,
     AccessRequestIn,
     AccessRequestListItemOut,
     AccessRequestOut,
     AuthorizationOut,
-    PlateKnownOut,
+    VehicleKnownOut,
 )
 from src.interfaces.api.schemas.error_schemas import ErrorOut
 
@@ -56,7 +55,8 @@ _COMMON_ERROR_RESPONSES = {
         "Orchestre le workflow d'entrée (résolution Vehicles, réservation "
         "Booking ou attribution Parking, compatibilité véhicule/place, "
         "accessibilité PMR) ou de sortie (Pricing puis Payment) et retourne "
-        "la décision. La plaque transmise n'est jamais persistée ni renvoyée."
+        "la décision. Le véhicule est désigné par son code Vehicles, jamais "
+        "par sa plaque."
     ),
     responses={
         200: {"description": "Décision rendue (autorisée, refusée, ou confirmation requise)"},
@@ -82,7 +82,7 @@ def create_access_request(
 
     if body.type == RequestType.ENTRY:
         decision = entry_use_case.execute(
-            plate=body.plate, date=body.date, source=body.source, photo=photo
+            vehicle_code=body.vehicle_code, date=body.date, source=body.source, photo=photo
         )
         return AccessRequestOut(
             requestId=decision.request_id,
@@ -98,7 +98,9 @@ def create_access_request(
             ),
         )
 
-    decision = exit_use_case.execute(plate=body.plate, date=body.date, source=body.source)
+    decision = exit_use_case.execute(
+        vehicle_code=body.vehicle_code, date=body.date, source=body.source
+    )
     amount = float(decision.payment_amount) if decision.payment_amount is not None else None
     return AccessRequestOut(
         requestId=decision.request_id,
@@ -191,18 +193,18 @@ def list_access_requests(
 
 
 @router.get(
-    "/plates/{plate}/known",
-    response_model=PlateKnownOut,
-    summary="Vérifie si une plaque est connue par Vehicles",
+    "/vehicles/{vehicle_code}/known",
+    response_model=VehicleKnownOut,
+    summary="Vérifie si un code véhicule est connu par Vehicles",
     description=(
         "Résolution à la volée auprès de Vehicles, sans lancer le workflow "
-        "complet et sans rien persister. Ne renvoie jamais la plaque."
+        "complet et sans rien persister."
     ),
     responses=_COMMON_ERROR_RESPONSES,
 )
-def check_plate_known(
-    plate: str = Path(..., pattern=PLATE_PATTERN),
-    use_case: CheckPlateKnown = Depends(deps.get_check_plate_known_use_case),
-) -> PlateKnownOut:
-    result = use_case.execute(plate)
-    return PlateKnownOut(known=result.known, vehicleId=result.vehicle_id)
+def check_vehicle_known(
+    vehicle_code: int = Path(..., ge=0),
+    use_case: CheckVehicleKnown = Depends(deps.get_check_vehicle_known_use_case),
+) -> VehicleKnownOut:
+    result = use_case.execute(vehicle_code)
+    return VehicleKnownOut(known=result.known, vehicleId=result.vehicle_id)

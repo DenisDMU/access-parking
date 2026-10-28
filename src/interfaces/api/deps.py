@@ -1,15 +1,13 @@
 """Composition root — injection de dépendances FastAPI.
 
 Seul endroit de la codebase où le domaine/l'application sont reliés aux
-implémentations concrètes de `infrastructure`. Chaque service externe a sa
-propre bascule mock/réel (`VEHICLES_USE_MOCK`, `BOOKING_USE_MOCK`, etc., avec
-`USE_MOCKS` comme valeur par défaut globale si aucune n'est définie — voir
-`infrastructure/config.py`) : passez celle d'un service à `false` dès que
-son équipe est prête, sans attendre les 4 autres. Chaque `get_*_port()`
-ci-dessous instancie alors automatiquement le client HTTP correspondant dans
-`infrastructure/external/http_*_client.py`. Ces clients sont des SQUELETTES
-(routes/champs à confirmer avec chaque équipe, voir les TODO dans chaque
-fichier) — aucune autre couche à toucher une fois finalisés.
+implémentations concrètes de `infrastructure`. Vehicles, Parking, Pricing et
+Payment sont branchés en dur sur les vrais services de l'équipe. Seul Booking
+garde une bascule mock/réel (`BOOKING_USE_MOCK`, avec `USE_MOCKS` comme
+valeur par défaut globale si elle n'est pas définie — voir
+`infrastructure/config.py`) : son client HTTP reste un SQUELETTE (routes/
+champs à confirmer avec l'équipe, voir les TODO de `http_booking_client.py`)
+— aucune autre couche à toucher une fois finalisé.
 """
 
 from __future__ import annotations
@@ -19,7 +17,7 @@ from collections.abc import Generator
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
-from src.application.use_cases.check_plate_known import CheckPlateKnown
+from src.application.use_cases.check_vehicle_known import CheckVehicleKnown
 from src.application.use_cases.get_access_request import GetAccessRequest
 from src.application.use_cases.list_access_requests import ListAccessRequests
 from src.application.use_cases.process_entry_request import ProcessEntryRequest
@@ -53,7 +51,6 @@ from src.infrastructure.external.http_payment_client import HttpPaymentClient
 from src.infrastructure.external.http_pricing_client import HttpPricingClient
 from src.infrastructure.external.http_vehicles_client import HttpVehiclesClient
 from src.infrastructure.external.mock_booking_client import MockBookingClient
-from src.infrastructure.external.mock_vehicles_client import MockVehiclesClient
 from src.infrastructure.external.outbox_event_publisher import OutboxEventPublisher
 from src.infrastructure.external.rabbitmq_event_publisher import RabbitMQEventPublisher
 
@@ -99,11 +96,11 @@ def get_outbox_repository(
 
 
 def get_vehicles_port() -> VehiclesServicePort:
+    # Pas de bascule mock ici : Vehicles est branché sur le vrai service de
+    # l'équipe (mock_vehicles_client.py supprimé, voir README section 5/16).
+    # Les tests automatisés remplacent ce provider par un FakeVehiclesPort
+    # via app.dependency_overrides (tests/integration/conftest.py).
     settings = get_settings()
-    if settings.vehicles_use_mock:
-        return MockVehiclesClient()
-    # ⚠️ Squelette : routes/champs à confirmer avec l'équipe Vehicles avant
-    # utilisation réelle — voir les TODO dans http_vehicles_client.py.
     return HttpVehiclesClient(settings.vehicles_service_url)
 
 
@@ -222,7 +219,7 @@ def get_list_access_requests_use_case(
     return ListAccessRequests(access_repo)
 
 
-def get_check_plate_known_use_case(
+def get_check_vehicle_known_use_case(
     vehicles_port: VehiclesServicePort = Depends(get_vehicles_port),
-) -> CheckPlateKnown:
-    return CheckPlateKnown(vehicles_port)
+) -> CheckVehicleKnown:
+    return CheckVehicleKnown(vehicles_port)

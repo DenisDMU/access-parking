@@ -20,17 +20,57 @@ from src.domain.value_objects.dto import (
     VehicleInfo,
     VehicleType,
 )
-from src.domain.value_objects.enums import PresenceStatus
+from src.domain.value_objects.enums import PresenceStatus, VehicleCategory
+
+# Registre déterministe de codes véhicule "connus" (ex-mock Vehicles), pensé
+# pour exercer chaque branche des règles métier dans les tests d'intégration.
+# `v_with_reservation` est l'identifiant attendu par le mock Booking.
+DEMO_VEHICLES: dict[int, VehicleInfo] = {
+    1: VehicleInfo(
+        vehicle_id="v_standard_4wheeler",
+        vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER),
+    ),
+    2: VehicleInfo(
+        vehicle_id="v_2wheeler",
+        vehicle_type=VehicleType(category=VehicleCategory.TWO_WHEELER),
+    ),
+    3: VehicleInfo(
+        vehicle_id="v_xl",
+        vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER, is_xl=True),
+    ),
+    4: VehicleInfo(
+        vehicle_id="v_electric",
+        vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER, is_electric=True),
+    ),
+    5: VehicleInfo(
+        vehicle_id="v_disabled_ok",
+        vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER, is_handicap=True),
+        disability_permit=True,
+    ),
+    6: VehicleInfo(
+        vehicle_id="v_disabled_no_permit",
+        vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER, is_handicap=True),
+        disability_permit=False,
+    ),
+    7: VehicleInfo(
+        vehicle_id="v_with_reservation",
+        vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER),
+    ),
+    8: VehicleInfo(
+        vehicle_id="v_standard_4wheeler_bis",
+        vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER),
+    ),
+}
 
 
 class FakeVehiclesPort:
-    def __init__(self, registry: dict[str, VehicleInfo] | None = None) -> None:
+    def __init__(self, registry: dict[int, VehicleInfo] | None = None) -> None:
         self.registry = registry or {}
-        self.calls: list[str] = []
+        self.calls: list[int] = []
 
-    def get_vehicle_info(self, raw_plate: str) -> VehicleInfo | None:
-        self.calls.append(raw_plate)
-        return self.registry.get(raw_plate)
+    def get_vehicle_info(self, vehicle_code: int) -> VehicleInfo | None:
+        self.calls.append(vehicle_code)
+        return self.registry.get(vehicle_code)
 
 
 class FakeBookingPort:

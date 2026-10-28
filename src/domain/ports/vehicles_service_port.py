@@ -1,8 +1,9 @@
 """Port vers le service Vehicles.
 
-⚠️ Seul port qui reçoit la plaque en clair, et uniquement pour résolution.
-Le use case appelant ne doit conserver AUCUNE référence à la plaque brute
-après cet appel (cf. section 6/7/11 de la spec).
+Access ne reçoit jamais la plaque : c'est Vehicles qui l'identifie et
+l'associe à un `code` véhicule. Access consulte uniquement la donnée
+anonymisée correspondant à ce code (identifiant pseudonymisé +
+caractéristiques du véhicule).
 """
 
 from __future__ import annotations
@@ -13,6 +14,6 @@ from src.domain.value_objects.dto import VehicleInfo
 
 
 class VehiclesServicePort(Protocol):
-    def get_vehicle_info(self, raw_plate: str) -> VehicleInfo | None:
-        """Résout une plaque brute en identité pseudonymisée, ou `None` si inconnue."""
+    def get_vehicle_info(self, vehicle_code: int) -> VehicleInfo | None:
+        """Résout un code véhicule en identité pseudonymisée, ou `None` si inconnu."""
         ...
