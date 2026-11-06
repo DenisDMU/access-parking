@@ -1,5 +1,5 @@
 # Outils de qualité/sécurité utilisés par la CI (en plus de requirements.txt).
 # Jamais installés en production (Render n'installe que requirements.txt).
 ruff>=0.6           # linter (erreurs, imports, bugs probables, règles de sécurité)
-bandit>=1.7         # analyse statique de sécurité (SAST) du code Python
+bandit>=1.9.4         # analyse statique de sécurité (SAST) du code Python
 pip-audit>=2.10.1      # vulnérabilités connues (CVE) dans les dépendances
