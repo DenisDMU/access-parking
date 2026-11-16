@@ -7,6 +7,6 @@ httpx>=0.27          # appels HTTP sortants (webhooks, futurs vrais clients de s
 slowapi>=0.1.10        # rate limiting basique
 pika>=1.4.4            # client RabbitMQ (alternative au fan-out webhook pour EventPublisherPort)
 certifi>=2024.2.2    # magasin de certificats CA pour les connexions RabbitMQ TLS (amqps://, ex. CloudAMQP)
-prometheus-fastapi-instrumentator>=7.0  # endpoint /metrics (Prometheus)
+prometheus-fastapi-instrumentator>=8.1.0  # endpoint /metrics (Prometheus)
 pytest>=8.0
 pytest-asyncio>=1.4.0  # si routes async
