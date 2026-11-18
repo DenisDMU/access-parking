@@ -1,7 +1,11 @@
 """Modèles SQLAlchemy — reflètent le modèle de données de la section 6 de la
 spec (5 tables, tous les enums tinyint en `Integer`), avec noms de
 tables/colonnes traduits en anglais (voir README, "Tables de correspondance
-FR/EN")."""
+FR/EN").
+
+Dates en `DateTime(timezone=True)` : `timestamptz` en Postgres (instant UTC
+non ambigu) ; SQLite les relit sans fuseau, d'où `_ensure_utc` dans les
+repositories."""
 
 from __future__ import annotations
 
@@ -24,7 +28,7 @@ class AccessRequestModel(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True)
     vehicle_id: Mapped[str | None] = mapped_column(String, nullable=True)
     type: Mapped[int] = mapped_column(Integer, nullable=False)
-    date: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     source: Mapped[int] = mapped_column(Integer, nullable=False)
     ai_check: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     status: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -58,7 +62,7 @@ class AccessEventModel(Base):
         String, ForeignKey("access_requests.id"), nullable=False
     )
     payload: Mapped[dict] = mapped_column(JSON, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class VehiclePresenceModel(Base):
@@ -71,7 +75,7 @@ class VehiclePresenceModel(Base):
     current_request_id: Mapped[str | None] = mapped_column(
         String, ForeignKey("access_requests.id"), nullable=True
     )
-    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class OutboxEventModel(Base):
@@ -82,4 +86,4 @@ class OutboxEventModel(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True)
     event_id: Mapped[str] = mapped_column(String, ForeignKey("access_events.id"), nullable=False)
     published: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

@@ -28,15 +28,20 @@ os.environ["EVENT_SUBSCRIBERS_URLS"] = ""
 os.environ["CORS_ALLOWED_ORIGINS"] = "http://localhost:3000"
 os.environ.pop("RENDER_GIT_COMMIT", None)
 
+import uuid
 from decimal import Decimal
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from src.infrastructure.db.session import init_db  # noqa: E402
+from src.infrastructure.db.session import (  # noqa: E402
+    enforce_sqlite_foreign_keys,
+    init_db,
+    normalize_database_url,
+)
 from src.interfaces.api import deps  # noqa: E402
 from src.interfaces.api.main import app  # noqa: E402
 from src.interfaces.api.rate_limit import limiter  # noqa: E402
@@ -54,9 +59,26 @@ AUTH_HEADERS = {"X-API-Key": "test-api-key"}
 @pytest.fixture()
 def client():
     limiter.reset()  # isole chaque test du rate limiting (état global partagé)
-    test_engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
+    pg_url = os.getenv("ACCESS_TEST_DATABASE_URL")
+    pg_schema = None
+    if pg_url:
+        # Mode « vraie base Postgres » (ex. Neon) : chaque test travaille dans
+        # un schéma jetable, supprimé à la fin — les tables de production
+        # (schéma public) ne sont jamais touchées.
+        pg_schema = "access_test_" + uuid.uuid4().hex[:12]
+        test_engine = create_engine(
+            normalize_database_url(pg_url),
+            connect_args={"options": f"-csearch_path={pg_schema}"},
+            poolclass=StaticPool,
+        )
+        with test_engine.begin() as conn:
+            conn.execute(text(f'CREATE SCHEMA "{pg_schema}"'))
+    else:
+        test_engine = create_engine(
+            "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+        )
+        # Clés étrangères appliquées comme en Postgres (production).
+        enforce_sqlite_foreign_keys(test_engine)
     init_db(test_engine)
     test_session_factory = sessionmaker(bind=test_engine, autoflush=False, autocommit=False)
 
@@ -90,4 +112,7 @@ def client():
         yield test_client
 
     app.dependency_overrides.clear()
+    if pg_schema:
+        with test_engine.begin() as conn:
+            conn.execute(text(f'DROP SCHEMA "{pg_schema}" CASCADE'))
     test_engine.dispose()

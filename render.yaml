@@ -47,7 +47,11 @@ services:
       - key: API_KEY
         generateValue: true
       - key: DATABASE_URL
-        value: sqlite:///./access.db
+        # Base Postgres hébergée (Neon) : URL secrète, saisie dans Render >
+        # Environment, jamais versionnée. sync: false empêche le blueprint
+        # d'écraser la valeur. Vide → SQLite local, EFFACÉ à chaque
+        # redémarrage du plan Free (disque éphémère).
+        sync: false
       - key: LOG_LEVEL
         value: INFO
       - key: CORS_ALLOWED_ORIGINS

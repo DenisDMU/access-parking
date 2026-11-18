@@ -30,7 +30,8 @@ def _bool_env(name: str, default: bool) -> bool:
 @dataclass(frozen=True)
 class Settings:
     port: int = int(os.getenv("PORT", "8000"))
-    database_url: str = os.getenv("DATABASE_URL", "sqlite:///./access.db")
+    # `or` : une variable définie mais vide (Render, sync: false) retombe sur SQLite.
+    database_url: str = os.getenv("DATABASE_URL") or "sqlite:///./access.db"
     api_key: str = os.getenv("API_KEY", "change-me")  # voir check_secrets()
     log_level: str = os.getenv("LOG_LEVEL", "INFO")
     # SHA du commit déployé, fourni automatiquement par Render à chaque

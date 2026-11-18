@@ -4,6 +4,23 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [3.6.0] — 2026-11-18 — Données persistantes (Postgres)
+
+### Ajouté
+- Support de Postgres (Neon) en production via `DATABASE_URL` : les données
+  survivent aux redémarrages de Render. Pilote psycopg 3, connexions
+  revérifiées après la mise en pause de la base.
+- `/health` indique le moteur de base (`databaseEngine`).
+- Tests d'intégration exécutables contre une vraie base Postgres
+  (`ACCESS_TEST_DATABASE_URL`, schéma jetable).
+
+### Corrigé
+- La présence d'un véhicule était enregistrée avant sa demande d'entrée,
+  qu'elle référence : sous Postgres (clés étrangères), chaque entrée aurait
+  échoué. SQLite applique désormais aussi les clés étrangères.
+- `render.yaml` n'impose plus `DATABASE_URL` : la valeur saisie dans Render
+  n'est plus écrasée par le blueprint.
+
 ## [3.5.1] — 2026-11-18 — Durée de stationnement (règles 2.4 et 2.5)
 
 ### Corrigé

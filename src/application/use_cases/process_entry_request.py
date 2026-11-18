@@ -228,7 +228,6 @@ class ProcessEntryRequest:
                 ai_check=ai_check,
                 reason="Place non confirmée par Parking, réessayez",
             )
-        self._presence_repo.set_status(vehicle_id, PresenceStatus.IN, request_id)
 
         disability_check_ok = True if place_type.is_handicap else None
 
@@ -251,6 +250,9 @@ class ProcessEntryRequest:
         )
         self._access_repo.save_request(request)
         self._access_repo.save_authorization(authorization)
+        # La présence pointe vers la demande d'entrée (clé étrangère) : elle
+        # n'est enregistrée qu'une fois la demande en base.
+        self._presence_repo.set_status(vehicle_id, PresenceStatus.IN, request_id)
         logger.info(
             "Entrée autorisée (request=%s, vehicle=%s, place=%s, réservation=%s)",
             request_id,

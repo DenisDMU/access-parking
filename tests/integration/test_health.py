@@ -11,6 +11,8 @@ def test_health_sans_api_key(client):
     assert body["status"] == "ok"
     assert body["database"] == "connected"
     assert isinstance(body["uptimeSeconds"], int)
+    # Moteur seulement (jamais l'URL ni ses identifiants)
+    assert body["databaseEngine"] in ("sqlite", "postgresql")
 
 
 def test_health_expose_version_et_commit(client):

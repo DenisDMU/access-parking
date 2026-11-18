@@ -30,6 +30,7 @@ def health(request: Request, engine=Depends(deps.get_engine)) -> HealthOut:
     return HealthOut(
         status="ok" if db_ok else "degraded",
         database="connected" if db_ok else "unavailable",
+        databaseEngine=engine.dialect.name,
         uptime_seconds=int(time.time() - start_time),
         version=__version__,
         commit=get_settings().git_commit,

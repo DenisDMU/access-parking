@@ -20,7 +20,7 @@
 | | |
 |---|---|
 | **Rôle** | Décide si un véhicule peut entrer/sortir du parking et coordonne les échanges avec Vehicles, Booking, Parking, Pricing, Payment (aucune donnée métier des autres services). |
-| **Version actuelle** | `3.5.1` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
+| **Version actuelle** | `3.6.0` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
 | **Dernière mise à jour** | 18 novembre 2026 (jalons 8 à 15 : UI, qualité, revue, traçabilité, observabilité, CI/CD, sécurité) |
 | **URL du service déployé** | https://access-api-a1u7.onrender.com |
 | **Documentation Swagger/OpenAPI** | https://access-api-a1u7.onrender.com/docs (ReDoc : `/redoc`, spec brute : `/openapi.json`) |
@@ -64,11 +64,11 @@
 | **API** | ✅ REST documentée (`/docs`), entrées/sorties validées, erreurs normalisées, `/health` | [section 11](#11-endpoints) |
 | **Intégration** | ✅ Vehicles, Parking, Pricing, Payment réels (REST) ; événements publiés sur RabbitMQ (bus d'équipe) · ⏳ Booking encore mocké | [section 5](#5-brancher-un-vrai-microservice-à-la-place-dun-mock), [section 6](#6-publication-dévénements--webhook-ou-rabbitmq) |
 | **UI** | ✅ Dashboard servi par Access : borne d'entrée/sortie, état du parking (présences, décisions, santé), journal d'événements, recherche | [section 12](#12-borne-et-journal-de-bord-dashboard) |
-| **Qualité** | ✅ 185 tests (unitaires + intégration), entrées invalides et cas limites couverts, `ruff` (lint + format), script de vérification reproductible | [section 9](#9-tests-et-qualité) |
+| **Qualité** | ✅ 190 tests (unitaires + intégration), entrées invalides et cas limites couverts, `ruff` (lint + format), script de vérification reproductible | [section 9](#9-tests-et-qualité) |
 | **Observabilité** | ✅ Correlation ID propagé à tous les services et événements, logs par décision, `/metrics` Prometheus (techniques + métier + intégration), config Prometheus fournie, `/health` avec version et commit | [section 9](#métriques-prometheus) |
 | **CI/CD et déploiement** | ✅ GitHub Actions (lint → tests → bandit → pip-audit → gitleaks), déploiement Render après CI verte, smoke test de l'instance déployée (version vérifiée), CHANGELOG, Dependabot | [section 9](#intégration-continue-cicd), [section 14](#14-déploiement-sur-render) |
 | **Sécurité** | ✅ Clé API (comparaison en temps constant) sur toutes les routes sauf `/health`, refus de démarrer en production avec une clé faible, validation stricte, erreurs sans stack trace, en-têtes de sécurité, CORS restreint, rate limiting, secrets hors Git, jamais de plaque | [section 10](#10-sécurité) |
-| **Version** | `3.5.1` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
+| **Version** | `3.6.0` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
 | **Dernière mise à jour** | 18 novembre 2026 | |
 
 ### Suivi des jalons
@@ -462,7 +462,7 @@ pytest tests/integration    # endpoints via TestClient FastAPI (SQLite en mémoi
 pytest -v            # détail de chaque cas
 ```
 
-Couverture (185 tests) :
+Couverture (190 tests) :
 
 - **Unitaires** — matrice complète de la règle de compatibilité
   véhicule/place, règle de présence, règle d'accessibilité ; chaque use case
@@ -502,7 +502,7 @@ précédente, `needs:` dans le workflow) et doivent **tous** passer — si une
 | Job | Outil | Ce qu'il vérifie |
 |---|---|---|
 | Lint | `ruff` | Erreurs, imports, bugs probables, règles de sécurité, **formatage homogène** (config : `ruff.toml`) |
-| Tests | `pytest` | Les 185 tests unitaires + intégration, sans aucun secret |
+| Tests | `pytest` | Les 190 tests unitaires + intégration, sans aucun secret |
 | Sécurité du code | `bandit` | Analyse statique (SAST) : injections, appels dangereux, secrets en dur… |
 | Dépendances | `pip-audit` | Vulnérabilités connues (CVE) dans `requirements.txt` |
 | Secrets | `gitleaks` | Aucun secret (clé API, URL CloudAMQP…) dans tout l'historique git |
@@ -680,7 +680,7 @@ Préfixe `/api/v1` (sauf `/health` et `/metrics`).
 | GET | `/access/presences` | Oui | Véhicules actuellement présents (heure d'entrée, place attribuée, réservation) |
 | GET | `/access/vehicles/{vehicle_code}/known` | Oui | Vérifie si un code véhicule est connu de Vehicles, sans rien persister |
 | GET | `/access/events` | Oui | Liste les événements publiés (outbox, démo/observabilité) |
-| GET | `/health` | Non | Healthcheck (API + DB) + version et SHA du commit déployé |
+| GET | `/health` | Non | Healthcheck (API + DB) + moteur de base, version et SHA du commit déployé |
 | GET | `/metrics` | Oui | Métriques Prometheus (requêtes, latences, codes HTTP par route) |
 
 Documentation interactive complète (schémas, exemples, codes d'erreur) sur
@@ -876,13 +876,19 @@ Je n'ai pas d'accès direct à ton compte Render pour tester ce blueprint en
 conditions réelles — voici ce qui mérite une vérification de ta part au
 premier déploiement :
 
-- **Disque éphémère (plan Free)** : le fichier SQLite (`access.db`) est
-  réinitialisé à chaque redéploiement/redémarrage du service `access-api`
-  sur le plan Free (pas de disque persistant sans upgrade). Acceptable pour
-  une démo/tests d'intégration entre camarades, mais les données ne
-  survivent pas dans la durée. Si besoin de persistance, il faudra un plan
-  payant avec un **Disk** Render monté (ex. `/var/data`) et
-  `DATABASE_URL=sqlite:////var/data/access.db`.
+- **Base de données : Postgres Neon en production.** Le disque du plan Free
+  est éphémère : un fichier SQLite y est **effacé à chaque redéploiement et
+  à chaque réveil** du service. Or Access doit se souvenir des véhicules
+  présents et de leur heure d'entrée (règles 1 et 2.4) : sans persistance, un
+  véhicule garé pendant une mise en veille ne pourrait plus sortir. En
+  production, `DATABASE_URL` pointe donc vers une base **Postgres Neon**
+  gratuite (qui ne supprime pas les données en cas d'inactivité) ; Access
+  crée ses tables tout seul au démarrage. `/health` indique le moteur utilisé
+  (`databaseEngine`). SQLite reste utilisé en local et dans les tests, avec
+  les clés étrangères activées pour se comporter comme Postgres. Pour lancer
+  toute la suite de tests contre une vraie base Postgres (dans un schéma
+  jetable, sans toucher aux tables de production) :
+  `ACCESS_TEST_DATABASE_URL=<url> pytest tests/integration`.
 - **Mise en veille (plan Free)** : `access-api` s'endort après ~15 min
   d'inactivité ; le premier appel suivant peut prendre 30-60s (cold start) —
   normal, pas un bug. Les services de l'équipe (Parking, Pricing...) sont
