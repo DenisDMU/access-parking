@@ -13,7 +13,8 @@ Déroulé (section 8 de la spec) :
 6. Réservation (Booking) sinon attribution de place (Parking).
 7. Règle de compatibilité véhicule/place → refus si incompatible.
 8. Règle d'accessibilité (PMR) → confirmation requise si justificatif manquant.
-9. Sinon autorisation, occupation de la place, mise à jour de la présence.
+9. Sinon confirmation de la place auprès de Parking (refus si elle échoue),
+   autorisation, mise à jour de la présence.
 10-13. Persistance + publication de l'événement + retour de la décision.
 """
 
@@ -120,6 +121,7 @@ class ProcessEntryRequest:
 
         reservation = self._booking_port.get_reservation(vehicle_id)
         is_reservation = reservation is not None
+        hold_id: str | None = None
         if reservation is not None:
             place_type = reservation.reserved_place_type
             place_id = reservation.place_id
@@ -135,6 +137,7 @@ class ProcessEntryRequest:
                         reason=refusal,
                     )
                 place_id, place_type = assignment.place_id, assignment.place_type
+                hold_id = assignment.hold_id
         else:
             assignment, refusal = self._request_place(vehicle_info.vehicle_type, False)
             if assignment is None:
@@ -147,6 +150,7 @@ class ProcessEntryRequest:
                     reason=refusal,
                 )
             place_id, place_type = assignment.place_id, assignment.place_type
+            hold_id = assignment.hold_id
 
         compat_ok = is_compatible(vehicle_info.vehicle_type, place_type)
         if not compat_ok:
@@ -212,8 +216,18 @@ class ProcessEntryRequest:
                 disability_check_ok=False,
             )
 
-        # Tout est valide : autorisation.
-        self._parking_port.mark_place_occupied(place_id, vehicle_id)
+        # Tout est valide : on confirme la place auprès de Parking. Sans
+        # confirmation (place expirée, déjà utilisée, Parking injoignable), la
+        # barrière reste fermée : sinon le véhicule entrerait sans être compté.
+        if not self._parking_port.mark_place_occupied(place_id, vehicle_id, hold_id):
+            return self._refuse(
+                request_id=request_id,
+                vehicle_id=vehicle_id,
+                date=date,
+                source=source,
+                ai_check=ai_check,
+                reason="Place non confirmée par Parking, réessayez",
+            )
         self._presence_repo.set_status(vehicle_id, PresenceStatus.IN, request_id)
 
         disability_check_ok = True if place_type.is_handicap else None

@@ -50,7 +50,7 @@ Vérifiable : aucun `import` de `infrastructure`/`interfaces` dans `domain` ni
 
 - Logs : README [section 9](../README.md#logs-exploitables) — correlation ID,
   une ligne par décision, log d'accès, avertissements des appels sortants.
-- Tests : 175 (unitaires + intégration), aucun réseau ; CI en 5 étapes.
+- Tests : 182 (unitaires + intégration), aucun réseau ; CI en 5 étapes.
 - Dépendances (`requirements.txt`) : FastAPI, SQLAlchemy, Pydantic, httpx
   (appels sortants), pika (RabbitMQ), slowapi (rate limiting),
   prometheus-fastapi-instrumentator (métriques). Surveillées par Dependabot et
@@ -86,7 +86,7 @@ timeout 20 s, en-tête `X-Correlation-ID`, métriques par service.
 |---|---|---|---|---|
 | **Vehicles** | `GET /api/vehicles/{code}` | code véhicule | `pseudoId`, `twoWheels`, `xl`, `electric`, `disabled` | non-200 / réseau → « véhicule inconnu » (confirmation requise) |
 | **Booking** *(mocké)* | `GET /bookings/active?vehicleId=` *(supposé)* | `vehicleId` pseudonymisé | `id`, `reservedPlaceType`, dates, `placeId` | 404 → pas de réservation ; panne → entrée sans réservation |
-| **Parking** | `POST /parking/hold`, `/confirm_entry`, `/free` (en-tête `X-API-Key` exigé) | `category_name`, `commercial_type` (`walkin`/`booking`) | `success` | `success: false` → « Aucune place disponible » ; panne ou clé refusée → « Service Parking indisponible » ; `confirm_entry`/`free` en échec loggés |
+| **Parking** | `POST /parking/hold` → `POST /parking/confirm_entry` (avec `hold_id`) ; sortie : `POST /parking/free` — en-tête `X-API-Key` exigé | `category_name`, `commercial_type` (`walkin`/`booking`), `hold_id` | `success`, `hold_id` (place mise de côté 30 s) | `success: false` → « Aucune place disponible » ; panne ou clé refusée → « Service Parking indisponible » ; confirmation refusée (409 expiré/déjà utilisé, 422) → entrée refusée « Place non confirmée par Parking » ; `free` en échec loggé |
 | **Pricing** | `POST /quote` | `zone`, `mode`, `duration_min` | `amount_eur` | panne → sortie refusée « tarification indisponible » |
 | **Payment** | `POST /payments` puis `GET /payments/{id}` | montant en centimes, clé d'idempotence, référence du stationnement | `payment_id`, `status` | `REFUSED` → refus ; panne / `PENDING` > 40 s → refus « réessayez » (rejouable sans double débit) |
 
@@ -157,4 +157,7 @@ toujours avec un refus explicite et loggé, jamais un plantage.
 | 7 | 18/11 : variables du `render.yaml` non appliquées par un déploiement automatique (Access appelait `localhost` pour Vehicles) | ✅ résolu par redéploiement ; détectable désormais par le smoke test |
 | 8 | Payment n'active pas encore son authentification (`auth_enabled: false`) | 📄 Access envoie déjà `X-API-Key` si `PAYMENT_API_KEY` est renseignée |
 | 10 | 18/11 : Parking a activé son authentification (`X-API-Key`) sans prévenir → appels d'Access refusés | ✅ Access envoie `PARKING_API_KEY` (3.4.0) ; 📌 clé à obtenir de l'équipe Parking et à saisir dans Render |
+| 11 | 18/11 : `confirm_entry` exige le `hold_id` du `hold` (place mise de côté 30 s) | ✅ géré en 3.5.0 ; entrée refusée si la confirmation échoue |
+| 12 | **Sécurité Parking** : la clé API de Parking est écrite en clair dans sa page publique `/dashboard` (lisible par tous dans le code source) | 📌 à signaler à l'équipe Parking — Access ne l'utilise pas et attend sa propre clé |
+| 13 | La doc de Parking indique qu'il **consomme aussi les événements RabbitMQ** pour les confirmations d'entrée/sortie : si Parking confirme à partir de `access.entry` en plus de l'appel `confirm_entry` d'Access, une entrée pourrait être comptée deux fois | 📌 à clarifier avec l'équipe Parking (un seul des deux mécanismes) |
 | 9 | Propagation du correlation ID par les autres services | 📌 à vérifier en revue d'intégration (Access le transmet partout) |

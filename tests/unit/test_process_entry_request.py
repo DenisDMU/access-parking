@@ -13,6 +13,7 @@ from src.domain.value_objects.dto import (
 from src.domain.value_objects.enums import (
     AuthorizationResult,
     DetectionSource,
+    EventType,
     PresenceStatus,
     RequestStatus,
     VehicleCategory,
@@ -223,3 +224,42 @@ def test_parking_injoignable_donne_un_motif_distinct_de_parking_complet():
     assert injoignable.result is AuthorizationResult.REFUSED
     assert injoignable.reason == "Service Parking indisponible, réessayez plus tard"
     assert complet.reason == "Aucune place disponible"
+
+
+def _entry_use_case(parking, presence=None, publisher=None):
+    from tests.unit.fakes import DEMO_VEHICLES
+
+    return ProcessEntryRequest(
+        vehicles_port=FakeVehiclesPort(DEMO_VEHICLES),
+        booking_port=FakeBookingPort(),
+        parking_port=parking,
+        presence_repo=presence or FakePresenceRepo(),
+        access_repo=FakeAccessRepo(),
+        event_publisher=publisher or FakeEventPublisher(),
+        ai_vision_port=FakeAIVisionPort(),
+    )
+
+
+def test_le_hold_id_de_parking_est_transmis_a_la_confirmation():
+    parking = FakeParkingPort()
+    decision = _entry_use_case(parking).execute(
+        1, datetime(2026, 9, 2, 10, 0, tzinfo=UTC), DetectionSource.LPR
+    )
+    assert decision.result is AuthorizationResult.AUTHORIZED
+    assert parking.confirmed_holds == ["H-1"]
+
+
+def test_confirmation_refusee_par_parking_ferme_la_barriere():
+    """Place mise de côté expirée ou déjà utilisée : le véhicule n'est pas
+    compté par Parking, donc il n'entre pas (sinon les compteurs divergent)."""
+
+    presence = FakePresenceRepo()
+    publisher = FakeEventPublisher()
+    decision = _entry_use_case(FakeParkingPort(confirm_ok=False), presence, publisher).execute(
+        1, datetime(2026, 9, 2, 10, 0, tzinfo=UTC), DetectionSource.LPR
+    )
+
+    assert decision.result is AuthorizationResult.REFUSED
+    assert decision.reason == "Place non confirmée par Parking, réessayez"
+    assert presence.get_status(decision.vehicle_id) is None
+    assert [e.type for e in publisher.published] == [EventType.ACCESS_REFUSED]

@@ -4,6 +4,15 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [3.5.0] — 2026-11-18 — Nouveau contrat Parking (hold_id)
+
+### Modifié
+- Entrée : le `hold_id` renvoyé par `POST /parking/hold` est transmis à
+  `POST /parking/confirm_entry` (exigé par Parking depuis le 18/11 ; la place
+  est mise de côté 30 s).
+- Si Parking refuse la confirmation (409 : hold expiré ou déjà utilisé ;
+  422), l'entrée est refusée : « Place non confirmée par Parking, réessayez ».
+
 ## [3.4.0] — 2026-11-18 — Clés API des services appelés
 
 ### Ajouté

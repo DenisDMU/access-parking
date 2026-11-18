@@ -78,10 +78,15 @@ class Reservation:
 
 @dataclass(frozen=True)
 class PlaceAssignment:
-    """Réponse de `ParkingServicePort.request_place`."""
+    """Réponse de `ParkingServicePort.request_place`.
+
+    `hold_id` : identifiant de la place mise de côté temporairement par
+    Parking (expire au bout de 30 s), à présenter pour confirmer l'entrée.
+    """
 
     place_id: str
     place_type: PlaceType
+    hold_id: str | None = None
 
 
 @dataclass(frozen=True)

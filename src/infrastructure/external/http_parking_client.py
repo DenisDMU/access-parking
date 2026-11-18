@@ -20,8 +20,11 @@ Contrat confirmé le 2026-09-02 contre le déploiement réel
             encore dans occupation_rate/spot_taken tant que confirm_entry
             n'est pas appelé — vérifié empiriquement)
 
-    POST {base_url}/parking/confirm_entry  { category_name, commercial_type }
-         -> { "message": ... }  (incrémente spot_taken)
+    POST {base_url}/parking/hold renvoie aussi `hold_id` et `end_at` : la
+         place est mise de côté 30 s (depuis le 2026-11-18).
+    POST {base_url}/parking/confirm_entry  { category_name, commercial_type, hold_id }
+         -> 200 (incrémente spot_taken) · 409 hold expiré/déjà utilisé · 422 sans hold_id
+    Toutes les routes /parking/* exigent l'en-tête X-API-Key (PARKING_API_KEY).
 
     POST {base_url}/parking/free           { category_name, commercial_type }
          -> { "message": ... }  (décrémente spot_taken)
@@ -146,25 +149,39 @@ class HttpParkingClient:
         if not response.json().get("success", False):
             return None
 
+        hold_id = response.json().get("hold_id")
         return PlaceAssignment(
             place_id=f"{category}:{commercial_type}",
             place_type=_place_type_from_category(category),
+            hold_id=str(hold_id) if hold_id is not None else None,
         )
 
-    def mark_place_occupied(self, place_id: str, vehicle_id: str) -> bool:
+    def mark_place_occupied(
+        self, place_id: str, vehicle_id: str, hold_id: str | None = None
+    ) -> bool:
         # `vehicle_id` non utilisé par ce client : Parking ne connaît que
         # des compteurs de catégories, aucun véhicule (cf. docstring module).
+        if hold_id is None:
+            # Parking exige le hold_id (422 sans lui) : inutile d'appeler.
+            logger.warning("confirm_entry impossible sans hold_id (%s)", place_id)
+            return False
         category, commercial_type = place_id.split(":", 1)
         try:
             with self._client() as client:
                 response = client.post(
                     f"{self._base_url}/parking/confirm_entry",
-                    json={"category_name": category, "commercial_type": commercial_type},
+                    json={
+                        "category_name": category,
+                        "commercial_type": commercial_type,
+                        "hold_id": int(hold_id),
+                    },
                 )
         except httpx.HTTPError as exc:
-            # Best-effort, comme la publication d'événements : la décision
-            # d'autorisation a déjà été prise à ce stade, on ne bloque pas.
-            logger.warning("Parking indisponible sur mark_place_occupied (%s) : %s", place_id, exc)
+            logger.warning("Parking indisponible sur confirm_entry (%s) : %s", place_id, exc)
+            return False
+        if response.status_code == 409:
+            # Place mise de côté expirée (30 s) ou déjà confirmée.
+            logger.warning("Parking : hold %s expiré ou déjà utilisé (%s)", hold_id, place_id)
             return False
         return self._accepted(response, "confirm_entry", place_id)
 
