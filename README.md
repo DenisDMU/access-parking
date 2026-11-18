@@ -752,6 +752,12 @@ Renseignez votre `X-API-Key` dans le champ prévu (stockée uniquement dans le
 - **Recherche** : une demande par `requestId`, l'historique d'un
   `vehicleId`, ou d'un code véhicule (résolu d'abord en `vehicleId`).
 
+Interface au style Apple : effet de verre dépoli (`backdrop-filter`) sur un
+fond de halos colorés, contrôle segmenté pour les onglets, typographie
+système, badges en français (« Autorisé », « Refusé », « À confirmer »),
+mode clair/sombre automatique, animations désactivées si le système le
+demande (`prefers-reduced-motion`). Aucune ressource externe.
+
 Testé dans Chrome (clair, sombre, mobile 390 px) : entrée puis sortie payée
 de bout en bout avec Pricing et Payment réels. L'onglet « État du parking »
 a été vérifié en local (bureau et mobile 375 px, sans défilement
