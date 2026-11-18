@@ -200,3 +200,26 @@ def test_entry_unknown_vehicle_is_rejected():
     assert decision.result is AuthorizationResult.CONFIRMATION_REQUIRED
     request = access_repo.requests[decision.request_id]
     assert request.vehicle_id is None
+
+
+def test_parking_injoignable_donne_un_motif_distinct_de_parking_complet():
+    from tests.unit.fakes import DEMO_VEHICLES
+
+    def decide(parking):
+        use_case = ProcessEntryRequest(
+            vehicles_port=FakeVehiclesPort(DEMO_VEHICLES),
+            booking_port=FakeBookingPort(),
+            parking_port=parking,
+            presence_repo=FakePresenceRepo(),
+            access_repo=FakeAccessRepo(),
+            event_publisher=FakeEventPublisher(),
+            ai_vision_port=FakeAIVisionPort(),
+        )
+        return use_case.execute(1, datetime(2026, 9, 2, 10, 0, tzinfo=UTC), DetectionSource.LPR)
+
+    injoignable = decide(FakeParkingPort(unavailable=True))
+    complet = decide(FakeParkingPort(has_place=False))
+
+    assert injoignable.result is AuthorizationResult.REFUSED
+    assert injoignable.reason == "Service Parking indisponible, réessayez plus tard"
+    assert complet.reason == "Aucune place disponible"

@@ -30,7 +30,7 @@ from src.domain.ports.access_repository_port import AccessRepositoryPort
 from src.domain.ports.ai_vision_port import AIVisionPort
 from src.domain.ports.booking_service_port import BookingServicePort
 from src.domain.ports.event_publisher_port import EventPublisherPort
-from src.domain.ports.parking_service_port import ParkingServicePort
+from src.domain.ports.parking_service_port import ParkingServicePort, ParkingUnavailableError
 from src.domain.ports.vehicle_presence_repository_port import (
     VehiclePresenceRepositoryPort,
 )
@@ -38,7 +38,7 @@ from src.domain.ports.vehicles_service_port import VehiclesServicePort
 from src.domain.rules.disability_rule import requires_disability_confirmation
 from src.domain.rules.presence_rule import can_enter
 from src.domain.rules.vehicle_place_compatibility_rule import is_compatible
-from src.domain.value_objects.dto import EntryDecision, PlaceType
+from src.domain.value_objects.dto import EntryDecision, PlaceAssignment, PlaceType, VehicleType
 from src.domain.value_objects.enums import (
     AuthorizationResult,
     DetectionSource,
@@ -124,9 +124,7 @@ class ProcessEntryRequest:
             place_type = reservation.reserved_place_type
             place_id = reservation.place_id
             if place_id is None:
-                assignment = self._parking_port.request_place(
-                    vehicle_info.vehicle_type, is_reservation=True
-                )
+                assignment, refusal = self._request_place(vehicle_info.vehicle_type, True)
                 if assignment is None:
                     return self._refuse(
                         request_id=request_id,
@@ -134,13 +132,11 @@ class ProcessEntryRequest:
                         date=date,
                         source=source,
                         ai_check=ai_check,
-                        reason="Réservation trouvée mais aucune place disponible",
+                        reason=refusal,
                     )
                 place_id, place_type = assignment.place_id, assignment.place_type
         else:
-            assignment = self._parking_port.request_place(
-                vehicle_info.vehicle_type, is_reservation=False
-            )
+            assignment, refusal = self._request_place(vehicle_info.vehicle_type, False)
             if assignment is None:
                 return self._refuse(
                     request_id=request_id,
@@ -148,7 +144,7 @@ class ProcessEntryRequest:
                     date=date,
                     source=source,
                     ai_check=ai_check,
-                    reason="Aucune place disponible",
+                    reason=refusal,
                 )
             place_id, place_type = assignment.place_id, assignment.place_type
 
@@ -273,6 +269,27 @@ class ProcessEntryRequest:
             vehicle_type_check_ok=True,
             disability_check_ok=disability_check_ok,
         )
+
+    def _request_place(
+        self, vehicle_type: VehicleType, is_reservation: bool
+    ) -> tuple[PlaceAssignment | None, str | None]:
+        """Demande une place à Parking : `(place, None)` ou `(None, motif du refus)`.
+
+        Distingue un parking complet d'un service Parking injoignable : le
+        motif affiché au conducteur et compté dans les métriques est différent.
+        """
+
+        try:
+            assignment = self._parking_port.request_place(
+                vehicle_type, is_reservation=is_reservation
+            )
+        except ParkingUnavailableError:
+            return None, "Service Parking indisponible, réessayez plus tard"
+        if assignment is None:
+            if is_reservation:
+                return None, "Réservation trouvée mais aucune place disponible"
+            return None, "Aucune place disponible"
+        return assignment, None
 
     def _reject_unknown_vehicle(
         self,

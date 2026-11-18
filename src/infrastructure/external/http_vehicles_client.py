@@ -41,15 +41,22 @@ class HttpVehiclesClient:
         base_url: str,
         timeout_s: float = 20.0,
         transport: httpx.BaseTransport | None = None,
+        api_key: str = "",
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._timeout_s = timeout_s
+        # Envoyé seulement si VEHICLES_API_KEY est renseignée (authentification
+        # pas encore activée côté Vehicles au 2026-11-18).
+        self._headers = {"X-API-Key": api_key} if api_key else {}
         self._transport = transport  # injecté par les tests (httpx.MockTransport)
 
     def get_vehicle_info(self, vehicle_code: int) -> VehicleInfo | None:
         try:
             with outgoing_client(
-                "vehicles", timeout=self._timeout_s, transport=self._transport
+                "vehicles",
+                timeout=self._timeout_s,
+                headers=self._headers,
+                transport=self._transport,
             ) as client:
                 response = client.get(f"{self._base_url}/api/vehicles/{vehicle_code}")
             if response.status_code != 200:

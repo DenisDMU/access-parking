@@ -11,6 +11,7 @@ from src.domain.entities.access_authorization import AccessAuthorization
 from src.domain.entities.access_event import AccessEvent
 from src.domain.entities.access_request import AccessRequest
 from src.domain.entities.vehicle_presence import VehiclePresence
+from src.domain.ports.parking_service_port import ParkingUnavailableError
 from src.domain.value_objects.dto import (
     AccessFilters,
     AICheckResult,
@@ -83,9 +84,15 @@ class FakeBookingPort:
 
 
 class FakeParkingPort:
-    def __init__(self, assignment: PlaceAssignment | None = None, has_place: bool = True) -> None:
+    def __init__(
+        self,
+        assignment: PlaceAssignment | None = None,
+        has_place: bool = True,
+        unavailable: bool = False,
+    ) -> None:
         self._assignment = assignment
         self._has_place = has_place
+        self._unavailable = unavailable  # simule Parking injoignable
         self.occupied: dict[str, str] = {}
         self.freed: list[str] = []
         self.calls: list[tuple] = []
@@ -94,6 +101,8 @@ class FakeParkingPort:
         self, vehicle_type: VehicleType, is_reservation: bool = False
     ) -> PlaceAssignment | None:
         self.calls.append((vehicle_type, is_reservation))
+        if self._unavailable:
+            raise ParkingUnavailableError("parking injoignable (test)")
         if not self._has_place:
             return None
         if self._assignment is not None:

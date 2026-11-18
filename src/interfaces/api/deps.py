@@ -112,7 +112,7 @@ def get_vehicles_port() -> VehiclesServicePort:
     # Les tests automatisés remplacent ce provider par un FakeVehiclesPort
     # via app.dependency_overrides (tests/integration/conftest.py).
     settings = get_settings()
-    return HttpVehiclesClient(settings.vehicles_service_url)
+    return HttpVehiclesClient(settings.vehicles_service_url, api_key=settings.vehicles_api_key)
 
 
 def get_booking_port() -> BookingServicePort:
@@ -130,7 +130,7 @@ def get_parking_port() -> ParkingServicePort:
     # Les tests automatisés remplacent ce provider par un FakeParkingPort
     # via app.dependency_overrides (tests/integration/conftest.py).
     settings = get_settings()
-    return HttpParkingClient(settings.parking_service_url)
+    return HttpParkingClient(settings.parking_service_url, api_key=settings.parking_api_key)
 
 
 def get_pricing_port() -> PricingServicePort:
@@ -139,7 +139,7 @@ def get_pricing_port() -> PricingServicePort:
     # Les tests automatisés remplacent ce provider par un FakePricingPort
     # via app.dependency_overrides (tests/integration/conftest.py).
     settings = get_settings()
-    return HttpPricingClient(settings.pricing_service_url)
+    return HttpPricingClient(settings.pricing_service_url, api_key=settings.pricing_api_key)
 
 
 def get_payment_port() -> PaymentServicePort:

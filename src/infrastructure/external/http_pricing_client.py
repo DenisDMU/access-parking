@@ -84,9 +84,12 @@ def _duration_minutes(entry_date: datetime, exit_date: datetime, is_reservation:
 class HttpPricingClient:
     """Implémente `PricingServicePort` via un vrai appel HTTP à Pricing."""
 
-    def __init__(self, base_url: str, timeout_s: float = 20.0) -> None:
+    def __init__(self, base_url: str, timeout_s: float = 20.0, api_key: str = "") -> None:
         self._base_url = base_url.rstrip("/")
         self._timeout_s = timeout_s
+        # Envoyé seulement si PRICING_API_KEY est renseignée (authentification
+        # pas encore activée côté Pricing au 2026-11-18).
+        self._headers = {"X-API-Key": api_key} if api_key else {}
 
     def calculate_price(
         self,
@@ -102,7 +105,9 @@ class HttpPricingClient:
             "duration_min": _duration_minutes(entry_date, exit_date, is_reservation),
         }
         try:
-            with outgoing_client("pricing", timeout=self._timeout_s) as client:
+            with outgoing_client(
+                "pricing", timeout=self._timeout_s, headers=self._headers
+            ) as client:
                 response = client.post(f"{self._base_url}/quote", json=payload)
             response.raise_for_status()
         except httpx.HTTPError as exc:
