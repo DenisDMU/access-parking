@@ -50,7 +50,7 @@ Vérifiable : aucun `import` de `infrastructure`/`interfaces` dans `domain` ni
 
 - Logs : README [section 9](../README.md#logs-exploitables) — correlation ID,
   une ligne par décision, log d'accès, avertissements des appels sortants.
-- Tests : 168 (unitaires + intégration), aucun réseau ; CI en 5 étapes.
+- Tests : 175 (unitaires + intégration), aucun réseau ; CI en 5 étapes.
 - Dépendances (`requirements.txt`) : FastAPI, SQLAlchemy, Pydantic, httpx
   (appels sortants), pika (RabbitMQ), slowapi (rate limiting),
   prometheus-fastapi-instrumentator (métriques). Surveillées par Dependabot et
@@ -86,7 +86,7 @@ timeout 20 s, en-tête `X-Correlation-ID`, métriques par service.
 |---|---|---|---|---|
 | **Vehicles** | `GET /api/vehicles/{code}` | code véhicule | `pseudoId`, `twoWheels`, `xl`, `electric`, `disabled` | non-200 / réseau → « véhicule inconnu » (confirmation requise) |
 | **Booking** *(mocké)* | `GET /bookings/active?vehicleId=` *(supposé)* | `vehicleId` pseudonymisé | `id`, `reservedPlaceType`, dates, `placeId` | 404 → pas de réservation ; panne → entrée sans réservation |
-| **Parking** | `POST /parking/hold`, `/confirm_entry`, `/free` | `category_name`, `commercial_type` (`walkin`/`booking`) | `success` | panne → « Aucune place disponible » ; `free` en échec loggé |
+| **Parking** | `POST /parking/hold`, `/confirm_entry`, `/free` (en-tête `X-API-Key` exigé) | `category_name`, `commercial_type` (`walkin`/`booking`) | `success` | `success: false` → « Aucune place disponible » ; panne ou clé refusée → « Service Parking indisponible » ; `confirm_entry`/`free` en échec loggés |
 | **Pricing** | `POST /quote` | `zone`, `mode`, `duration_min` | `amount_eur` | panne → sortie refusée « tarification indisponible » |
 | **Payment** | `POST /payments` puis `GET /payments/{id}` | montant en centimes, clé d'idempotence, référence du stationnement | `payment_id`, `status` | `REFUSED` → refus ; panne / `PENDING` > 40 s → refus « réessayez » (rejouable sans double débit) |
 
@@ -153,7 +153,8 @@ toujours avec un refus explicite et loggé, jamais un plantage.
 | 3 | Vehicles renvoie **500** (et non 404) pour un code inconnu | 📄 contourné (toute non-200 = inconnu) — à remonter à l'équipe Vehicles |
 | 4 | Vehicles n'a pas de justificatif PMR distinct : `disabled` sert de type et de justificatif → la confirmation PMR n'arrive jamais avec le vrai service | 📄 documenté (README section 16) — responsabilité à clarifier |
 | 5 | Parking ne gère pas d'identifiant de place : `placeId` synthétique `CATEGORIE:walkin\|booking` | 📄 documenté, conforme aux consignes (places comptées par catégorie) |
-| 6 | 18/11 : service Parking injoignable (aucune réponse en 75 s) → toutes les entrées refusées « Aucune place disponible » | 📄 Access s'est comporté comme prévu ; le motif ne distingue pas « complet » de « Parking en panne » — piste : motif distinct |
+| 6 | 18/11 : service Parking injoignable (aucune réponse en 75 s) → toutes les entrées refusées « Aucune place disponible », motif trompeur | ✅ corrigé en 3.4.0 : motif distinct « Service Parking indisponible, réessayez plus tard » |
 | 7 | 18/11 : variables du `render.yaml` non appliquées par un déploiement automatique (Access appelait `localhost` pour Vehicles) | ✅ résolu par redéploiement ; détectable désormais par le smoke test |
 | 8 | Payment n'active pas encore son authentification (`auth_enabled: false`) | 📄 Access envoie déjà `X-API-Key` si `PAYMENT_API_KEY` est renseignée |
+| 10 | 18/11 : Parking a activé son authentification (`X-API-Key`) sans prévenir → appels d'Access refusés | ✅ Access envoie `PARKING_API_KEY` (3.4.0) ; 📌 clé à obtenir de l'équipe Parking et à saisir dans Render |
 | 9 | Propagation du correlation ID par les autres services | 📌 à vérifier en revue d'intégration (Access le transmet partout) |

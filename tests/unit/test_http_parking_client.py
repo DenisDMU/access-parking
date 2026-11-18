@@ -1,6 +1,12 @@
 """Tests unitaires — fonctions pures de `http_parking_client.py`
 (mapping catégorie), sans appel réseau au vrai service Parking."""
 
+import json
+
+import httpx
+import pytest
+
+from src.domain.ports.parking_service_port import ParkingUnavailableError
 from src.domain.value_objects.dto import VehicleType
 from src.domain.value_objects.enums import VehicleCategory
 from src.infrastructure.external.http_parking_client import (
@@ -58,10 +64,63 @@ def test_place_type_from_category_roundtrips_each_category():
         assert place.category == vehicle.category
 
 
-def test_request_place_returns_none_when_parking_unreachable():
+def test_request_place_signale_parking_injoignable():
+    """Parking injoignable n'est pas « aucune place » : erreur dédiée, que le
+    use case transforme en refus « Service Parking indisponible »."""
+
     client = HttpParkingClient(_UNREACHABLE_URL, timeout_s=1.0)
-    result = client.request_place(VehicleType(category=FOUR))  # ne doit jamais lever
-    assert result is None
+    with pytest.raises(ParkingUnavailableError):
+        client.request_place(VehicleType(category=FOUR))
+
+
+def test_cle_api_envoyee_a_parking():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["key"] = request.headers.get("X-API-Key")
+        seen["body"] = json.loads(request.content)
+        return httpx.Response(200, json={"success": True})
+
+    client = HttpParkingClient(
+        "http://parking.test", api_key="cle-parking", transport=httpx.MockTransport(handler)
+    )
+    assignment = client.request_place(VehicleType(category=FOUR))
+
+    assert seen["key"] == "cle-parking"
+    assert seen["body"] == {"category_name": "STANDARD", "commercial_type": "walkin"}
+    assert assignment.place_id == "STANDARD:walkin"
+
+
+def test_pas_den_tete_sans_cle_configuree():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["key"] = request.headers.get("X-API-Key")
+        return httpx.Response(200, json={"success": True})
+
+    HttpParkingClient("http://parking.test", transport=httpx.MockTransport(handler)).request_place(
+        VehicleType(category=FOUR)
+    )
+    assert seen["key"] is None
+
+
+def test_cle_refusee_par_parking_est_une_indisponibilite():
+    client = HttpParkingClient(
+        "http://parking.test",
+        transport=httpx.MockTransport(
+            lambda r: httpx.Response(401, json={"detail": "API Key invalide ou manquante"})
+        ),
+    )
+    with pytest.raises(ParkingUnavailableError):
+        client.request_place(VehicleType(category=FOUR))
+
+
+def test_parking_complet_renvoie_none():
+    client = HttpParkingClient(
+        "http://parking.test",
+        transport=httpx.MockTransport(lambda r: httpx.Response(200, json={"success": False})),
+    )
+    assert client.request_place(VehicleType(category=FOUR)) is None
 
 
 def test_mark_place_occupied_returns_false_when_parking_unreachable():

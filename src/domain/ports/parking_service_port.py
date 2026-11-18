@@ -16,11 +16,21 @@ from typing import Protocol
 from src.domain.value_objects.dto import PlaceAssignment, VehicleType
 
 
+class ParkingUnavailableError(Exception):
+    """Parking n'a pas pu répondre (panne, délai dépassé, clé API refusée).
+
+    À distinguer de « aucune place disponible » (`None`) : le conducteur et
+    l'exploitant ne doivent pas croire le parking complet quand c'est le
+    service qui est injoignable.
+    """
+
+
 class ParkingServicePort(Protocol):
     def request_place(
         self, vehicle_type: VehicleType, is_reservation: bool = False
     ) -> PlaceAssignment | None:
-        """Demande l'attribution d'une place adaptée, ou `None` si aucune disponible."""
+        """Demande l'attribution d'une place adaptée, ou `None` si aucune
+        disponible. Lève `ParkingUnavailableError` si Parking ne répond pas."""
         ...
 
     def mark_place_occupied(self, place_id: str, vehicle_id: str) -> bool:

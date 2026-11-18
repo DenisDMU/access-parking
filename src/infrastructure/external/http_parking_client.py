@@ -56,6 +56,7 @@ import logging
 
 import httpx
 
+from src.domain.ports.parking_service_port import ParkingUnavailableError
 from src.domain.value_objects.dto import PlaceAssignment, PlaceType, VehicleType
 from src.domain.value_objects.enums import VehicleCategory
 from src.infrastructure.external.outgoing_http import outgoing_client
@@ -101,9 +102,24 @@ class HttpParkingClient:
     `httpx.ReadTimeout` en production sur une requête pourtant valide.
     """
 
-    def __init__(self, base_url: str, timeout_s: float = 20.0) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        timeout_s: float = 20.0,
+        api_key: str = "",
+        transport: httpx.BaseTransport | None = None,
+    ) -> None:
         self._base_url = base_url.rstrip("/")
         self._timeout_s = timeout_s
+        # Parking exige l'en-tête X-API-Key sur toutes ses routes (constaté le
+        # 2026-11-18) ; clé fournie en privé par l'équipe (PARKING_API_KEY).
+        self._headers = {"X-API-Key": api_key} if api_key else {}
+        self._transport = transport  # injecté par les tests (httpx.MockTransport)
+
+    def _client(self) -> httpx.Client:
+        return outgoing_client(
+            "parking", timeout=self._timeout_s, headers=self._headers, transport=self._transport
+        )
 
     def request_place(
         self, vehicle_type: VehicleType, is_reservation: bool = False
@@ -112,21 +128,20 @@ class HttpParkingClient:
         commercial_type = "booking" if is_reservation else "walkin"
         payload = {"category_name": category, "commercial_type": commercial_type}
         try:
-            with outgoing_client("parking", timeout=self._timeout_s) as client:
+            with self._client() as client:
                 response = client.post(f"{self._base_url}/parking/hold", json=payload)
             response.raise_for_status()
         except httpx.HTTPError as exc:
-            # Panne/429/timeout Parking : hors périmètre MVP (section 16 de
-            # la spec), traité comme "aucune place disponible" plutôt que de
-            # planter le use case avec une 500 — l'entrée est refusée
-            # proprement (ProcessEntryRequest gère déjà `None` ainsi).
+            # Panne, 429, timeout ou clé API refusée (401/403) : ce n'est PAS
+            # « aucune place ». Le use case refuse l'entrée proprement avec
+            # un motif distinct (jamais de 500).
             logger.warning(
                 "Parking indisponible sur request_place (%s/%s) : %s",
                 category,
                 commercial_type,
                 exc,
             )
-            return None
+            raise ParkingUnavailableError(str(exc)) from exc
 
         if not response.json().get("success", False):
             return None
@@ -141,7 +156,7 @@ class HttpParkingClient:
         # des compteurs de catégories, aucun véhicule (cf. docstring module).
         category, commercial_type = place_id.split(":", 1)
         try:
-            with outgoing_client("parking", timeout=self._timeout_s) as client:
+            with self._client() as client:
                 response = client.post(
                     f"{self._base_url}/parking/confirm_entry",
                     json={"category_name": category, "commercial_type": commercial_type},
@@ -151,12 +166,12 @@ class HttpParkingClient:
             # d'autorisation a déjà été prise à ce stade, on ne bloque pas.
             logger.warning("Parking indisponible sur mark_place_occupied (%s) : %s", place_id, exc)
             return False
-        return response.status_code < 300
+        return self._accepted(response, "confirm_entry", place_id)
 
     def mark_place_free(self, place_id: str) -> bool:
         category, commercial_type = place_id.split(":", 1)
         try:
-            with outgoing_client("parking", timeout=self._timeout_s) as client:
+            with self._client() as client:
                 response = client.post(
                     f"{self._base_url}/parking/free",
                     json={"category_name": category, "commercial_type": commercial_type},
@@ -164,4 +179,14 @@ class HttpParkingClient:
         except httpx.HTTPError as exc:
             logger.warning("Parking indisponible sur mark_place_free (%s) : %s", place_id, exc)
             return False
-        return response.status_code < 300
+        return self._accepted(response, "free", place_id)
+
+    @staticmethod
+    def _accepted(response: httpx.Response, operation: str, place_id: str) -> bool:
+        if response.status_code >= 300:
+            # Ex. clé API refusée : le compteur de Parking n'a pas bougé.
+            logger.warning(
+                "Parking a refusé %s (%s) : HTTP %s", operation, place_id, response.status_code
+            )
+            return False
+        return True

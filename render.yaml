@@ -80,6 +80,12 @@ services:
         value: https://payment-xp8n.onrender.com
       - key: PAYMENT_API_KEY
         sync: false  # secret fourni en privé par l'équipe Payment : à coller dans Render > Environment
+      - key: PARKING_API_KEY
+        sync: false  # OBLIGATOIRE : Parking exige X-API-Key depuis le 18/11 — clé à demander à l'équipe Parking
+      - key: PRICING_API_KEY
+        sync: false  # optionnel tant que Pricing n'a pas activé son authentification
+      - key: VEHICLES_API_KEY
+        sync: false  # optionnel tant que Vehicles n'a pas activé son authentification
       - key: AI_MODEL_NAME
         value: fake-vision-v1
       - key: EVENT_SUBSCRIBERS_URLS

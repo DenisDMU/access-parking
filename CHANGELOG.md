@@ -4,6 +4,18 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [3.4.0] — 2026-11-18 — Clés API des services appelés
+
+### Ajouté
+- `PARKING_API_KEY`, `PRICING_API_KEY`, `VEHICLES_API_KEY` : clé envoyée dans
+  `X-API-Key` si elle est renseignée (Parking l'exige depuis le 18/11).
+
+### Modifié
+- Parking injoignable (panne, délai, clé refusée) : l'entrée est refusée avec
+  « Service Parking indisponible, réessayez plus tard », et non plus
+  « Aucune place disponible », réservé à un parking réellement complet.
+- Un `confirm_entry` ou `free` refusé par Parking est loggé en avertissement.
+
 ## [3.3.0] — 2026-11-18 — Refonte du dashboard
 
 ### Modifié

@@ -71,6 +71,11 @@ class Settings:
     # Clé fournie en privé par l'équipe Payment ; vide = pas d'en-tête
     # X-API-Key envoyé (tant que Payment n'a pas activé son authentification).
     payment_api_key: str = os.getenv("PAYMENT_API_KEY", "")
+    # Même principe pour les autres services : clé envoyée dans X-API-Key si
+    # elle est renseignée. Parking l'exige depuis le 2026-11-18.
+    parking_api_key: str = os.getenv("PARKING_API_KEY", "")
+    pricing_api_key: str = os.getenv("PRICING_API_KEY", "")
+    vehicles_api_key: str = os.getenv("VEHICLES_API_KEY", "")
 
     ai_model_name: str = os.getenv("AI_MODEL_NAME", "fake-vision-v1")
 
