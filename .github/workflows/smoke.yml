@@ -24,7 +24,7 @@ jobs:
       - uses: actions/checkout@v7
       - name: Version attendue (src/__init__.py)
         id: version
-        run: echo "value=$(python3 -c 'import re; print(re.search(r"\"(.+)\"", open("src/__init__.py").read()).group(1))')" >> "$GITHUB_OUTPUT"
+        run: echo "value=$(python3 -c 'import re; print(re.search(r"__version__ = \"(.+)\"", open("src/__init__.py").read()).group(1))')" >> "$GITHUB_OUTPUT"
       - name: Smoke test
         env:
           BASE_URL: ${{ vars.ACCESS_BASE_URL || 'https://access-api-a1u7.onrender.com' }}
