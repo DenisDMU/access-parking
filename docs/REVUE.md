@@ -51,7 +51,7 @@ Vérifiable : aucun `import` de `infrastructure`/`interfaces` dans `domain` ni
 
 - Logs : README [section 9](../README.md#logs-exploitables) — correlation ID,
   une ligne par décision, log d'accès, avertissements des appels sortants.
-- Tests : 185 (unitaires + intégration), aucun réseau ; CI en 5 étapes.
+- Tests : 190 (unitaires + intégration ; clés étrangères appliquées en SQLite comme en Postgres), aucun réseau ; CI en 5 étapes.
 - Dépendances (`requirements.txt`) : FastAPI, SQLAlchemy, Pydantic, httpx
   (appels sortants), pika (RabbitMQ), slowapi (rate limiting),
   prometheus-fastapi-instrumentator (métriques). Surveillées par Dependabot et
@@ -164,4 +164,5 @@ toujours avec un refus explicite et loggé, jamais un plantage.
 | 14 | **Vehicles ne respecte pas la règle 3.2** (« Vehicles *recherche ou crée* l'identifiant pseudonymisé ») : `POST /api/vehicles/identify` exige un code fourni par l'appelant, renvoie 500 pour une plaque déjà connue, n'offre aucune recherche par plaque et perd ses données à chaque mise en veille → tout véhicule non préenregistré est « inconnu » | 📌 à remonter à l'équipe Vehicles : `identify` doit retrouver ou créer le véhicule à partir de la plaque et renvoyer son code. Rien à changer côté Access (règle 3.7 : Access *demande* l'identifiant à Vehicles) |
 | 15 | Durée envoyée à Pricing : 0 min (sortie juste après l'entrée) et plus de 7 jours refusés par Pricing (422) → sortie bloquée ; règle 2.4 (« durée plafonnée à sept jours ») non appliquée | ✅ corrigé en 3.5.1 : durée arrondie à la minute supérieure, bornée entre 1 min et 7 jours |
 | 16 | Le cas « véhicule inconnu → intervention d'un agent » vient de la spec d'Access, pas des règles métier, qui mettent le « traitement manuel des erreurs » hors périmètre (section 5) | 📄 conservé comme refus sûr (barrière fermée) ; ne devrait plus arriver avec un Vehicles conforme à la règle 3.2 |
+| 17 | 18/11 : SQLite sur le disque éphémère de Render → base effacée à chaque redéploiement ou réveil (constaté : 4 passages perdus en quelques minutes). Un véhicule garé pendant une mise en veille ne pouvait plus sortir | ✅ 3.6.0 : Postgres Neon en production (`DATABASE_URL`), tables créées au démarrage. Corrigé au passage : la présence était enregistrée avant la demande d'entrée qu'elle référence (clé étrangère), ce qui aurait fait échouer chaque entrée sous Postgres |
 | 9 | Propagation du correlation ID par les autres services | 📌 à vérifier en revue d'intégration (Access le transmet partout) |
