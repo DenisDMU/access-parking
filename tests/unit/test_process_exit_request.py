@@ -287,3 +287,38 @@ def test_exit_refused_when_exit_date_before_entry():
     assert pricing.calls == []
     assert payment.calls == []
     assert presence.get_status("v1") is PresenceStatus.IN
+
+
+def test_evenement_de_sortie_donne_heure_entree_et_duree():
+    """Le ticket de sortie (service Messages) a besoin de l'heure d'entrée et
+    de la durée : elles sont dans le payload de `access.exit`."""
+
+    vehicles = FakeVehiclesPort(
+        {
+            1: VehicleInfo(
+                vehicle_id="v1", vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER)
+            )
+        }
+    )
+    presence = FakePresenceRepo()
+    access_repo = FakeAccessRepo()
+    _seed_vehicle_present(access_repo, presence)
+    publisher = FakeEventPublisher()
+    use_case = ProcessExitRequest(
+        vehicles_port=vehicles,
+        parking_port=FakeParkingPort(),
+        pricing_port=FakePricingPort(amount=Decimal("7.50")),
+        payment_port=FakePaymentPort(success=True),
+        presence_repo=presence,
+        access_repo=access_repo,
+        event_publisher=publisher,
+    )
+
+    use_case.execute(
+        1, ENTRY_AT + timedelta(hours=2, minutes=30, seconds=10), DetectionSource.TERMINAL
+    )
+
+    exit_event = next(e for e in publisher.published if e.type is EventType.VEHICLE_EXITED)
+    assert exit_event.payload["enteredAt"] == ENTRY_AT.isoformat()
+    assert exit_event.payload["durationMinutes"] == 151  # 2 h 30 min 10 s : minute entamée
+    assert exit_event.payload["amount"] == "7.50"

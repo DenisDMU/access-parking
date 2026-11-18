@@ -4,6 +4,16 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [3.6.2] — 2026-11-18 — Événement de sortie enrichi
+
+### Ajouté
+- `access.exit` contient `enteredAt` (heure d'entrée, UTC) et
+  `durationMinutes` (durée réelle, minutes entamées), pour le ticket de
+  sortie du service Messages. Champs ajoutés, aucun champ modifié.
+- Simulateur : mêmes champs, stationnements de 20 min à 5 h et montant
+  indicatif calculé comme Pricing (1re heure gratuite, 0,75 € le quart
+  d'heure).
+
 ## [3.6.1] — 2026-11-18 — Nettoyage avant l'oral
 
 ### Modifié

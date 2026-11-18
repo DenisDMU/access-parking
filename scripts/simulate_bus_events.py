@@ -12,6 +12,11 @@ Les événements sont reconnaissables comme simulés :
 - `payload.simulated = true` ;
 - propriété AMQP `app_id = "access-simulator"`.
 
+Pour avoir des tickets cohérents sans attendre des heures, chaque entrée est
+datée dans le passé (20 min à 5 h) ; la sortie, envoyée 30 s plus tard, porte
+la vraie durée (`enteredAt`, `durationMinutes`) et un montant indicatif
+calculé comme Pricing (1re heure gratuite, puis 0,75 € par quart d'heure).
+
 Usage (lit `RABBITMQ_URL` / `RABBITMQ_EXCHANGE` comme Access, depuis
 l'environnement ou `.env`) :
 
@@ -28,13 +33,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import random
 import ssl
 import sys
 import time
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import certifi
 import pika
@@ -61,21 +67,29 @@ def _connection_params(amqp_url: str) -> pika.URLParameters:
     return params
 
 
-def _event(event_type: int, payload: dict) -> dict:
+def _event(event_type: int, payload: dict, created_at: datetime | None = None) -> dict:
     return {
         "id": str(uuid.uuid4()),
         "type": event_type,
         "requestId": str(uuid.uuid4()),
         "payload": {**payload, "simulated": True},
-        "createdAt": datetime.now(UTC).isoformat(),
+        "createdAt": (created_at or datetime.now(UTC)).isoformat(),
     }
+
+
+def _indicative_amount(minutes: int) -> str:
+    """Montant indicatif façon grille Pricing « standard sans réservation » :
+    1re heure gratuite, puis 0,75 € par quart d'heure entamé."""
+
+    quarters = max(math.ceil((minutes - 60) / 15), 0)
+    return f"{quarters * 0.75:.2f}"
 
 
 class Simulator:
     """Parc de véhicules simulés : entre / sort en alternance."""
 
     def __init__(self, fleet_size: int = 5) -> None:
-        self._parked: dict[str, str] = {}  # vehicleId -> placeId
+        self._parked: dict[str, tuple[str, datetime]] = {}  # vehicleId -> (placeId, entrée)
         self._fleet = [f"sim-vehicle-{i}" for i in range(1, fleet_size + 1)]
         self._next_is_entry = True
 
@@ -88,7 +102,10 @@ class Simulator:
             category, place_type = random.choice(PLACES)  # noqa: S311
             reservation = random.random() < 0.3  # noqa: S311
             place_id = f"{category}:{'booking' if reservation else 'walkin'}"
-            self._parked[vehicle_id] = place_id
+            # Stationnement réaliste sans attendre des heures : l'entrée est
+            # datée dans le passé (entre 20 min et 5 h), la sortie maintenant.
+            entered_at = datetime.now(UTC) - timedelta(minutes=random.randint(20, 300))  # noqa: S311
+            self._parked[vehicle_id] = (place_id, entered_at)
             return "access.entry", _event(
                 VEHICLE_ENTERED,
                 {
@@ -97,10 +114,12 @@ class Simulator:
                     "placeType": place_type,
                     "reservation": reservation,
                 },
+                created_at=entered_at,
             )
         vehicle_id = random.choice(list(self._parked))  # noqa: S311
-        place_id = self._parked.pop(vehicle_id)
-        amount = random.choice(["0.00", "2.50", "5.00", "7.50", "12.00"])  # noqa: S311
+        place_id, entered_at = self._parked.pop(vehicle_id)
+        duration_min = max(math.ceil((datetime.now(UTC) - entered_at).total_seconds() / 60), 0)
+        amount = _indicative_amount(duration_min)
         return "access.exit", _event(
             VEHICLE_EXITED,
             {
@@ -108,6 +127,9 @@ class Simulator:
                 "placeId": place_id,
                 "amount": amount,
                 "paymentId": None if amount == "0.00" else str(uuid.uuid4()),
+                # Mêmes champs que les vrais événements d'Access (3.6.2+)
+                "enteredAt": entered_at.isoformat(),
+                "durationMinutes": duration_min,
             },
         )
 

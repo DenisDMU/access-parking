@@ -16,6 +16,7 @@ Déroulé (section 8 de la spec) :
 from __future__ import annotations
 
 import logging
+import math
 from datetime import datetime
 from uuid import uuid4
 
@@ -45,6 +46,12 @@ from src.domain.value_objects.enums import (
 
 # Logs métier : une ligne par décision (voir process_entry_request.py).
 logger = logging.getLogger(__name__)
+
+
+def _stay_minutes(entry_date: datetime, exit_date: datetime) -> int:
+    """Durée réelle du stationnement, en minutes entamées (jamais négative)."""
+
+    return max(math.ceil((exit_date - entry_date).total_seconds() / 60), 0)
 
 
 def _place_type_from_payload(payload: dict | None) -> PlaceType:
@@ -214,6 +221,10 @@ class ProcessExitRequest:
                     "placeId": place_id,
                     "amount": str(amount),
                     "paymentId": payment_id,
+                    # Utiles au ticket de sortie (service Messages) : la
+                    # sortie elle-même est datée par `createdAt`.
+                    "enteredAt": entry_date.isoformat(),
+                    "durationMinutes": _stay_minutes(entry_date, date),
                 },
                 created_at=date,
             )

@@ -51,7 +51,7 @@ Vérifiable : aucun `import` de `infrastructure`/`interfaces` dans `domain` ni
 
 - Logs : README [section 9](../README.md#logs-exploitables) — correlation ID,
   une ligne par décision, log d'accès, avertissements des appels sortants.
-- Tests : 190 (unitaires + intégration ; clés étrangères appliquées en SQLite comme en Postgres ; suite d'intégration validée aussi contre la base Neon de production, dans un schéma jetable), aucun réseau ; CI en 5 étapes.
+- Tests : 191 (unitaires + intégration ; clés étrangères appliquées en SQLite comme en Postgres ; suite d'intégration validée aussi contre la base Neon de production, dans un schéma jetable), aucun réseau ; CI en 5 étapes.
 - Dépendances (`requirements.txt`) : FastAPI, SQLAlchemy, Pydantic, httpx
   (appels sortants), pika (RabbitMQ), slowapi (rate limiting),
   prometheus-fastapi-instrumentator (métriques). Surveillées par Dependabot et
@@ -105,7 +105,7 @@ déclaré en passif par Access).
 | Routing key | Quand | Corps (`payload`) |
 |---|---|---|
 | `access.entry` | entrée autorisée | `vehicleId`, `placeId`, `placeType`, `reservation` |
-| `access.exit` | sortie autorisée | `vehicleId`, `placeId`, `amount`, `paymentId` |
+| `access.exit` | sortie autorisée | `vehicleId`, `placeId`, `amount`, `paymentId`, `enteredAt` (heure d'entrée, UTC), `durationMinutes` (durée réelle, minutes entamées) |
 | `access.refused` | refus ou véhicule inconnu | `vehicleId` (ou `null`), `reason` |
 | `access.other` | confirmation PMR requise | `vehicleId`, `reason`, place |
 
