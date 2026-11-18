@@ -4,6 +4,17 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [3.5.1] — 2026-11-18 — Durée de stationnement (règles 2.4 et 2.5)
+
+### Corrigé
+- Sortie juste après l'entrée : la durée de 0 minute était refusée par
+  Pricing (422) et la sortie bloquée ; elle compte désormais pour 1 minute
+  (gratuite).
+- Stationnement de plus de 7 jours : la durée est plafonnée à 7 jours
+  (règle 2.4) au lieu d'être refusée par Pricing, ce qui bloquait la sortie.
+- La durée est arrondie à la minute supérieure (« tout quart d'heure entamé
+  est dû », règle 2.5) et non plus à la minute la plus proche.
+
 ## [3.5.0] — 2026-11-18 — Nouveau contrat Parking (hold_id)
 
 ### Modifié

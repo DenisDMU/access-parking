@@ -1,11 +1,12 @@
 """Tests unitaires — fonctions pures de `http_pricing_client.py`
 (mapping zone + calcul de durée), sans appel réseau au vrai service Pricing."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from src.domain.value_objects.dto import PlaceType
 from src.domain.value_objects.enums import VehicleCategory
 from src.infrastructure.external.http_pricing_client import (
+    MAX_STAY_MINUTES,
     HttpPricingClient,
     _duration_minutes,
     _map_zone,
@@ -46,13 +47,35 @@ def test_map_zone_priority_disabled_over_everything_else():
     assert _map_zone(place) == "disabled"
 
 
-def test_duration_minutes_walk_in_rounds_to_nearest_minute():
+def test_duration_minutes_walk_in_arrondie_a_la_minute_superieure():
+    """« Tout quart d'heure entamé est dû » : on ne perd jamais de secondes."""
+
     entry = datetime(2026, 1, 1, 10, 0, tzinfo=UTC)
-    exit_ = datetime(2026, 1, 1, 10, 32, 30, tzinfo=UTC)  # 32.5 min
-    assert (
-        _duration_minutes(entry, exit_, is_reservation=False) == 32
-        or _duration_minutes(entry, exit_, is_reservation=False) == 33
-    )  # arrondi standard, peu importe le sens exact
+    exit_ = datetime(2026, 1, 1, 10, 32, 1, tzinfo=UTC)  # 32 min 1 s
+    assert _duration_minutes(entry, exit_, is_reservation=False) == 33
+
+
+def test_sortie_immediate_donne_au_moins_une_minute():
+    """Bug corrigé : 0 minute était refusé par Pricing (422) et bloquait la sortie."""
+
+    entry = datetime(2026, 1, 1, 10, 0, tzinfo=UTC)
+    assert _duration_minutes(entry, entry, is_reservation=False) == 1
+    assert _duration_minutes(entry, entry + timedelta(seconds=20), is_reservation=False) == 1
+
+
+def test_duree_plafonnee_a_sept_jours():
+    """Règle 2.4 : plafond de 7 jours (Pricing refuse au-delà de 10 080 min)."""
+
+    entry = datetime(2026, 1, 1, 10, 0, tzinfo=UTC)
+    exit_ = entry + timedelta(days=12)
+    assert _duration_minutes(entry, exit_, is_reservation=False) == MAX_STAY_MINUTES == 10080
+    assert _duration_minutes(entry, exit_, is_reservation=True) == 10080
+
+
+def test_sept_jours_pile_non_modifies():
+    entry = datetime(2026, 1, 1, 10, 0, tzinfo=UTC)
+    exit_ = entry + timedelta(days=7)
+    assert _duration_minutes(entry, exit_, is_reservation=False) == 10080
 
 
 def test_duration_minutes_reservation_rounds_up_to_multiple_of_60():

@@ -11,6 +11,8 @@ end-to-end (`POST /quote`, `GET /rates`, `GET /grids/current`) :
     -> 201 { quote_id, grid_id, grid_version, amount_eur (string décimal),
              currency, breakdown, computed_at }
     -> 404 { code: "ZONE_NOT_FOUND", message: ... } si zone inconnue
+    -> 422 si `duration_min` vaut 0 ou dépasse 10 080 (7 jours) — d'où le
+       bornage fait par `_duration_minutes` (vérifié le 2026-11-18).
     -> 400 { code: "INVALID_DURATION", message: ... } si `mode="reserved"`
        et `duration_min` n'est pas un multiple de 60 (cohérent avec les
        créneaux de réservation Booking, toujours alignés sur l'heure pleine
@@ -73,12 +75,29 @@ def _map_zone(place_type: PlaceType) -> str:
     return "standard"
 
 
+# Règle métier 2.4 : « la durée du stationnement est plafonnée à sept jours ».
+# Pricing refuse d'ailleurs toute durée au-delà (422 si > 10 080 min).
+MAX_STAY_MINUTES = 7 * 24 * 60
+
+
 def _duration_minutes(entry_date: datetime, exit_date: datetime, is_reservation: bool) -> int:
-    duration_min = max((exit_date - entry_date).total_seconds() / 60, 0)
+    """Durée facturable envoyée à Pricing, en minutes entières.
+
+    - Arrondie à la minute **supérieure** : « tout quart d'heure entamé est
+      dû » (règle 2.5), on ne fait jamais disparaître des secondes.
+    - Au moins 1 minute : Pricing refuse 0 (422). Une sortie juste après
+      l'entrée tombe ainsi dans la gratuité de Pricing au lieu d'être bloquée.
+    - Au plus 7 jours (règle 2.4) : au-delà, la durée est plafonnée plutôt
+      que de bloquer définitivement la sortie du véhicule.
+    """
+
+    elapsed_min = max((exit_date - entry_date).total_seconds() / 60, 0)
     if is_reservation:
         # TODO[PRICING-2] : Pricing exige un multiple de 60 en mode "reserved".
-        return max(math.ceil(duration_min / 60) * 60, 60)
-    return max(round(duration_min), 0)
+        minutes = max(math.ceil(elapsed_min / 60) * 60, 60)
+    else:
+        minutes = max(math.ceil(elapsed_min), 1)
+    return min(minutes, MAX_STAY_MINUTES)  # 10 080 est un multiple de 60
 
 
 class HttpPricingClient:

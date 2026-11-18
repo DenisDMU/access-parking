@@ -1,3 +1,3 @@
 """Microservice Access — version unique, lue par l'app FastAPI et `/health`."""
 
-__version__ = "3.5.0"
+__version__ = "3.5.1"

@@ -33,6 +33,7 @@ Vérifiable : aucun `import` de `infrastructure`/`interfaces` dans `domain` ni
 | Réservation → place du pool « booking », sinon « walkin » | `ProcessEntryRequest` | `test_process_entry_request.py` |
 | Sortie : prix (Pricing) puis paiement (Payment) du stationnement | `ProcessExitRequest` | `test_process_exit_request.py`, `test_http_payment_client.py` |
 | Sortie datée avant l'entrée refusée | `stay_rule.py` | `test_stay_rule.py`, `test_quality.py` |
+| Durée plafonnée à 7 jours, tout quart d'heure entamé dû (règles 2.4 et 2.5) | `http_pricing_client.py::_duration_minutes` (minute supérieure, 1 min à 7 jours ; le calcul par quart d'heure est fait par Pricing) | `test_http_pricing_client.py` |
 | Access ne voit jamais la plaque (RGPD) | code Vehicles uniquement, `pseudoId` comme `vehicleId` | `test_http_vehicles_client.py` |
 
 ### Gestion des erreurs
@@ -50,7 +51,7 @@ Vérifiable : aucun `import` de `infrastructure`/`interfaces` dans `domain` ni
 
 - Logs : README [section 9](../README.md#logs-exploitables) — correlation ID,
   une ligne par décision, log d'accès, avertissements des appels sortants.
-- Tests : 182 (unitaires + intégration), aucun réseau ; CI en 5 étapes.
+- Tests : 185 (unitaires + intégration), aucun réseau ; CI en 5 étapes.
 - Dépendances (`requirements.txt`) : FastAPI, SQLAlchemy, Pydantic, httpx
   (appels sortants), pika (RabbitMQ), slowapi (rate limiting),
   prometheus-fastapi-instrumentator (métriques). Surveillées par Dependabot et
@@ -160,4 +161,7 @@ toujours avec un refus explicite et loggé, jamais un plantage.
 | 11 | 18/11 : `confirm_entry` exige le `hold_id` du `hold` (place mise de côté 30 s) | ✅ géré en 3.5.0 ; entrée refusée si la confirmation échoue |
 | 12 | **Sécurité Parking** : la clé API de Parking est écrite en clair dans sa page publique `/dashboard` (lisible par tous dans le code source) | 📌 à signaler à l'équipe Parking — Access ne l'utilise pas et attend sa propre clé |
 | 13 | La doc de Parking indique qu'il **consomme aussi les événements RabbitMQ** pour les confirmations d'entrée/sortie : si Parking confirme à partir de `access.entry` en plus de l'appel `confirm_entry` d'Access, une entrée pourrait être comptée deux fois | 📌 à clarifier avec l'équipe Parking (un seul des deux mécanismes) |
+| 14 | **Vehicles ne respecte pas la règle 3.2** (« Vehicles *recherche ou crée* l'identifiant pseudonymisé ») : `POST /api/vehicles/identify` exige un code fourni par l'appelant, renvoie 500 pour une plaque déjà connue, n'offre aucune recherche par plaque et perd ses données à chaque mise en veille → tout véhicule non préenregistré est « inconnu » | 📌 à remonter à l'équipe Vehicles : `identify` doit retrouver ou créer le véhicule à partir de la plaque et renvoyer son code. Rien à changer côté Access (règle 3.7 : Access *demande* l'identifiant à Vehicles) |
+| 15 | Durée envoyée à Pricing : 0 min (sortie juste après l'entrée) et plus de 7 jours refusés par Pricing (422) → sortie bloquée ; règle 2.4 (« durée plafonnée à sept jours ») non appliquée | ✅ corrigé en 3.5.1 : durée arrondie à la minute supérieure, bornée entre 1 min et 7 jours |
+| 16 | Le cas « véhicule inconnu → intervention d'un agent » vient de la spec d'Access, pas des règles métier, qui mettent le « traitement manuel des erreurs » hors périmètre (section 5) | 📄 conservé comme refus sûr (barrière fermée) ; ne devrait plus arriver avec un Vehicles conforme à la règle 3.2 |
 | 9 | Propagation du correlation ID par les autres services | 📌 à vérifier en revue d'intégration (Access le transmet partout) |
