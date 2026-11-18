@@ -20,7 +20,7 @@
 | | |
 |---|---|
 | **Rôle** | Décide si un véhicule peut entrer/sortir du parking et coordonne les échanges avec Vehicles, Booking, Parking, Pricing, Payment (aucune donnée métier des autres services). |
-| **Version actuelle** | `3.4.0` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
+| **Version actuelle** | `3.5.0` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
 | **Dernière mise à jour** | 18 novembre 2026 (jalons 8 à 15 : UI, qualité, revue, traçabilité, observabilité, CI/CD, sécurité) |
 | **URL du service déployé** | https://access-api-a1u7.onrender.com |
 | **Documentation Swagger/OpenAPI** | https://access-api-a1u7.onrender.com/docs (ReDoc : `/redoc`, spec brute : `/openapi.json`) |
@@ -64,11 +64,11 @@
 | **API** | ✅ REST documentée (`/docs`), entrées/sorties validées, erreurs normalisées, `/health` | [section 11](#11-endpoints) |
 | **Intégration** | ✅ Vehicles, Parking, Pricing, Payment réels (REST) ; événements publiés sur RabbitMQ (bus d'équipe) · ⏳ Booking encore mocké | [section 5](#5-brancher-un-vrai-microservice-à-la-place-dun-mock), [section 6](#6-publication-dévénements--webhook-ou-rabbitmq) |
 | **UI** | ✅ Dashboard servi par Access : borne d'entrée/sortie, état du parking (présences, décisions, santé), journal d'événements, recherche | [section 12](#12-borne-et-journal-de-bord-dashboard) |
-| **Qualité** | ✅ 175 tests (unitaires + intégration), entrées invalides et cas limites couverts, `ruff` (lint + format), script de vérification reproductible | [section 9](#9-tests-et-qualité) |
+| **Qualité** | ✅ 182 tests (unitaires + intégration), entrées invalides et cas limites couverts, `ruff` (lint + format), script de vérification reproductible | [section 9](#9-tests-et-qualité) |
 | **Observabilité** | ✅ Correlation ID propagé à tous les services et événements, logs par décision, `/metrics` Prometheus (techniques + métier + intégration), config Prometheus fournie, `/health` avec version et commit | [section 9](#métriques-prometheus) |
 | **CI/CD et déploiement** | ✅ GitHub Actions (lint → tests → bandit → pip-audit → gitleaks), déploiement Render après CI verte, smoke test de l'instance déployée (version vérifiée), CHANGELOG, Dependabot | [section 9](#intégration-continue-cicd), [section 14](#14-déploiement-sur-render) |
 | **Sécurité** | ✅ Clé API (comparaison en temps constant) sur toutes les routes sauf `/health`, refus de démarrer en production avec une clé faible, validation stricte, erreurs sans stack trace, en-têtes de sécurité, CORS restreint, rate limiting, secrets hors Git, jamais de plaque | [section 10](#10-sécurité) |
-| **Version** | `3.4.0` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
+| **Version** | `3.5.0` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
 | **Dernière mise à jour** | 18 novembre 2026 | |
 
 ### Suivi des jalons
@@ -353,7 +353,7 @@ même fichier `deps.py`) — chaque squelette liste ses propres `TODO` :
 |----------|------------------------------------------|----------------------------|
 | **Vehicles** | `http_vehicles_client.py` | **✅ Branché** (`GET /api/vehicles/{code}`) — `pseudoId` devient le `vehicleId`, `disabled` vaut type PMR **et** justificatif, toute réponse non-200 = véhicule inconnu, voir section 16 |
 | Booking  | `http_booking_client.py`   | Route/méthode, code "pas de réservation", `placeId` déjà assigné ou non |
-| **Parking** | `http_parking_client.py` | **✅ Branché** (`hold`/`confirm_entry`/`free`, catégories STANDARD/XL/ELECTRIC/HANDICAPPED/TWO_WHEELS) — pas de `placeId` réel, encodage synthétique `"CATEGORIE:walkin\|booking"`, voir section 16 |
+| **Parking** | `http_parking_client.py` | **✅ Branché** (`hold` → `confirm_entry` avec le `hold_id` reçu, place mise de côté 30 s → `free` ; catégories STANDARD/XL/ELECTRIC/HANDICAPPED/TWO_WHEELS ; en-tête `X-API-Key` = `PARKING_API_KEY`) — pas de `placeId` réel, encodage synthétique `"CATEGORIE:walkin\|booking"`, voir section 16 |
 | **Pricing** | `http_pricing_client.py` | **✅ Branché** (`PRICING_USE_MOCK=false`) contre le vrai service (`POST /quote`) — mapping `PlaceType → zone` et arrondi de durée pour les réservations restent des hypothèses documentées dans le fichier, voir aussi section 16 |
 | **Payment** | `http_payment_client.py` | **✅ Branché** (`POST /payments` puis polling `GET /payments/{id}` jusqu'à `ACCEPTED`/`REFUSED`, 2 s / 40 s max) — montant en centimes, clé d'idempotence `access:{stationnement}:exit`, en-tête `X-API-Key` envoyé si `PAYMENT_API_KEY` est renseignée, voir section 16 |
 
@@ -462,7 +462,7 @@ pytest tests/integration    # endpoints via TestClient FastAPI (SQLite en mémoi
 pytest -v            # détail de chaque cas
 ```
 
-Couverture (175 tests) :
+Couverture (182 tests) :
 
 - **Unitaires** — matrice complète de la règle de compatibilité
   véhicule/place, règle de présence, règle d'accessibilité ; chaque use case
@@ -502,7 +502,7 @@ précédente, `needs:` dans le workflow) et doivent **tous** passer — si une
 | Job | Outil | Ce qu'il vérifie |
 |---|---|---|
 | Lint | `ruff` | Erreurs, imports, bugs probables, règles de sécurité, **formatage homogène** (config : `ruff.toml`) |
-| Tests | `pytest` | Les 175 tests unitaires + intégration, sans aucun secret |
+| Tests | `pytest` | Les 182 tests unitaires + intégration, sans aucun secret |
 | Sécurité du code | `bandit` | Analyse statique (SAST) : injections, appels dangereux, secrets en dur… |
 | Dépendances | `pip-audit` | Vulnérabilités connues (CVE) dans `requirements.txt` |
 | Secrets | `gitleaks` | Aucun secret (clé API, URL CloudAMQP…) dans tout l'historique git |
@@ -972,6 +972,12 @@ non intrusives** ont été ajoutées :
   `http_parking_client.py` pour que le reste du code (qui a besoin d'un
   identifiant pour "quelle place libérer" à la sortie) continue de
   fonctionner sans changement.
+- `PlaceAssignment.hold_id` et `ParkingServicePort.mark_place_occupied(...,
+  hold_id)` : depuis le 18/11, Parking met une place de côté 30 s au `hold`
+  et exige son `hold_id` pour `confirm_entry` (409 si expiré ou déjà
+  utilisé). Si la confirmation échoue, **l'entrée est refusée** (« Place non
+  confirmée par Parking, réessayez ») : un véhicule ne doit jamais entrer
+  sans être compté par Parking.
 - `ParkingServicePort.request_place` lève `ParkingUnavailableError` quand
   Parking ne répond pas (panne, délai, clé API refusée) au lieu de renvoyer
   `None` : l'entrée est refusée avec « Service Parking indisponible,

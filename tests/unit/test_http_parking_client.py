@@ -125,9 +125,75 @@ def test_parking_complet_renvoie_none():
 
 def test_mark_place_occupied_returns_false_when_parking_unreachable():
     client = HttpParkingClient(_UNREACHABLE_URL, timeout_s=1.0)
-    assert client.mark_place_occupied("STANDARD:walkin", "v1") is False
+    assert client.mark_place_occupied("STANDARD:walkin", "v1", hold_id="1") is False
 
 
 def test_mark_place_free_returns_false_when_parking_unreachable():
     client = HttpParkingClient(_UNREACHABLE_URL, timeout_s=1.0)
     assert client.mark_place_free("STANDARD:walkin") is False
+
+
+# --- Contrat hold → confirm_entry (hold_id, depuis le 2026-11-18) -------------
+
+_HOLD_RESPONSE = {
+    "hold_id": 12,
+    "category_name": "STANDARD",
+    "label": "Standard",
+    "commercial_type": "walkin",
+    "end_at": "2026-11-18T10:30:30",
+    "success": True,
+}
+
+
+def test_hold_renvoie_le_hold_id():
+    client = HttpParkingClient(
+        "http://parking.test",
+        transport=httpx.MockTransport(lambda r: httpx.Response(201, json=_HOLD_RESPONSE)),
+    )
+    assignment = client.request_place(VehicleType(category=FOUR))
+    assert assignment.hold_id == "12"
+    assert assignment.place_id == "STANDARD:walkin"
+
+
+def test_confirm_entry_envoie_le_hold_id():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["path"] = request.url.path
+        seen["body"] = json.loads(request.content)
+        return httpx.Response(200, json={"message": "ok"})
+
+    client = HttpParkingClient("http://parking.test", transport=httpx.MockTransport(handler))
+    assert client.mark_place_occupied("STANDARD:walkin", "v1", hold_id="12") is True
+    assert seen["path"] == "/parking/confirm_entry"
+    assert seen["body"] == {"category_name": "STANDARD", "commercial_type": "walkin", "hold_id": 12}
+
+
+def test_confirm_entry_hold_expire_ou_deja_utilise():
+    client = HttpParkingClient(
+        "http://parking.test",
+        transport=httpx.MockTransport(
+            lambda r: httpx.Response(409, json={"detail": "Hold expiré"})
+        ),
+    )
+    assert client.mark_place_occupied("STANDARD:walkin", "v1", hold_id="12") is False
+
+
+def test_confirm_entry_refuse_par_validation():
+    client = HttpParkingClient(
+        "http://parking.test",
+        transport=httpx.MockTransport(lambda r: httpx.Response(422, json={"detail": []})),
+    )
+    assert client.mark_place_occupied("STANDARD:walkin", "v1", hold_id="12") is False
+
+
+def test_confirm_entry_sans_hold_id_n_appelle_pas_parking():
+    calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        return httpx.Response(200)
+
+    client = HttpParkingClient("http://parking.test", transport=httpx.MockTransport(handler))
+    assert client.mark_place_occupied("STANDARD:walkin", "v1") is False
+    assert calls == []

@@ -33,8 +33,14 @@ class ParkingServicePort(Protocol):
         disponible. Lève `ParkingUnavailableError` si Parking ne répond pas."""
         ...
 
-    def mark_place_occupied(self, place_id: str, vehicle_id: str) -> bool:
-        """Passe la place en état occupé."""
+    def mark_place_occupied(
+        self, place_id: str, vehicle_id: str, hold_id: str | None = None
+    ) -> bool:
+        """Confirme l'entrée sur la place mise de côté (`hold_id`).
+
+        `False` si Parking refuse (place expirée ou déjà utilisée) ou ne
+        répond pas : l'entrée ne doit alors pas être autorisée.
+        """
         ...
 
     def mark_place_free(self, place_id: str) -> bool:

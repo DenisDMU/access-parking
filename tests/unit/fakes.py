@@ -89,10 +89,13 @@ class FakeParkingPort:
         assignment: PlaceAssignment | None = None,
         has_place: bool = True,
         unavailable: bool = False,
+        confirm_ok: bool = True,
     ) -> None:
         self._assignment = assignment
         self._has_place = has_place
         self._unavailable = unavailable  # simule Parking injoignable
+        self._confirm_ok = confirm_ok  # False : hold expiré / déjà utilisé
+        self.confirmed_holds: list[str | None] = []
         self.occupied: dict[str, str] = {}
         self.freed: list[str] = []
         self.calls: list[tuple] = []
@@ -108,6 +111,7 @@ class FakeParkingPort:
         if self._assignment is not None:
             return self._assignment
         return PlaceAssignment(
+            hold_id="H-1",
             place_id="P-TEST-1",
             place_type=PlaceType(
                 category=vehicle_type.category,
@@ -117,7 +121,12 @@ class FakeParkingPort:
             ),
         )
 
-    def mark_place_occupied(self, place_id: str, vehicle_id: str) -> bool:
+    def mark_place_occupied(
+        self, place_id: str, vehicle_id: str, hold_id: str | None = None
+    ) -> bool:
+        self.confirmed_holds.append(hold_id)
+        if not self._confirm_ok:
+            return False
         self.occupied[place_id] = vehicle_id
         return True
 
