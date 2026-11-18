@@ -259,3 +259,31 @@ def test_exit_free_stay_skips_payment():
 
     assert decision.result is AuthorizationResult.AUTHORIZED
     assert payment.calls == []
+
+
+def test_exit_refused_when_exit_date_before_entry():
+    """Cas limite : sortie datée avant l'entrée → refus, sans appel à Pricing
+    ni Payment, et le véhicule reste présent."""
+
+    vehicles = FakeVehiclesPort(
+        {
+            1: VehicleInfo(
+                vehicle_id="v1", vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER)
+            )
+        }
+    )
+    presence = FakePresenceRepo()
+    access_repo = FakeAccessRepo()
+    _seed_vehicle_present(access_repo, presence)
+    parking = FakeParkingPort()
+    pricing = FakePricingPort(amount=Decimal("7.50"))
+    payment = FakePaymentPort(success=True)
+    use_case = make_use_case(vehicles, parking, pricing, payment, presence, access_repo)
+
+    decision = use_case.execute(1, ENTRY_AT - timedelta(hours=1), DetectionSource.TERMINAL)
+
+    assert decision.result is AuthorizationResult.REFUSED
+    assert decision.reason == "Date de sortie antérieure à la date d'entrée"
+    assert pricing.calls == []
+    assert payment.calls == []
+    assert presence.get_status("v1") is PresenceStatus.IN

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Access — Borne et journal</title>
+<title>Access — Borne et supervision</title>
 <style>
   :root {
     color-scheme: light dark;
@@ -202,16 +202,39 @@
   .link { color: var(--accent); cursor: pointer; text-decoration: underline; }
   .borne-history { margin-top: 16px; }
   .borne-history h2 { font-size: 13px; color: var(--muted); margin: 0 0 8px; }
+  /* --- Onglet État du parking --- */
+  .state-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .kpi { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; min-width: 0; }
+  .kpi-label { color: var(--muted); font-size: 12px; }
+  .kpi-value { font-size: 22px; font-weight: 700; overflow-wrap: anywhere; }
+  .kpi-sub { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+  .state-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+  @media (max-width: 900px) { .state-cols { grid-template-columns: minmax(0, 1fr); } }
+  .state-cols h2 { font-size: 15px; margin: 0 0 8px; }
+  .section-hint { color: var(--muted); font-size: 12px; margin: -4px 0 10px; }
+  .ops { margin: 0; padding-left: 18px; }
+  .ops li { margin-bottom: 4px; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; background: var(--neutral); }
+  .dot-ok { background: var(--ok); }
+  .dot-ko { background: var(--danger); }
+  @media (max-width: 760px) {
+    header { padding: 16px 16px 0; }
+    .toolbar { padding: 12px 16px; }
+    .tabs { overflow-x: auto; }
+    input[type="password"], input[type="text"] { width: 100%; max-width: 220px; }
+  }
 </style>
 </head>
 <body>
 <header>
-  <h1>Access — Borne et journal de bord</h1>
+  <h1>Access — Borne et supervision</h1>
   <div class="subtitle">
-    Simulation d'une borne d'entrée/sortie, lecture live de <code>GET /access/events</code> (outbox) et recherche de demandes.
+    Simulation d'une borne d'entrée/sortie, état du parking vu par Access, journal des événements publiés et recherche de demandes.
+    <span id="versionBadge"></span>
   </div>
   <div class="tabs">
     <button class="tab-btn active" data-tab="borne">Borne</button>
+    <button class="tab-btn" data-tab="state">État du parking</button>
     <button class="tab-btn" data-tab="journal">Journal</button>
     <button class="tab-btn" data-tab="search">Recherche</button>
   </div>
@@ -274,6 +297,57 @@
           <div id="borneHistory" class="req-list"></div>
         </div>
       </div>
+    </div>
+  </section>
+
+  <section id="tab-state" class="tab-panel">
+    <div class="state-grid">
+      <div class="kpi">
+        <div class="kpi-label">Service Access</div>
+        <div class="kpi-value" id="kpiService"><span class="dot"></span>—</div>
+        <div class="kpi-sub" id="kpiServiceSub">GET /health</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Véhicules présents</div>
+        <div class="kpi-value" id="kpiPresent">—</div>
+        <div class="kpi-sub">présence IN, pas encore sortis</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Autorisées</div>
+        <div class="kpi-value" id="kpiAuthorized">—</div>
+        <div class="kpi-sub" id="kpiWindow">sur les dernières demandes</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Refusées</div>
+        <div class="kpi-value" id="kpiRefused">—</div>
+        <div class="kpi-sub">paiement, place, présence…</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Confirmation requise</div>
+        <div class="kpi-value" id="kpiPending">—</div>
+        <div class="kpi-sub">véhicule inconnu, PMR…</div>
+      </div>
+    </div>
+    <div class="state-cols">
+      <div>
+        <h2>Véhicules présents</h2>
+        <div class="section-hint"><code>GET /api/v1/access/presences</code> — identifiant pseudonymisé, heure d'entrée, place attribuée.</div>
+        <div id="presenceList" class="empty">Renseigne ta clé API ci-dessus.</div>
+      </div>
+      <div>
+        <h2>Dernières demandes et décisions</h2>
+        <div class="section-hint"><code>GET /api/v1/access/requests?limit=50</code> — clique une ligne pour le détail.</div>
+        <div id="recentList" class="empty">Renseigne ta clé API ci-dessus.</div>
+      </div>
+    </div>
+    <div class="panel" style="margin-top:16px">
+      <h2>Opérations disponibles</h2>
+      <ul class="ops">
+        <li><strong>Entrée / sortie</strong> d'un véhicule par son code Vehicles : onglet <em>Borne</em> (<code>POST /api/v1/access/requests</code>).</li>
+        <li><strong>Consulter</strong> une demande, l'historique d'un véhicule, ou vérifier un code : onglet <em>Recherche</em>.</li>
+        <li><strong>Suivre</strong> les événements publiés aux autres services (RabbitMQ / webhooks) : onglet <em>Journal</em>.</li>
+        <li><strong>Documentation</strong> interactive de l'API : <a href="/docs" target="_blank" rel="noopener">/docs</a> · santé : <a href="/health" target="_blank" rel="noopener">/health</a> · métriques Prometheus : <code>/metrics</code> (clé API).</li>
+      </ul>
     </div>
   </section>
 
@@ -464,13 +538,141 @@
     if (timer) clearInterval(timer);
     const ms = Number(intervalSelect.value);
     if (ms > 0) {
-      timer = setInterval(refreshJournal, ms);
+      timer = setInterval(refreshAll, ms);
     }
   }
 
-  refreshBtn.addEventListener("click", refreshJournal);
+  refreshBtn.addEventListener("click", function () { refreshAll(); });
   intervalSelect.addEventListener("change", scheduleAutoRefresh);
-  apiKeyInput.addEventListener("change", refreshJournal);
+  apiKeyInput.addEventListener("change", function () { refreshAll(); });
+
+  // --- Onglet État du parking ------------------------------------------------
+
+  const presenceList = document.getElementById("presenceList");
+  const recentList = document.getElementById("recentList");
+  const versionBadge = document.getElementById("versionBadge");
+  const CATEGORY_LABEL = { 1: "2 roues", 2: "4 roues" };
+
+  function placeLabel(present) {
+    const t = present.placeType;
+    if (!t) return present.placeId || "place inconnue";
+    const bits = [CATEGORY_LABEL[t.category] || "catégorie " + t.category];
+    if (t.isXl) bits.push("XL");
+    if (t.isElectric) bits.push("électrique");
+    if (t.isHandicap) bits.push("PMR");
+    return bits.join(" ") + (present.reservation ? " · réservation" : " · sans réservation");
+  }
+
+  function durationSince(isoDate) {
+    if (!isoDate) return "";
+    const minutes = Math.max(0, Math.round((Date.now() - new Date(isoDate).getTime()) / 60000));
+    if (minutes < 60) return minutes + " min";
+    const h = Math.floor(minutes / 60);
+    return h + " h " + String(minutes % 60).padStart(2, "0");
+  }
+
+  function openRequest(requestId) {
+    searchType.value = "requestId";
+    searchValue.value = requestId;
+    activateTab("search");
+    runSearch();
+  }
+
+  async function refreshHealth() {
+    try {
+      const res = await fetch("/health");
+      const h = await res.json();
+      const ok = res.ok && h.status === "ok";
+      document.getElementById("kpiService").innerHTML =
+        '<span class="dot ' + (ok ? "dot-ok" : "dot-ko") + '"></span>' + escapeHtml(h.status || "?");
+      document.getElementById("kpiServiceSub").textContent =
+        "v" + h.version + " · commit " + String(h.commit || "").slice(0, 7) + " · base " + h.database;
+      versionBadge.textContent = "— version " + h.version;
+    } catch (err) {
+      document.getElementById("kpiService").innerHTML = '<span class="dot dot-ko"></span>injoignable';
+    }
+  }
+
+  function renderPresences(items) {
+    document.getElementById("kpiPresent").textContent = items.length;
+    if (!items.length) {
+      presenceList.className = "empty";
+      presenceList.textContent = "Aucun véhicule dans le parking.";
+      return;
+    }
+    presenceList.className = "req-list";
+    presenceList.innerHTML = "";
+    items.forEach(function (v) {
+      const row = document.createElement("div");
+      row.className = "req-list-item";
+      row.innerHTML =
+        '<span class="badge badge-entre">IN</span>' +
+        '<span class="req-summary">' + escapeHtml(placeLabel(v)) + " · " + escapeHtml(v.vehicleId) + "</span>" +
+        '<span class="event-time">' +
+          (v.enteredAt ? new Date(v.enteredAt).toLocaleString("fr-FR") + " · " + durationSince(v.enteredAt) : "") +
+        "</span>";
+      if (v.entryRequestId) {
+        row.title = "Voir la demande d'entrée";
+        row.addEventListener("click", function () { openRequest(v.entryRequestId); });
+      }
+      presenceList.appendChild(row);
+    });
+  }
+
+  function renderRecent(items) {
+    const count = { 1: 0, 2: 0, 3: 0 };
+    items.forEach(function (r) { if (r.result) count[r.result] += 1; });
+    document.getElementById("kpiAuthorized").textContent = count[1];
+    document.getElementById("kpiRefused").textContent = count[2];
+    document.getElementById("kpiPending").textContent = count[3];
+    document.getElementById("kpiWindow").textContent = "sur les " + items.length + " dernières demandes";
+    if (!items.length) {
+      recentList.className = "empty";
+      recentList.textContent = "Aucune demande pour l'instant : fais passer un véhicule à la borne.";
+      return;
+    }
+    recentList.className = "req-list";
+    recentList.innerHTML = "";
+    items.forEach(function (r) {
+      const meta = RESULT_META[r.result] || null;
+      const row = document.createElement("div");
+      row.className = "req-list-item";
+      row.innerHTML =
+        '<span class="badge">' + (REQUEST_TYPE_LABEL[r.type] || r.type) + "</span>" +
+        (meta ? '<span class="badge ' + meta.cls + '">' + meta.label + "</span>" : "") +
+        '<span class="req-summary">' +
+          escapeHtml(r.reason || "") +
+          (r.paymentAmount != null ? " · " + r.paymentAmount.toFixed(2) + " €" : "") +
+          " · " + escapeHtml(r.vehicleId || "(véhicule inconnu)") +
+        "</span>" +
+        '<span class="event-time">' + new Date(r.date).toLocaleString("fr-FR") + "</span>";
+      row.title = "Cliquer pour voir le détail complet";
+      row.addEventListener("click", function () { openRequest(r.requestId); });
+      recentList.appendChild(row);
+    });
+  }
+
+  async function refreshState() {
+    refreshHealth();
+    const key = apiKeyInput.value.trim();
+    if (!key) return;
+    const headers = { "X-API-Key": key };
+    try {
+      const [resP, resR] = await Promise.all([
+        fetch("/api/v1/access/presences", { headers }),
+        fetch("/api/v1/access/requests?limit=50", { headers }),
+      ]);
+      if (resP.ok) renderPresences(await resP.json());
+      if (resR.ok) renderRecent(await resR.json());
+    } catch (err) {
+      /* l'erreur réseau est déjà signalée dans la barre d'état par le journal */
+    }
+  }
+
+  function refreshAll() {
+    refreshJournal();
+    refreshState();
+  }
 
   // --- Onglet Recherche ---------------------------------------------------
 
@@ -531,9 +733,12 @@
       row.className = "req-list-item";
       row.innerHTML =
         '<span class="badge">' + (REQUEST_TYPE_LABEL[item.type] || item.type) + "</span>" +
-        '<span class="badge badge-autre">' + (STATUS_LABEL[item.status] || item.status) + "</span>" +
+        (RESULT_META[item.result]
+          ? '<span class="badge ' + RESULT_META[item.result].cls + '">' + RESULT_META[item.result].label + "</span>"
+          : '<span class="badge badge-autre">' + (STATUS_LABEL[item.status] || item.status) + "</span>") +
         '<span class="req-summary">' +
           escapeHtml(item.requestId) + " · " + escapeHtml(item.vehicleId || "(inconnu)") +
+          (item.reason ? " · " + escapeHtml(item.reason) : "") +
         "</span>" +
         '<span class="event-time">' + new Date(item.date).toLocaleString("fr-FR") + "</span>";
       row.title = "Cliquer pour voir le détail complet";
@@ -772,7 +977,7 @@
       facts.push(["Temps de traitement", elapsed() + " s"]);
       renderGate(gate.cls, gate.text, facts);
       addHistory(type, body, elapsed());
-      refreshJournal();
+      refreshAll();
     } catch (err) {
       renderGate("gate-refused", "Access injoignable", null, err.message);
     } finally {
@@ -787,7 +992,7 @@
     if (e.key === "Enter") sendPassage(1);
   });
 
-  refreshJournal();
+  refreshAll();
   scheduleAutoRefresh();
 })();
 </script>

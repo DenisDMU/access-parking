@@ -127,6 +127,8 @@ class SqliteAccessRepository:
         if filters.date_to is not None:
             stmt = stmt.where(AccessRequestModel.date <= filters.date_to)
         stmt = stmt.order_by(AccessRequestModel.date.desc())
+        if filters.limit is not None:
+            stmt = stmt.limit(filters.limit)
         rows = self._session.execute(stmt).scalars().all()
         return [_request_to_entity(row) for row in rows]
 

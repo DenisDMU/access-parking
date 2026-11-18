@@ -10,6 +10,7 @@ def test_root_redirects_to_dashboard(client):
 def test_dashboard_served_with_borne_tab(client):
     response = client.get("/static/dashboard.html")
     assert response.status_code == 200
-    # Les trois onglets sont présents : borne (par défaut), journal, recherche
-    for tab in ('id="tab-borne"', 'id="tab-journal"', 'id="tab-search"'):
+    # Les quatre onglets sont présents : borne (par défaut), état du parking,
+    # journal, recherche
+    for tab in ('id="tab-borne"', 'id="tab-state"', 'id="tab-journal"', 'id="tab-search"'):
         assert tab in response.text

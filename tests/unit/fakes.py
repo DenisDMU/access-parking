@@ -4,12 +4,13 @@ tests unitaires des use cases (section 13 : "tous les ports mockés")."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from src.domain.entities.access_authorization import AccessAuthorization
 from src.domain.entities.access_event import AccessEvent
 from src.domain.entities.access_request import AccessRequest
+from src.domain.entities.vehicle_presence import VehiclePresence
 from src.domain.value_objects.dto import (
     AccessFilters,
     AICheckResult,
@@ -174,6 +175,18 @@ class FakePresenceRepo:
     def seed(self, vehicle_id: str, status: PresenceStatus, request_id: str | None = None) -> None:
         self.set_status(vehicle_id, status, request_id)
 
+    def list_present(self) -> list[VehiclePresence]:
+        return [
+            VehiclePresence(
+                vehicle_id=vehicle_id,
+                status=record.status,
+                updated_at=datetime.now(UTC),
+                current_request_id=record.current_request_id,
+            )
+            for vehicle_id, record in self._store.items()
+            if record.status is PresenceStatus.IN
+        ]
+
 
 @dataclass
 class FakeAccessRepo:
@@ -199,6 +212,9 @@ class FakeAccessRepo:
             results = [r for r in results if r.vehicle_id == filters.vehicle_id]
         if filters.type is not None:
             results = [r for r in results if r.type == filters.type]
+        results.sort(key=lambda r: r.date, reverse=True)
+        if filters.limit is not None:
+            results = results[: filters.limit]
         return results
 
     def get_authorization_by_request(self, request_id: str) -> AccessAuthorization | None:

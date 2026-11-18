@@ -18,6 +18,12 @@ from src.domain.value_objects.enums import (
     RequestType,
 )
 
+# Borne haute du code véhicule (entier 32 bits signé) : rejette en 422 les
+# valeurs absurdes avant tout appel à Vehicles.
+MAX_VEHICLE_CODE = 2_147_483_647
+# Taille max d'une photo encodée en base64 (~3 Mo de photo une fois décodée).
+MAX_PHOTO_BASE64_LENGTH = 4_000_000
+
 
 class AccessRequestIn(BaseModel):
     """Requête entrante, identifiée par le code véhicule de Vehicles."""
@@ -38,12 +44,17 @@ class AccessRequestIn(BaseModel):
     )
 
     vehicle_code: int = Field(
-        alias="vehicleCode", ge=0, description="Code du véhicule attribué par Vehicles"
+        alias="vehicleCode",
+        ge=0,
+        le=MAX_VEHICLE_CODE,
+        description="Code du véhicule attribué par Vehicles (entier ≥ 0)",
     )
     type: RequestType = Field(description="1=ENTRY, 2=EXIT")
     date: datetime
     source: DetectionSource = Field(description="1=CAMERA, 2=TERMINAL, 3=LPR, 4=MOBILE_APP")
-    photo_base64: str | None = Field(default=None, alias="photoBase64")
+    photo_base64: str | None = Field(
+        default=None, alias="photoBase64", max_length=MAX_PHOTO_BASE64_LENGTH
+    )
 
     @field_validator("date")
     @classmethod
@@ -105,7 +116,7 @@ class AccessRequestDetailOut(AccessRequestOut):
 
 
 class AccessRequestListItemOut(BaseModel):
-    """Un élément de `GET /access/requests` (audit)."""
+    """Un élément de `GET /access/requests` (audit), avec sa décision."""
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -115,6 +126,33 @@ class AccessRequestListItemOut(BaseModel):
     date: datetime
     source: DetectionSource
     status: RequestStatus
+    result: AuthorizationResult | None = Field(
+        default=None, description="1=AUTHORIZED, 2=REFUSED, 3=CONFIRMATION_REQUIRED"
+    )
+    reason: str | None = None
+    payment_amount: float | None = Field(default=None, alias="paymentAmount")
+
+
+class PlaceTypeOut(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    category: int = Field(description="1=TWO_WHEELER, 2=FOUR_WHEELER")
+    is_xl: bool = Field(alias="isXl")
+    is_electric: bool = Field(alias="isElectric")
+    is_handicap: bool = Field(alias="isHandicap")
+
+
+class PresentVehicleOut(BaseModel):
+    """Un véhicule actuellement présent (`GET /access/presences`)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    vehicle_id: str = Field(alias="vehicleId")
+    entry_request_id: str | None = Field(default=None, alias="entryRequestId")
+    entered_at: datetime | None = Field(default=None, alias="enteredAt")
+    place_id: str | None = Field(default=None, alias="placeId")
+    place_type: PlaceTypeOut | None = Field(default=None, alias="placeType")
+    reservation: bool
 
 
 class VehicleKnownOut(BaseModel):
@@ -142,7 +180,7 @@ class HealthOut(BaseModel):
     status: str = Field(examples=["ok"])
     database: str = Field(examples=["connected"])
     uptime_seconds: int = Field(alias="uptimeSeconds", examples=[1234])
-    version: str = Field(examples=["3.0.0"])
+    version: str = Field(examples=["3.1.0"])
     commit: str = Field(examples=["b742756d0c1e9f4a8b3c2d1e0f9a8b7c6d5e4f3a"])
 
     model_config = ConfigDict(populate_by_name=True)

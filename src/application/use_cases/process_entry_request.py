@@ -19,6 +19,7 @@ Déroulé (section 8 de la spec) :
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from uuid import uuid4
 
@@ -46,6 +47,11 @@ from src.domain.value_objects.enums import (
     RequestStatus,
     RequestType,
 )
+
+# Logs métier : une ligne par décision, toujours avec l'id de la demande et
+# l'identifiant pseudonymisé du véhicule (jamais de plaque, jamais de code
+# Vehicles). Le correlation ID est ajouté automatiquement par le logging.
+logger = logging.getLogger(__name__)
 
 
 def _place_type_to_payload(place_type: PlaceType) -> dict:
@@ -178,6 +184,12 @@ class ProcessEntryRequest:
             )
             self._access_repo.save_request(request)
             self._access_repo.save_authorization(authorization)
+            logger.info(
+                "Entrée en attente de confirmation PMR (request=%s, vehicle=%s, place=%s)",
+                request_id,
+                vehicle_id,
+                place_id,
+            )
             self._event_publisher.publish(
                 AccessEvent(
                     id=str(uuid4()),
@@ -229,6 +241,13 @@ class ProcessEntryRequest:
         )
         self._access_repo.save_request(request)
         self._access_repo.save_authorization(authorization)
+        logger.info(
+            "Entrée autorisée (request=%s, vehicle=%s, place=%s, réservation=%s)",
+            request_id,
+            vehicle_id,
+            place_id,
+            is_reservation,
+        )
         self._event_publisher.publish(
             AccessEvent(
                 id=str(uuid4()),
@@ -280,6 +299,7 @@ class ProcessEntryRequest:
         )
         self._access_repo.save_request(request)
         self._access_repo.save_authorization(authorization)
+        logger.warning("Entrée rejetée : véhicule inconnu de Vehicles (request=%s)", request_id)
         self._event_publisher.publish(
             AccessEvent(
                 id=str(uuid4()),
@@ -329,6 +349,7 @@ class ProcessEntryRequest:
         )
         self._access_repo.save_request(request)
         self._access_repo.save_authorization(authorization)
+        logger.info("Entrée refusée (request=%s, vehicle=%s) : %s", request_id, vehicle_id, reason)
         self._event_publisher.publish(
             AccessEvent(
                 id=str(uuid4()),

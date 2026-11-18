@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from src.domain.entities.vehicle_presence import VehiclePresence
 from src.domain.value_objects.enums import PresenceStatus
 from src.infrastructure.db.models import VehiclePresenceModel
 
@@ -36,3 +38,22 @@ class SqliteVehiclePresenceRepository:
         )
         self._session.merge(row)
         self._session.commit()
+
+    def list_present(self) -> list[VehiclePresence]:
+        stmt = (
+            select(VehiclePresenceModel)
+            .where(VehiclePresenceModel.status == int(PresenceStatus.IN))
+            .order_by(VehiclePresenceModel.updated_at.desc())
+        )
+        rows = self._session.execute(stmt).scalars().all()
+        return [
+            VehiclePresence(
+                vehicle_id=row.vehicle_id,
+                status=PresenceStatus(row.status),
+                updated_at=row.updated_at
+                if row.updated_at.tzinfo
+                else row.updated_at.replace(tzinfo=UTC),
+                current_request_id=row.current_request_id,
+            )
+            for row in rows
+        ]

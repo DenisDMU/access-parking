@@ -3,8 +3,8 @@
 > Décide si un véhicule peut **entrer** ou **sortir** du parking et coordonne les
 > échanges nécessaires avec les services **Vehicles**, **Booking**, **Parking**,
 > **Pricing** et **Payment**. Fait partie du projet fil rouge "Gestion d'un
-> parking" (voir `.claude/access-microservice-spec.md` pour la spécification
-> complète, et `.claude/consignes.md` pour le contexte du projet global).
+> parking" ; la référence fonctionnelle est le document commun « Règles
+> métier » du projet.
 
 > **Convention de nommage** : tous les identifiants de code (classes, champs,
 > colonnes SQL, clés JSON de l'API) sont en **anglais**. Les *messages*
@@ -20,11 +20,12 @@
 | | |
 |---|---|
 | **Rôle** | Décide si un véhicule peut entrer/sortir du parking et coordonne les échanges avec Vehicles, Booking, Parking, Pricing, Payment (aucune donnée métier des autres services). |
-| **Version actuelle** | `3.0.0` — la version et le SHA du commit déployé sont exposés par `GET /health` |
+| **Version actuelle** | `3.1.0` — la version et le SHA du commit déployé sont exposés par `GET /health` |
+| **Dernière mise à jour** | 18 novembre 2026 (jalons 8 « UI » et 9 « Qualité et fiabilité ») |
 | **URL du service déployé** | https://access-api-a1u7.onrender.com |
 | **Documentation Swagger/OpenAPI** | https://access-api-a1u7.onrender.com/docs (ReDoc : `/redoc`, spec brute : `/openapi.json`) |
 | **Dépendances (services appelés)** | **Vehicles** *(réel)*, Booking *(mocké)*, **Parking** *(réel)*, **Pricing** *(réel)*, **Payment** *(réel)* |
-| **Tester le service** | Collection Postman `postman/Access-Render.postman_collection.json` + environnement `Access — Render` (clé dans l'en-tête `X-API-Key`) — voir [section 13](#13-postman). Sans clé : `GET /health`. |
+| **Tester le service** | Dashboard `/` (borne + état du parking), script reproductible [`scripts/smoke_test.sh`](scripts/smoke_test.sh) (voir [section 9](#9-tests-et-qualité)), Swagger `/docs`. Sans clé : `GET /health`. |
 
 ### Fonctionnalités
 
@@ -39,6 +40,9 @@
 - [x] Publier un événement (webhook ou RabbitMQ) à chaque entrée/sortie/refus.
 - [x] Lister/consulter l'historique des demandes et des événements publiés (audit).
 - [x] Simuler une borne d'entrée/sortie depuis le dashboard (décision, montant et paiement en direct).
+- [x] Voir l'état du parking vu par Access : véhicules présents, dernières décisions, santé et version du service (dashboard + `GET /access/presences`).
+- [x] Refuser une sortie datée avant l'entrée (cas limite, jamais transmis à Pricing/Payment).
+- [x] Tracer chaque requête dans les logs par un correlation ID (`X-Correlation-ID`, reçu ou généré, renvoyé dans la réponse).
 - [x] Protéger toutes les routes (sauf `/health`) par clé API.
 - [x] Exposer la version et le commit déployés (`/health`) et des métriques d'exploitation (`/metrics`).
 - [ ] Vérifier une réservation via le vrai service **Booking**.
@@ -47,9 +51,36 @@
 - [x] Calculer un prix via le vrai service **Pricing**.
 - [x] Exécuter un paiement via le vrai service **Payment** (idempotent : rejouer une sortie ne débite jamais deux fois).
 
-> Une case n'est cochée que si le comportement est réellement vérifié —
-> montants Pricing et compteurs Parking réels confirmés dans `JOURNAL.md`
-> et `reponse.md`.
+> Une case n'est cochée que si le comportement est réellement vérifié
+> (tests automatisés, et pour les services réels : passages de bout en bout
+> depuis la borne du dashboard contre les services déployés de l'équipe).
+
+### Tableau de suivi (axes de maturité)
+
+| Axe | État | Ce qui le prouve |
+|---|---|---|
+| **Métier** | ✅ Entrée (avec/sans réservation), sortie payée, refus (présence, compatibilité, paiement, date incohérente), confirmation PMR / véhicule inconnu | Règles pures dans `src/domain/rules/`, use cases `ProcessEntryRequest` / `ProcessExitRequest`, tests unitaires |
+| **API** | ✅ REST documentée (`/docs`), entrées/sorties validées, erreurs normalisées, `/health` | [section 11](#11-endpoints) |
+| **Intégration** | ✅ Vehicles, Parking, Pricing, Payment réels (REST) ; événements publiés sur RabbitMQ (bus d'équipe) · ⏳ Booking encore mocké | [section 5](#5-brancher-un-vrai-microservice-à-la-place-dun-mock), [section 6](#6-publication-dévénements--webhook-ou-rabbitmq) |
+| **UI** | ✅ Dashboard servi par Access : borne d'entrée/sortie, état du parking (présences, décisions, santé), journal d'événements, recherche | [section 12](#12-borne-et-journal-de-bord-dashboard) |
+| **Qualité** | ✅ 152 tests (unitaires + intégration), entrées invalides et cas limites couverts, `ruff` (lint + format), script de vérification reproductible | [section 9](#9-tests-et-qualité) |
+| **Observabilité** | ✅ Logs avec correlation ID (une ligne par décision métier + log d'accès), `/metrics` Prometheus (requêtes, latences, codes), `/health` avec version et commit · ⏳ métriques métier et propagation du correlation ID aux autres services (jalons 12-13) | [section 9](#9-tests-et-qualité) |
+| **CI/CD et déploiement** | ✅ GitHub Actions (lint → tests → bandit → pip-audit → gitleaks), déploiement Render après CI verte, Dependabot | [section 9](#intégration-continue-cicd), [section 14](#14-déploiement-sur-render) |
+| **Sécurité** | ✅ Clé API sur toutes les routes sauf `/health`, validation stricte, erreurs sans stack trace, CORS restreint, rate limiting, secrets hors Git, jamais de plaque | [section 10](#10-sécurité) |
+| **Version** | `3.1.0` (`src/__init__.py`, exposée par `/health` et `/docs`) | |
+| **Dernière mise à jour** | 18 novembre 2026 | |
+
+### Suivi des jalons
+
+| Jalon | Date | État |
+|---|---|---|
+| 5 — Structuration du rendu | 3 septembre | ✅ README, fiche d'identité, axes de maturité, version, date |
+| 6 — MVP métier et API | 22 octobre | ✅ Workflows entrée/sortie, API documentée, `/health` |
+| 7 — Première intégration | 28 octobre | ✅ Pricing, Parking, Payment puis Vehicles branchés en réel |
+| 8 — UI de démonstration et d'exploitation | 18 novembre (matin) | ✅ Onglet « État du parking » ajouté (objets métier, état, opérations, résultats) |
+| 9 — Qualité et fiabilité | 18 novembre (après-midi) | ✅ Validation renforcée, cas limites, logs avec correlation ID, smoke test |
+| 12-13 — Traçabilité, observabilité | 25 novembre | 🟡 Correlation ID déjà généré/loggé/renvoyé ; reste la propagation vers les services appelés et les métriques métier |
+| 14-15 — CI/CD, sécurité | 27 novembre | 🟡 Déjà en place (voir axes ci-dessus), à revoir avec l'enseignant |
 
 ---
 
@@ -63,7 +94,7 @@
 6. [Publication d'événements : webhook ou RabbitMQ](#6-publication-dévénements--webhook-ou-rabbitmq)
 7. [Ajouter une règle métier](#7-ajouter-une-règle-métier)
 8. [Enums (tables de correspondance)](#8-enums-tables-de-correspondance)
-9. [Tests](#9-tests)
+9. [Tests et qualité](#9-tests-et-qualité)
 10. [Sécurité](#10-sécurité)
 11. [Endpoints](#11-endpoints)
 12. [Borne et journal de bord (dashboard)](#12-borne-et-journal-de-bord-dashboard)
@@ -404,7 +435,7 @@ au cas "véhicule inconnu de Vehicles")
 
 ---
 
-## 9. Tests
+## 9. Tests et qualité
 
 ```bash
 source .venv/bin/activate
@@ -414,7 +445,7 @@ pytest tests/integration    # endpoints via TestClient FastAPI (SQLite en mémoi
 pytest -v            # détail de chaque cas
 ```
 
-Couverture (116 tests) :
+Couverture (152 tests) :
 
 - **Unitaires** — matrice complète de la règle de compatibilité
   véhicule/place, règle de présence, règle d'accessibilité ; chaque use case
@@ -423,12 +454,19 @@ Couverture (116 tests) :
   clients Payment et Vehicles contre un faux serveur (`httpx.MockTransport`) :
   contrat du payload, polling, refus définitif, rejeu idempotent, délai
   dépassé, erreurs serveur ; mapping de la réponse Vehicles, code inconnu
-  (500/404), panne réseau, réponse inattendue.
+  (500/404), panne réseau, réponse inattendue ; règle `stay_rule` (sortie
+  avant l'entrée) ; vue des véhicules présents (`ListPresentVehicles`).
 - **Intégration** — entrée autorisée (sans/avec réservation), entrée refusée
   (déjà présent, type incompatible), entrée en confirmation requise
   (accessibilité), entrée rejetée (véhicule inconnu), sortie autorisée,
   sortie refusée (paiement échoué, véhicule non présent), `/health`,
-  `/access/vehicles/.../known`. L'ancien test anti-fuite de plaque
+  `/access/vehicles/.../known`, `/access/presences` (suit entrée puis
+  sortie). `test_quality.py` couvre les **entrées invalides** (corps vide,
+  code négatif ou hors bornes, type/source inconnus, date illisible, JSON
+  mal formé, photo corrompue, période inversée, `limit` hors bornes, clé
+  invalide), les **cas limites** (sortie datée avant l'entrée, date sans
+  fuseau) et les **logs** (correlation ID reçu/généré/assaini, décision
+  loggée avec son cid, niveaux de log). L'ancien test anti-fuite de plaque
   (`test_no_plate_leak.py`) a été retiré : Access ne reçoit plus de plaque,
   il n'y a plus rien à faire fuiter.
 
@@ -443,7 +481,7 @@ précédente, `needs:` dans le workflow) et doivent **tous** passer — si une
 | Job | Outil | Ce qu'il vérifie |
 |---|---|---|
 | Lint | `ruff` | Erreurs, imports, bugs probables, règles de sécurité, **formatage homogène** (config : `ruff.toml`) |
-| Tests | `pytest` | Les 116 tests unitaires + intégration, sans aucun secret |
+| Tests | `pytest` | Les 152 tests unitaires + intégration, sans aucun secret |
 | Sécurité du code | `bandit` | Analyse statique (SAST) : injections, appels dangereux, secrets en dur… |
 | Dépendances | `pip-audit` | Vulnérabilités connues (CVE) dans `requirements.txt` |
 | Secrets | `gitleaks` | Aucun secret (clé API, URL CloudAMQP…) dans tout l'historique git |
@@ -461,6 +499,55 @@ pip install -r requirements-dev.txt
 ruff check src tests && ruff format --check src tests && pytest && bandit -r src -q && pip-audit -r requirements.txt
 ```
 
+### Vérifier une instance déployée (smoke test)
+
+[`scripts/smoke_test.sh`](scripts/smoke_test.sh) rejoue les contrôles
+essentiels contre n'importe quelle instance (locale ou Render) et sort en
+erreur si l'un d'eux échoue : santé et version, authentification (401),
+validation des entrées (422/400/404), `/metrics`, `/access/presences`.
+Avec `VEHICLE_CODE` (un code enregistré chez Vehicles), il enchaîne en plus
+un vrai passage entrée → présence → sortie payée — ⚠️ ce mode appelle
+réellement Parking, Pricing et Payment.
+
+```bash
+BASE_URL=http://localhost:8000 API_KEY=change-me ./scripts/smoke_test.sh
+```
+
+```bash
+BASE_URL=https://access-api-a1u7.onrender.com API_KEY=<clé Render> VEHICLE_CODE=<code> ./scripts/smoke_test.sh
+```
+
+Toutes ses requêtes portent le même `X-Correlation-ID` (affiché en tête) :
+il suffit de le chercher dans les logs Render pour retrouver tout le passage.
+
+### Logs exploitables
+
+Format : `date niveau module [cid=<correlation ID>] message`. Exemple réel
+d'une entrée refusée :
+
+```
+2026-11-18 08:52:40,216 WARNING src.infrastructure.external.http_vehicles_client [cid=febf097b-…] Service Vehicles indisponible : ConnectError('[Errno 61] Connection refused')
+2026-11-18 08:52:40,219 WARNING src.application.use_cases.process_entry_request [cid=febf097b-…] Entrée rejetée : véhicule inconnu de Vehicles (request=a8e81710-…)
+2026-11-18 08:52:40,221 INFO access.http [cid=febf097b-…] POST /api/v1/access/requests -> 200 (77 ms)
+```
+
+- **Correlation ID** (`src/interfaces/api/middleware.py`) : repris de
+  l'en-tête `X-Correlation-ID` s'il est bien formé (`[A-Za-z0-9._-]`, 64
+  caractères max — sinon ignoré, pour empêcher l'injection de fausses lignes
+  de log), généré sinon (UUID), renvoyé dans l'en-tête de réponse et dans le
+  corps des erreurs 500. Identifiant technique opaque : jamais de plaque ni
+  de donnée personnelle.
+- **Une ligne par décision métier** (use cases) : entrée/sortie autorisée,
+  refusée (avec le motif), en attente de confirmation, véhicule inconnu —
+  toujours avec l'id de la demande et le `vehicleId` pseudonymisé.
+- **Log d'accès** : `INFO` pour les écritures (passages à la borne),
+  `WARNING` pour toute réponse 4xx/5xx, `DEBUG` pour les lectures réussies
+  (polling du dashboard), `/health` et les fichiers statiques — visibles
+  avec `LOG_LEVEL=DEBUG`. Le log d'accès natif d'uvicorn est désactivé sur
+  Render (`--no-access-log`) pour éviter les doublons sans cid.
+- **Appels aux autres services** : chaque échec (timeout, 5xx, réponse
+  inattendue) est loggé en `WARNING` par le client HTTP concerné.
+
 ---
 
 ## 10. Sécurité
@@ -468,8 +555,11 @@ ruff check src tests && ruff format --check src tests && pytest && bandit -r src
 - **Authentification** : clé API (`X-API-Key`) sur toutes les routes sauf
   `/health` (`src/infrastructure/security/api_key_auth.py`). Jamais loggée.
 - **Validation stricte** : Pydantic, y compris le code véhicule (entier
-  positif) dans le corps des demandes et dans le path param de
-  `/access/vehicles/{vehicle_code}/known`.
+  entre 0 et 2 147 483 647) dans le corps des demandes et dans le path param
+  de `/access/vehicles/{vehicle_code}/known`, la taille de `photoBase64`
+  (4 Mo max), les filtres d'audit (`limit` 1-500, `from` ≤ `to`, longueur des
+  identifiants). Toute entrée invalide → 422 (400 pour une photo non
+  décodable), sans rien persister ni appeler d'autre service.
 - **CORS restrictif** : liste blanche configurable (`CORS_ALLOWED_ORIGINS`,
   limitée à l'URL du service sur Render), méthodes `GET`/`POST` et en-têtes
   `Content-Type`/`X-API-Key` uniquement, sans credentials (l'authentification
@@ -481,7 +571,8 @@ ruff check src tests && ruff format --check src tests && pytest && bandit -r src
 - **Gestion d'erreurs centralisée** : `main.py` intercepte `HTTPException`,
   les erreurs de validation et toute exception non prévue — **aucune stack
   trace n'est jamais renvoyée au client** (500 générique, détail loggé côté
-  serveur uniquement).
+  serveur uniquement, avec un `correlationId` permettant de retrouver la
+  ligne de log correspondante).
 - **RGPD / minimisation des données** : voir la règle absolue en
   [section 1](#1-présentation). En complément de la discipline de code, un
   `logging.Filter` (`RedactPlateFilter`) masque toute sous-chaîne au format
@@ -497,14 +588,16 @@ Préfixe `/api/v1` (sauf `/health` et `/metrics`).
 |---|---|---|---|
 | POST | `/access/requests` | Oui | Crée et traite une demande d'accès (entrée ou sortie) |
 | GET | `/access/requests/{id}` | Oui | Détail d'une demande + décision |
-| GET | `/access/requests?vehicleId=&type=&from=&to=` | Oui | Liste/filtre (audit) |
+| GET | `/access/requests?vehicleId=&type=&from=&to=&limit=` | Oui | Liste/filtre (audit), plus récentes d'abord, avec la décision (`result`, `reason`, `paymentAmount`) |
+| GET | `/access/presences` | Oui | Véhicules actuellement présents (heure d'entrée, place attribuée, réservation) |
 | GET | `/access/vehicles/{vehicle_code}/known` | Oui | Vérifie si un code véhicule est connu de Vehicles, sans rien persister |
 | GET | `/access/events` | Oui | Liste les événements publiés (outbox, démo/observabilité) |
 | GET | `/health` | Non | Healthcheck (API + DB) + version et SHA du commit déployé |
 | GET | `/metrics` | Oui | Métriques Prometheus (requêtes, latences, codes HTTP par route) |
 
 Documentation interactive complète (schémas, exemples, codes d'erreur) sur
-`/docs`.
+`/docs`. Toutes les réponses portent l'en-tête `X-Correlation-ID` (voir
+[section 9](#logs-exploitables)).
 
 ### Exemple — `POST /access/requests` (entrée)
 
@@ -546,7 +639,7 @@ aucun souci CORS). Accessible sur http://localhost:8000/ (redirige
 automatiquement) ou http://localhost:8000/static/dashboard.html.
 
 Renseignez votre `X-API-Key` dans le champ prévu (stockée uniquement dans le
-`localStorage` de votre navigateur). Trois onglets :
+`localStorage` de votre navigateur). Quatre onglets :
 
 - **Borne** (par défaut) : simule une borne d'entrée/sortie. On saisit le
   code véhicule attribué par Vehicles, on choisit l'heure
@@ -558,6 +651,13 @@ Renseignez votre `X-API-Key` dans le champ prévu (stockée uniquement dans le
   sans elle, une sortie juste après l'entrée tombe dans la 1re heure
   gratuite (0 €, aucun paiement). L'historique de la session n'affiche
   que le `vehicleId` pseudonymisé.
+- **État du parking** : ce que voit Access à l'instant — santé, version et
+  commit du service (`/health`), nombre de véhicules présents, décisions
+  récentes (autorisées / refusées / confirmation requise), liste des
+  **véhicules présents** (place attribuée, réservation, heure et durée de
+  présence) et des **dernières demandes** avec leur motif et montant. Un
+  clic ouvre le détail. Rappel des opérations disponibles (borne, recherche,
+  journal, `/docs`, `/metrics`). Rafraîchi automatiquement.
 - **Journal** : la liste des événements se rafraîchit automatiquement
   (intervalle configurable), avec un badge coloré par type d'événement et le
   détail JSON dépliable.
@@ -565,13 +665,20 @@ Renseignez votre `X-API-Key` dans le champ prévu (stockée uniquement dans le
   `vehicleId`, ou d'un code véhicule (résolu d'abord en `vehicleId`).
 
 Testé dans Chrome (clair, sombre, mobile 390 px) : entrée puis sortie payée
-de bout en bout avec Pricing et Payment réels.
+de bout en bout avec Pricing et Payment réels. L'onglet « État du parking »
+a été vérifié en local (bureau et mobile 375 px, sans défilement
+horizontal).
 
 ---
 
 ## 13. Postman
 
-Un dossier [`postman/`](postman/) contient :
+> ⚠️ Le dossier `postman/` est **exclu du dépôt** (`.gitignore`) : les
+> collections ci-dessous restent sur le poste du développeur. La vérification
+> reproductible **versionnée** est [`scripts/smoke_test.sh`](scripts/smoke_test.sh)
+> ([section 9](#vérifier-une-instance-déployée-smoke-test)).
+
+Un dossier `postman/` (local) contient :
 
 - `Access-Microservice.postman_collection.json` — toutes les routes,
   organisées par dossier (Health / Access — Entry / Access — Exit / Access —
@@ -732,6 +839,10 @@ répondant aux besoins fonctionnels du use case "Sortie" (retrouver la place
 et son type à partir de la seule présence), quelques extensions **minimes et
 non intrusives** ont été ajoutées :
 
+- `VehiclePresenceRepositoryPort.list_present` et le use case
+  `ListPresentVehicles` : lecture seule, pour la vue « État du parking »
+  (`GET /access/presences`) ; `ListAccessRequests` renvoie chaque demande
+  avec sa décision, et `AccessFilters` a gagné un `limit`.
 - `AccessRepositoryPort.get_authorization_by_request`,
   `get_event_by_request` et `list_events` : lecture supplémentaire, aucune
   règle métier ajoutée. Le `placeId`/type de place attribué à l'entrée est

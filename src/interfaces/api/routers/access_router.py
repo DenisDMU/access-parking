@@ -1,4 +1,5 @@
-"""Endpoints `/access/requests` et `/access/vehicles/{vehicle_code}/known`.
+"""Endpoints `/access/requests`, `/access/presences` et
+`/access/vehicles/{vehicle_code}/known`.
 
 Access ne reçoit jamais la plaque : les demandes portent le code véhicule
 attribué par Vehicles, seul l'identifiant pseudonymisé circule ensuite.
@@ -8,13 +9,14 @@ from __future__ import annotations
 
 import base64
 import binascii
-from datetime import datetime
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, status
 
 from src.application.use_cases.check_vehicle_known import CheckVehicleKnown
 from src.application.use_cases.get_access_request import GetAccessRequest
 from src.application.use_cases.list_access_requests import ListAccessRequests
+from src.application.use_cases.list_present_vehicles import ListPresentVehicles
 from src.application.use_cases.process_entry_request import ProcessEntryRequest
 from src.application.use_cases.process_exit_request import ProcessExitRequest
 from src.domain.value_objects.dto import AccessFilters
@@ -24,11 +26,14 @@ from src.infrastructure.security.api_key_auth import verify_api_key
 from src.interfaces.api import deps
 from src.interfaces.api.rate_limit import limiter
 from src.interfaces.api.schemas.access_request_schemas import (
+    MAX_VEHICLE_CODE,
     AccessRequestDetailOut,
     AccessRequestIn,
     AccessRequestListItemOut,
     AccessRequestOut,
     AuthorizationOut,
+    PlaceTypeOut,
+    PresentVehicleOut,
     VehicleKnownOut,
 )
 from src.interfaces.api.schemas.error_schemas import ErrorOut
@@ -38,6 +43,13 @@ router = APIRouter(
     tags=["Access"],
     dependencies=[Depends(verify_api_key)],
 )
+
+
+def _as_utc(value: datetime) -> datetime:
+    """Date sans fuseau = UTC (même convention que `AccessRequestIn`)."""
+
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+
 
 _COMMON_ERROR_RESPONSES = {
     401: {"model": ErrorOut, "description": "Clé API manquante ou invalide"},
@@ -127,7 +139,7 @@ def create_access_request(
     },
 )
 def get_access_request(
-    request_id: str,
+    request_id: str = Path(..., min_length=1, max_length=64),
     use_case: GetAccessRequest = Depends(deps.get_get_access_request_use_case),
 ) -> AccessRequestDetailOut:
     result = use_case.execute(request_id)
@@ -166,29 +178,86 @@ def get_access_request(
 @router.get(
     "/requests",
     response_model=list[AccessRequestListItemOut],
-    summary="Liste/filtre des demandes d'accès (audit)",
-    description="Filtre exclusivement sur vehicleId (pseudonymisé), jamais sur la plaque.",
-    responses=_COMMON_ERROR_RESPONSES,
+    summary="Liste/filtre des demandes d'accès (audit), avec leur décision",
+    description=(
+        "Filtre exclusivement sur vehicleId (pseudonymisé), jamais sur la plaque. "
+        "Les demandes les plus récentes d'abord, `limit` au plus (500 max)."
+    ),
+    responses={
+        **_COMMON_ERROR_RESPONSES,
+        422: {"model": ErrorOut, "description": "Filtre invalide (ex. `from` après `to`)"},
+    },
 )
 def list_access_requests(
-    vehicleId: str | None = Query(default=None),
+    vehicleId: str | None = Query(default=None, max_length=64),
     type_: RequestType | None = Query(default=None, alias="type"),
     date_from: datetime | None = Query(default=None, alias="from"),
     date_to: datetime | None = Query(default=None, alias="to"),
+    limit: int = Query(default=100, ge=1, le=500),
     use_case: ListAccessRequests = Depends(deps.get_list_access_requests_use_case),
 ) -> list[AccessRequestListItemOut]:
-    filters = AccessFilters(vehicle_id=vehicleId, type=type_, date_from=date_from, date_to=date_to)
-    requests = use_case.execute(filters)
+    if date_from is not None and date_to is not None and _as_utc(date_from) > _as_utc(date_to):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Période invalide : `from` doit précéder `to`",
+        )
+    filters = AccessFilters(
+        vehicle_id=vehicleId, type=type_, date_from=date_from, date_to=date_to, limit=limit
+    )
+    items = use_case.execute(filters)
     return [
         AccessRequestListItemOut(
-            requestId=r.id,
-            vehicleId=r.vehicle_id,
-            type=r.type,
-            date=r.date,
-            source=r.source,
-            status=r.status,
+            requestId=item.request.id,
+            vehicleId=item.request.vehicle_id,
+            type=item.request.type,
+            date=item.request.date,
+            source=item.request.source,
+            status=item.request.status,
+            result=item.authorization.result if item.authorization else None,
+            reason=item.authorization.reason if item.authorization else None,
+            paymentAmount=(
+                float(item.authorization.payment_amount)
+                if item.authorization and item.authorization.payment_amount is not None
+                else None
+            ),
         )
-        for r in requests
+        for item in items
+    ]
+
+
+@router.get(
+    "/presences",
+    response_model=list[PresentVehicleOut],
+    summary="Véhicules actuellement présents dans le parking",
+    description=(
+        "État courant vu par Access : véhicules entrés et pas encore sortis, "
+        "avec l'heure d'entrée et la place attribuée. Reconstruit à partir des "
+        "seules données d'Access (aucun appel aux autres services)."
+    ),
+    responses=_COMMON_ERROR_RESPONSES,
+)
+def list_present_vehicles(
+    use_case: ListPresentVehicles = Depends(deps.get_list_present_vehicles_use_case),
+) -> list[PresentVehicleOut]:
+    return [
+        PresentVehicleOut(
+            vehicleId=v.vehicle_id,
+            entryRequestId=v.entry_request_id,
+            enteredAt=v.entered_at,
+            placeId=v.place_id,
+            placeType=(
+                PlaceTypeOut(
+                    category=int(v.place_type.category),
+                    isXl=v.place_type.is_xl,
+                    isElectric=v.place_type.is_electric,
+                    isHandicap=v.place_type.is_handicap,
+                )
+                if v.place_type
+                else None
+            ),
+            reservation=v.is_reservation,
+        )
+        for v in use_case.execute()
     ]
 
 
@@ -203,7 +272,7 @@ def list_access_requests(
     responses=_COMMON_ERROR_RESPONSES,
 )
 def check_vehicle_known(
-    vehicle_code: int = Path(..., ge=0),
+    vehicle_code: int = Path(..., ge=0, le=MAX_VEHICLE_CODE),
     use_case: CheckVehicleKnown = Depends(deps.get_check_vehicle_known_use_case),
 ) -> VehicleKnownOut:
     result = use_case.execute(vehicle_code)

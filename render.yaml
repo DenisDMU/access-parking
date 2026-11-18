@@ -37,7 +37,9 @@ services:
     region: frankfurt
     branch: main
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "uvicorn src.interfaces.api.main:app --host 0.0.0.0 --port $PORT"
+    # --no-access-log : Access écrit son propre log d'accès, avec correlation ID
+    # (src/interfaces/api/middleware.py) — évite les lignes en double.
+    startCommand: "uvicorn src.interfaces.api.main:app --host 0.0.0.0 --port $PORT --no-access-log"
     healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
