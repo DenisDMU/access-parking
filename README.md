@@ -20,8 +20,8 @@
 | | |
 |---|---|
 | **Rôle** | Décide si un véhicule peut entrer/sortir du parking et coordonne les échanges avec Vehicles, Booking, Parking, Pricing, Payment (aucune donnée métier des autres services). |
-| **Version actuelle** | `3.6.0` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
-| **Dernière mise à jour** | 18 novembre 2026 (jalons 8 à 15 : UI, qualité, revue, traçabilité, observabilité, CI/CD, sécurité) |
+| **Version actuelle** | `3.6.1` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
+| **Dernière mise à jour** | 18 novembre 2026 (jalons 8 à 15, base Postgres persistante, nouveau contrat Parking) |
 | **URL du service déployé** | https://access-api-a1u7.onrender.com |
 | **Documentation Swagger/OpenAPI** | https://access-api-a1u7.onrender.com/docs (ReDoc : `/redoc`, spec brute : `/openapi.json`) |
 | **Dépendances (services appelés)** | **Vehicles** *(réel)*, Booking *(mocké)*, **Parking** *(réel)*, **Pricing** *(réel)*, **Payment** *(réel)* |
@@ -46,9 +46,11 @@
 - [x] Exposer des métriques métier Prometheus (décisions, refus par motif, paiements, montants, véhicules présents, appels aux autres services, événements publiés).
 - [x] Protéger toutes les routes (sauf `/health`) par clé API.
 - [x] Exposer la version et le commit déployés (`/health`) et des métriques d'exploitation (`/metrics`).
+- [x] Conserver les données (stationnements, décisions, événements) dans une base Postgres (Neon) qui survit aux redémarrages.
+- [x] Plafonner la durée facturée à 7 jours et compter tout début de minute (règles 2.4 et 2.5).
 - [ ] Vérifier une réservation via le vrai service **Booking**.
 - [x] Résoudre un véhicule via le vrai service **Vehicles** (`GET /api/vehicles/{code}`).
-- [x] Attribuer/occuper/libérer une place via le vrai service **Parking**.
+- [x] Attribuer/occuper/libérer une place via le vrai service **Parking** (place mise de côté puis confirmée avec son `hold_id`).
 - [x] Calculer un prix via le vrai service **Pricing**.
 - [x] Exécuter un paiement via le vrai service **Payment** (idempotent : rejouer une sortie ne débite jamais deux fois).
 
@@ -68,7 +70,7 @@
 | **Observabilité** | ✅ Correlation ID propagé à tous les services et événements, logs par décision, `/metrics` Prometheus (techniques + métier + intégration), config Prometheus fournie, `/health` avec version et commit | [section 9](#métriques-prometheus) |
 | **CI/CD et déploiement** | ✅ GitHub Actions (lint → tests → bandit → pip-audit → gitleaks), déploiement Render après CI verte, smoke test de l'instance déployée (version vérifiée), CHANGELOG, Dependabot | [section 9](#intégration-continue-cicd), [section 14](#14-déploiement-sur-render) |
 | **Sécurité** | ✅ Clé API (comparaison en temps constant) sur toutes les routes sauf `/health`, refus de démarrer en production avec une clé faible, validation stricte, erreurs sans stack trace, en-têtes de sécurité, CORS restreint, rate limiting, secrets hors Git, jamais de plaque | [section 10](#10-sécurité) |
-| **Version** | `3.6.0` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
+| **Version** | `3.6.1` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
 | **Dernière mise à jour** | 18 novembre 2026 | |
 
 ### Suivi des jalons
@@ -228,7 +230,7 @@ src/
 │                         # Ne dépend QUE de domain (ports + entités + règles)
 │
 ├── infrastructure/     # Implémentations concrètes des ports
-│   ├── db/              # SQLAlchemy : modèles, session, repositories SQLite
+│   ├── db/              # SQLAlchemy : modèles, session, repositories SQL (SQLite local, Postgres Neon en prod)
 │   ├── external/        # Clients HTTP (5 services, mock Booking) + OutboxEventPublisher/
 │   │                      # RabbitMQEventPublisher (publication d'événements — aussi des
 │   │                      # appels vers l'extérieur, donc regroupés ici plutôt qu'à part)
@@ -276,7 +278,7 @@ Exemple concret, `POST /access/requests` (entrée) :
    isolément.
 4. **`infrastructure`** exécute le travail concret derrière chaque port
    appelé par le use case : `HttpParkingClient` fait le vrai appel HTTP,
-   `SqliteAccessRepository` écrit en base, `RabbitMQEventPublisher` publie
+   `SqlAccessRepository` écrit en base, `RabbitMQEventPublisher` publie
    sur le bus.
 5. Le use case renvoie un DTO (`EntryDecision`) à `interfaces/api`, qui le
    sérialise en JSON de réponse.
@@ -390,7 +392,7 @@ diffusion est loggé mais ne bloque jamais la décision d'accès :
   ```
 
   Puis `RABBITMQ_URL=amqp://guest:guest@localhost:5672/%2F` — mais il
-  faudra déclarer l'exchange toi-même (`durable=True`, pas seulement
+  faudra déclarer l'exchange soi-même (`durable=True`, pas seulement
   `passive=True`) puisqu'il n'existera pas encore localement ; voir
   l'historique git de `rabbitmq_event_publisher.py` pour un exemple de
   déclaration active si besoin.
@@ -458,7 +460,8 @@ au cas "véhicule inconnu de Vehicles")
 source .venv/bin/activate
 pytest              # unitaires + intégration
 pytest tests/unit           # règles métier + use cases (ports mockés)
-pytest tests/integration    # endpoints via TestClient FastAPI (SQLite en mémoire)
+pytest tests/integration    # endpoints via TestClient FastAPI (SQLite en mémoire, clés étrangères actives)
+ACCESS_TEST_DATABASE_URL=<url Postgres> pytest tests/integration   # idem contre une vraie base Postgres
 pytest -v            # détail de chaque cas
 ```
 
@@ -833,7 +836,7 @@ Un [`render.yaml`](render.yaml) (Render Blueprint) décrit **un seul service**
 un secret externe fourni par l'équipe, que Render ne peut pas deviner. Le
 blueprint la déclare avec `sync: false`, ce qui veut juste dire "cette
 variable existe, mais Render ne mettra jamais sa valeur dans le fichier
-versionné" — **il faut la coller toi-même dans le dashboard Render** une
+versionné" — **il faut la coller soi-même dans le dashboard Render** une
 fois le service créé (voir étape 2bis ci-dessous). Tant qu'elle est vide,
 le reste de l'API fonctionne normalement (best-effort : la publication
 échoue silencieusement, loggée, sans bloquer les décisions d'accès).
@@ -864,17 +867,16 @@ le reste de l'API fonctionne normalement (best-effort : la publication
    pour le jour où ces services activeront leur authentification.
 3. Récupérez l'URL publique du service (en haut de la page `access-api`,
    type `https://access-api-xxxx.onrender.com`).
-4. Ouvrez `postman/Access-Render.postman_environment.json` dans Postman et
-   renseignez `baseUrl` (l'URL de l'étape 3) et `apiKey` (la clé de l'étape 2) —
-   ou envoyez-moi l'URL, je peux mettre à jour le fichier directement.
-5. Vérifiez `GET /health` puis un scénario complet (avec un code véhicule
-   enregistré chez Vehicles, section 3) avec la collection **"Access — Render"**.
+2quinquies. **`DATABASE_URL`** : collez l'URL de connexion de la base
+   **Postgres Neon** (`postgresql://…?sslmode=require`). Sans elle, Access
+   utilise un fichier SQLite effacé à chaque redémarrage du plan Free (voir
+   ci-dessous). Access crée ses tables tout seul au démarrage.
+4. Vérifiez `GET /health` : `version` attendue, `databaseEngine: postgresql`.
+5. Lancez `scripts/smoke_test.sh` (section 9) avec la clé de l'étape 2 et un
+   code véhicule enregistré chez Vehicles (section 3) — ou le workflow GitHub
+   « Smoke test ». La collection Postman locale (section 13) reste utilisable.
 
-### ⚠️ Points à vérifier / limites connues
-
-Je n'ai pas d'accès direct à ton compte Render pour tester ce blueprint en
-conditions réelles — voici ce qui mérite une vérification de ta part au
-premier déploiement :
+### ⚠️ Points d'attention et limites connues
 
 - **Base de données : Postgres Neon en production.** Le disque du plan Free
   est éphémère : un fichier SQLite y est **effacé à chaque redéploiement et
@@ -902,9 +904,9 @@ premier déploiement :
   dans le blueprint (le dashboard est same-origin). Si un front d'équipe
   doit appeler Access depuis un navigateur, ajoutez son origine (séparée
   par une virgule).
-- **`RABBITMQ_URL` vide ou incorrect** : si tu vois `Échec de publication
-  RabbitMQ pour l'événement ...` dans les logs `access-api`, vérifie
-  d'abord que la variable est bien renseignée dans Environment (étape 2bis),
+- **`RABBITMQ_URL` vide ou incorrect** : si les logs `access-api` affichent
+  `Échec de publication RabbitMQ pour l'événement ...`, vérifier d'abord que
+  la variable est bien renseignée dans Environment (étape 2bis),
   et que l'URL CloudAMQP est toujours valide (pas de rotation de mot de
   passe côté CloudAMQP entre-temps).
 - **Ancienne option abandonnée** : un service RabbitMQ auto-hébergé sur
@@ -916,17 +918,17 @@ premier déploiement :
 
 ## 15. Rejoindre l'équipe : brancher vos microservices
 
-Une fois Access déployé sur Render, tes camarades peuvent l'appeler
+Access étant déployé sur Render, les autres équipes peuvent l'appeler
 directement sans rien installer — c'est tout l'intérêt d'un déploiement
 public partagé :
 
 - **Ils veulent qu'Access les appelle (Vehicles, Booking, Parking, Pricing,
-  Payment)** : une fois leur propre service déployé (Render ou ailleurs),
-  donne-moi son URL publique → je mets à jour `BOOKING_SERVICE_URL` (etc.)
-  dans les variables d'environnement Render de `access-api`, je complète le
-  squelette HTTP correspondant (`infrastructure/external/http_*_client.py`,
-  déjà prêt avec des `TODO` précis, section 5) avec leur vrai contrat
-  d'API, puis bascule la variable **de ce service uniquement**
+  Payment)** : il suffit de m'envoyer l'URL publique de leur service et
+  leur contrat d'API. Je mets à jour `BOOKING_SERVICE_URL` (etc.) dans les
+  variables d'environnement Render de `access-api`, je complète le client
+  HTTP correspondant (`infrastructure/external/http_*_client.py`, déjà prêt
+  avec des `TODO` précis, section 5), puis je bascule la variable **de ce
+  service uniquement**
   (`BOOKING_USE_MOCK=false`) — Vehicles, Parking, Pricing et Payment sont
   déjà branchés en réel, aucune autre couche à toucher.
 - **Ils veulent recevoir les événements d'Access** (`VEHICLE_ENTERED` /

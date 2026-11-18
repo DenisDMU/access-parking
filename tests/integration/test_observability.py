@@ -4,8 +4,8 @@ sécurité (jalons 13 et 15)."""
 from prometheus_client import REGISTRY
 from sqlalchemy.orm import sessionmaker
 
-from src.infrastructure.db.repositories.sqlite_vehicle_presence_repository import (
-    SqliteVehiclePresenceRepository,
+from src.infrastructure.db.repositories.sql_vehicle_presence_repository import (
+    SqlVehiclePresenceRepository,
 )
 from src.infrastructure.metrics import register_presence_collector
 from tests.integration.conftest import AUTH_HEADERS
@@ -52,7 +52,7 @@ def test_jauge_des_vehicules_presents(client):
     def count() -> int:
         session = session_factory()
         try:
-            return SqliteVehiclePresenceRepository(session).count_present()
+            return SqlVehiclePresenceRepository(session).count_present()
         finally:
             session.close()
 

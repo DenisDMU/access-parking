@@ -47,8 +47,8 @@ from pika.exceptions import AMQPError
 from src.domain.entities.access_event import AccessEvent
 from src.domain.ports.access_repository_port import AccessRepositoryPort
 from src.domain.value_objects.enums import EventType
-from src.infrastructure.db.repositories.sqlite_outbox_repository import (
-    SqliteOutboxRepository,
+from src.infrastructure.db.repositories.sql_outbox_repository import (
+    SqlOutboxRepository,
 )
 from src.infrastructure.logging_config import get_correlation_id
 from src.infrastructure.metrics import EVENT_TYPE_LABEL, EVENTS_PUBLISHED
@@ -75,7 +75,7 @@ class RabbitMQEventPublisher:
     def __init__(
         self,
         access_repo: AccessRepositoryPort,
-        outbox_repo: SqliteOutboxRepository,
+        outbox_repo: SqlOutboxRepository,
         amqp_url: str,
         exchange_name: str = DEFAULT_EXCHANGE_NAME,
         routing_prefix: str = DEFAULT_ROUTING_PREFIX,

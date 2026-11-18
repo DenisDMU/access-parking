@@ -39,7 +39,13 @@ from src.domain.ports.vehicles_service_port import VehiclesServicePort
 from src.domain.rules.disability_rule import requires_disability_confirmation
 from src.domain.rules.presence_rule import can_enter
 from src.domain.rules.vehicle_place_compatibility_rule import is_compatible
-from src.domain.value_objects.dto import EntryDecision, PlaceAssignment, PlaceType, VehicleType
+from src.domain.value_objects.dto import (
+    EntryDecision,
+    PlaceAssignment,
+    PlaceType,
+    Reservation,
+    VehicleType,
+)
 from src.domain.value_objects.enums import (
     AuthorizationResult,
     DetectionSource,
@@ -92,15 +98,7 @@ class ProcessEntryRequest:
     ) -> EntryDecision:
         request_id = str(uuid4())
 
-        ai_check: dict | None = None
-        if photo is not None:
-            ai_result = self._ai_vision_port.analyze(photo)
-            ai_check = {
-                "aiModel": ai_result.ai_model,
-                "confidence": ai_result.confidence,
-                "timestamp": ai_result.timestamp.isoformat(),
-            }
-
+        ai_check = self._analyze_photo(photo)
         vehicle_info = self._vehicles_port.get_vehicle_info(vehicle_code)
 
         if vehicle_info is None:
@@ -121,36 +119,21 @@ class ProcessEntryRequest:
 
         reservation = self._booking_port.get_reservation(vehicle_id)
         is_reservation = reservation is not None
-        hold_id: str | None = None
-        if reservation is not None:
-            place_type = reservation.reserved_place_type
-            place_id = reservation.place_id
-            if place_id is None:
-                assignment, refusal = self._request_place(vehicle_info.vehicle_type, True)
-                if assignment is None:
-                    return self._refuse(
-                        request_id=request_id,
-                        vehicle_id=vehicle_id,
-                        date=date,
-                        source=source,
-                        ai_check=ai_check,
-                        reason=refusal,
-                    )
-                place_id, place_type = assignment.place_id, assignment.place_type
-                hold_id = assignment.hold_id
-        else:
-            assignment, refusal = self._request_place(vehicle_info.vehicle_type, False)
-            if assignment is None:
-                return self._refuse(
-                    request_id=request_id,
-                    vehicle_id=vehicle_id,
-                    date=date,
-                    source=source,
-                    ai_check=ai_check,
-                    reason=refusal,
-                )
-            place_id, place_type = assignment.place_id, assignment.place_type
-            hold_id = assignment.hold_id
+        assignment, refusal = self._assign_place(vehicle_info.vehicle_type, reservation)
+        if assignment is None:
+            return self._refuse(
+                request_id=request_id,
+                vehicle_id=vehicle_id,
+                date=date,
+                source=source,
+                ai_check=ai_check,
+                reason=refusal,
+            )
+        place_id, place_type, hold_id = (
+            assignment.place_id,
+            assignment.place_type,
+            assignment.hold_id,
+        )
 
         compat_ok = is_compatible(vehicle_info.vehicle_type, place_type)
         if not compat_ok:
@@ -285,6 +268,37 @@ class ProcessEntryRequest:
             vehicle_type_check_ok=True,
             disability_check_ok=disability_check_ok,
         )
+
+    def _analyze_photo(self, photo: bytes | None) -> dict | None:
+        """Analyse IA optionnelle de la photo (jamais de plaque en clair)."""
+
+        if photo is None:
+            return None
+        ai_result = self._ai_vision_port.analyze(photo)
+        return {
+            "aiModel": ai_result.ai_model,
+            "confidence": ai_result.confidence,
+            "timestamp": ai_result.timestamp.isoformat(),
+        }
+
+    def _assign_place(
+        self, vehicle_type: VehicleType, reservation: Reservation | None
+    ) -> tuple[PlaceAssignment | None, str | None]:
+        """Place pour ce passage : `(place, None)` ou `(None, motif du refus)`.
+
+        Avec une réservation qui fixe déjà la place, on la reprend telle
+        quelle ; sinon on demande une place à Parking, dans le pool
+        « booking » s'il y a une réservation, « walk-in » sinon.
+        """
+
+        if reservation is not None and reservation.place_id is not None:
+            return (
+                PlaceAssignment(
+                    place_id=reservation.place_id, place_type=reservation.reserved_place_type
+                ),
+                None,
+            )
+        return self._request_place(vehicle_type, is_reservation=reservation is not None)
 
     def _request_place(
         self, vehicle_type: VehicleType, is_reservation: bool

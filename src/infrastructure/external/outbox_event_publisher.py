@@ -21,8 +21,8 @@ import httpx
 
 from src.domain.entities.access_event import AccessEvent
 from src.domain.ports.access_repository_port import AccessRepositoryPort
-from src.infrastructure.db.repositories.sqlite_outbox_repository import (
-    SqliteOutboxRepository,
+from src.infrastructure.db.repositories.sql_outbox_repository import (
+    SqlOutboxRepository,
 )
 from src.infrastructure.external.outgoing_http import outgoing_client
 from src.infrastructure.logging_config import get_correlation_id
@@ -47,7 +47,7 @@ class OutboxEventPublisher:
     def __init__(
         self,
         access_repo: AccessRepositoryPort,
-        outbox_repo: SqliteOutboxRepository,
+        outbox_repo: SqlOutboxRepository,
         subscriber_urls: list[str],
         timeout_ms: int,
         http_client: httpx.Client | None = None,

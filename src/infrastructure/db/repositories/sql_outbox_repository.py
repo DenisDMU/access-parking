@@ -1,4 +1,4 @@
-"""Implémentation SQLite de la persistance `outbox_events`.
+"""Implémentation SQL (SQLAlchemy) de la persistance `outbox_events`.
 
 Utilisée uniquement par `OutboxEventPublisher`/`RabbitMQEventPublisher`
 (infrastructure/external) — n'est pas exposée via un port du domaine, c'est
@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from src.infrastructure.db.models import OutboxEventModel
 
 
-class SqliteOutboxRepository:
+class SqlOutboxRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
 
