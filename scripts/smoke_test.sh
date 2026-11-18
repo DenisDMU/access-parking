@@ -16,6 +16,8 @@ set -uo pipefail
 BASE_URL="${BASE_URL:-http://localhost:8000}"
 API_KEY="${API_KEY:-change-me}"
 VEHICLE_CODE="${VEHICLE_CODE:-}"
+# Si défini (ex. par la CI) : vérifie que l'instance sert bien CETTE version.
+EXPECTED_VERSION="${EXPECTED_VERSION:-}"
 CID="smoke-$(date +%Y%m%d%H%M%S)"
 FAILS=0
 TMP="$(mktemp)"
@@ -48,6 +50,7 @@ iso_in() { python3 -c "from datetime import datetime,timedelta,timezone as t; pr
 echo "1. Santé et version"
 check "GET /health sans clé → 200" 200 "$(call GET /health '' '')"
 echo "        version $(json "d['version']") · commit $(json "d['commit'][:7]") · base $(json "d['database']")"
+[ -n "$EXPECTED_VERSION" ] && check "version déployée = $EXPECTED_VERSION" "$EXPECTED_VERSION" "$(json "d['version']")"
 
 echo "2. Authentification"
 check "sans clé API → 401" 401 "$(call GET /api/v1/access/requests '' '')"
@@ -67,6 +70,8 @@ check "demande inexistante → 404" 404 "$(call GET /api/v1/access/requests/inex
 
 echo "4. Observabilité"
 check "GET /metrics avec clé → 200" 200 "$(call GET /metrics)"
+check "/metrics expose les métriques métier" True "$(call GET /metrics >/dev/null; grep -q '^# HELP access_decisions_total' "$TMP" && echo True || echo False)"
+check "en-tête X-Correlation-ID renvoyé" "$CID" "$(curl -s -o /dev/null -D - -H "X-Correlation-ID: $CID" "$BASE_URL/health" | tr -d '\r' | awk -F': ' 'tolower($1)=="x-correlation-id"{print $2}')"
 check "GET /access/presences → 200" 200 "$(call GET /api/v1/access/presences)"
 echo "        $(json "len(d)") véhicule(s) actuellement présent(s)"
 

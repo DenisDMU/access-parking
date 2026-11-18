@@ -58,6 +58,7 @@ import httpx
 
 from src.domain.value_objects.dto import PlaceAssignment, PlaceType, VehicleType
 from src.domain.value_objects.enums import VehicleCategory
+from src.infrastructure.external.outgoing_http import outgoing_client
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +112,7 @@ class HttpParkingClient:
         commercial_type = "booking" if is_reservation else "walkin"
         payload = {"category_name": category, "commercial_type": commercial_type}
         try:
-            with httpx.Client(timeout=self._timeout_s) as client:
+            with outgoing_client("parking", timeout=self._timeout_s) as client:
                 response = client.post(f"{self._base_url}/parking/hold", json=payload)
             response.raise_for_status()
         except httpx.HTTPError as exc:
@@ -140,7 +141,7 @@ class HttpParkingClient:
         # des compteurs de catégories, aucun véhicule (cf. docstring module).
         category, commercial_type = place_id.split(":", 1)
         try:
-            with httpx.Client(timeout=self._timeout_s) as client:
+            with outgoing_client("parking", timeout=self._timeout_s) as client:
                 response = client.post(
                     f"{self._base_url}/parking/confirm_entry",
                     json={"category_name": category, "commercial_type": commercial_type},
@@ -155,7 +156,7 @@ class HttpParkingClient:
     def mark_place_free(self, place_id: str) -> bool:
         category, commercial_type = place_id.split(":", 1)
         try:
-            with httpx.Client(timeout=self._timeout_s) as client:
+            with outgoing_client("parking", timeout=self._timeout_s) as client:
                 response = client.post(
                     f"{self._base_url}/parking/free",
                     json={"category_name": category, "commercial_type": commercial_type},

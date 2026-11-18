@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from src.domain.entities.vehicle_presence import VehiclePresence
@@ -57,3 +57,7 @@ class SqliteVehiclePresenceRepository:
             )
             for row in rows
         ]
+
+    def count_present(self) -> int:
+        stmt = select(func.count()).where(VehiclePresenceModel.status == int(PresenceStatus.IN))
+        return int(self._session.execute(stmt).scalar_one())

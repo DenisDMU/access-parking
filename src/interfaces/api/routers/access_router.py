@@ -22,6 +22,7 @@ from src.application.use_cases.process_exit_request import ProcessExitRequest
 from src.domain.value_objects.dto import AccessFilters
 from src.domain.value_objects.enums import RequestType
 from src.infrastructure.config import get_settings
+from src.infrastructure.metrics import record_decision
 from src.infrastructure.security.api_key_auth import verify_api_key
 from src.interfaces.api import deps
 from src.interfaces.api.rate_limit import limiter
@@ -96,6 +97,7 @@ def create_access_request(
         decision = entry_use_case.execute(
             vehicle_code=body.vehicle_code, date=body.date, source=body.source, photo=photo
         )
+        record_decision(decision.type, decision.result, decision.reason)
         return AccessRequestOut(
             requestId=decision.request_id,
             vehicleId=decision.vehicle_id,
@@ -113,6 +115,7 @@ def create_access_request(
     decision = exit_use_case.execute(
         vehicle_code=body.vehicle_code, date=body.date, source=body.source
     )
+    record_decision(decision.type, decision.result, decision.reason)
     amount = float(decision.payment_amount) if decision.payment_amount is not None else None
     return AccessRequestOut(
         requestId=decision.request_id,

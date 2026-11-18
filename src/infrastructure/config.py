@@ -31,7 +31,7 @@ def _bool_env(name: str, default: bool) -> bool:
 class Settings:
     port: int = int(os.getenv("PORT", "8000"))
     database_url: str = os.getenv("DATABASE_URL", "sqlite:///./access.db")
-    api_key: str = os.getenv("API_KEY", "change-me")
+    api_key: str = os.getenv("API_KEY", "change-me")  # voir check_secrets()
     log_level: str = os.getenv("LOG_LEVEL", "INFO")
     # SHA du commit déployé, fourni automatiquement par Render à chaque
     # build — permet de prouver quel code tourne réellement en ligne
@@ -92,6 +92,37 @@ class Settings:
 
 
 _settings: Settings | None = None
+
+
+DEFAULT_API_KEY = "change-me"
+MIN_API_KEY_LENGTH = 16
+
+
+class InsecureConfigurationError(RuntimeError):
+    """Configuration refusée au démarrage (jalon 15 — gestion des secrets)."""
+
+
+def check_secrets(settings: Settings, *, production: bool) -> list[str]:
+    """Vérifie les secrets au démarrage.
+
+    En production (Render définit `RENDER=true`), une clé API par défaut ou
+    trop courte **empêche le démarrage** : mieux vaut un déploiement en échec
+    qu'une API ouverte avec `change-me`. En local, simple avertissement
+    (renvoyé à l'appelant pour être loggé).
+    """
+
+    problems = []
+    if settings.api_key == DEFAULT_API_KEY:
+        problems.append("API_KEY vaut la valeur par défaut 'change-me'")
+    elif len(settings.api_key) < MIN_API_KEY_LENGTH:
+        problems.append(f"API_KEY fait moins de {MIN_API_KEY_LENGTH} caractères")
+    if problems and production:
+        raise InsecureConfigurationError("; ".join(problems))
+    return problems
+
+
+def is_production() -> bool:
+    return os.getenv("RENDER", "").lower() == "true"
 
 
 def get_settings() -> Settings:

@@ -37,6 +37,8 @@ from decimal import ROUND_HALF_UP, Decimal
 import httpx
 
 from src.domain.value_objects.dto import PaymentResult
+from src.infrastructure.external.outgoing_http import outgoing_client
+from src.infrastructure.metrics import PAYMENT_AMOUNT_EUROS, PAYMENTS
 
 logger = logging.getLogger(__name__)
 
@@ -76,8 +78,8 @@ class HttpPaymentClient:
             "source_service": "access",
         }
         try:
-            with httpx.Client(
-                timeout=self._timeout_s, headers=self._headers, transport=self._transport
+            with outgoing_client(
+                "payment", timeout=self._timeout_s, headers=self._headers, transport=self._transport
             ) as client:
                 response = client.post(f"{self._base_url}/payments", json=payload)
                 response.raise_for_status()
@@ -92,6 +94,7 @@ class HttpPaymentClient:
                             payment_id,
                             self._poll_timeout_s,
                         )
+                        PAYMENTS.labels(outcome="unavailable").inc()
                         return None
                     self._sleep(self._poll_interval_s)
                     response = client.get(f"{self._base_url}/payments/{payment_id}")
@@ -100,9 +103,14 @@ class HttpPaymentClient:
         except (httpx.HTTPError, KeyError, ValueError) as exc:
             # ValueError/KeyError : réponse non-JSON ou contrat inattendu.
             logger.warning("Service Payment indisponible : %r", exc)
+            PAYMENTS.labels(outcome="unavailable").inc()
             return None
 
-        return PaymentResult(
-            success=data["status"] == "ACCEPTED",
-            transaction_reference=payment_id,
+        accepted = data["status"] == "ACCEPTED"
+        PAYMENTS.labels(outcome="accepted" if accepted else "refused").inc()
+        if accepted:
+            PAYMENT_AMOUNT_EUROS.inc(float(amount))
+        logger.info(
+            "Paiement %s %s (%s €)", payment_id, "accepté" if accepted else "refusé", amount
         )
+        return PaymentResult(success=accepted, transaction_reference=payment_id)

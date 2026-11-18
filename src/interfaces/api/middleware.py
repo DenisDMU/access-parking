@@ -78,3 +78,24 @@ async def correlation_id_middleware(request: Request, call_next) -> Response:
         (time.perf_counter() - started) * 1000,
     )
     return response
+
+
+# En-têtes de sécurité HTTP (jalon 15) — ajoutés à toutes les réponses.
+_SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",  # pas d'interprétation d'un JSON en HTML/JS
+    "X-Frame-Options": "DENY",  # dashboard non intégrable dans une iframe (clickjacking)
+    "Referrer-Policy": "no-referrer",
+}
+
+
+async def security_headers_middleware(request: Request, call_next) -> Response:
+    response = await call_next(request)
+    for name, value in _SECURITY_HEADERS.items():
+        response.headers.setdefault(name, value)
+    if request.url.path.startswith("/api/"):
+        # Données d'accès : jamais mises en cache par un navigateur ou un proxy.
+        response.headers.setdefault("Cache-Control", "no-store")
+    if request.headers.get("x-forwarded-proto") == "https":
+        # Derrière le proxy HTTPS de Render : impose HTTPS au navigateur.
+        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000")
+    return response

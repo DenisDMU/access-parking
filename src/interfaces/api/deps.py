@@ -75,6 +75,16 @@ def get_db_session() -> Generator[Session, None, None]:
 # --- Repositories -----------------------------------------------------------
 
 
+def count_present_vehicles() -> int:
+    """Pour la jauge Prometheus `access_vehicles_present` (hors requête HTTP)."""
+
+    session = _SessionFactory()
+    try:
+        return SqliteVehiclePresenceRepository(session).count_present()
+    finally:
+        session.close()
+
+
 def get_access_repository(
     session: Session = Depends(get_db_session),
 ) -> AccessRepositoryPort:

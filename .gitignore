@@ -10,3 +10,6 @@ __pycache__/
 postman/
 JOURNAL.md
 reponse.md
+
+# Clé API lue par monitoring/prometheus.yml (jamais versionnée)
+monitoring/access_api_key

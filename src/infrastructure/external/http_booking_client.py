@@ -21,35 +21,58 @@ TODO avant mise en service — À valider avec l'équipe Booking :
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 
 import httpx
 
 from src.domain.value_objects.dto import PlaceType, Reservation
 from src.domain.value_objects.enums import VehicleCategory
+from src.infrastructure.external.outgoing_http import outgoing_client
+
+logger = logging.getLogger(__name__)
 
 
 class HttpBookingClient:
     """Implémente `BookingServicePort` via un vrai appel HTTP à Booking."""
 
-    def __init__(self, base_url: str, timeout_s: float = 20.0) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        timeout_s: float = 20.0,
+        transport: httpx.BaseTransport | None = None,
+    ) -> None:
         self._base_url = base_url.rstrip("/")
         self._timeout_s = timeout_s
+        self._transport = transport  # injecté par les tests (httpx.MockTransport)
 
     def get_reservation(self, vehicle_id: str) -> Reservation | None:
         # TODO[BOOKING-1] confirmer route/méthode avec l'équipe Booking.
-        with httpx.Client(timeout=self._timeout_s) as client:
-            response = client.get(
-                f"{self._base_url}/bookings/active", params={"vehicleId": vehicle_id}
-            )
+        try:
+            with outgoing_client(
+                "booking", timeout=self._timeout_s, transport=self._transport
+            ) as client:
+                response = client.get(
+                    f"{self._base_url}/bookings/active", params={"vehicleId": vehicle_id}
+                )
 
-        # TODO[BOOKING-2] confirmer le code "pas de réservation" (404 supposé).
-        if response.status_code == 404:
+            # TODO[BOOKING-2] confirmer le code "pas de réservation" (404 supposé).
+            if response.status_code == 404:
+                return None
+            response.raise_for_status()
+
+            # TODO[BOOKING-3] adapter le mapping de champs à la réponse réelle.
+            data = response.json()
+            return self._to_reservation(vehicle_id, data)
+        except (httpx.HTTPError, KeyError, ValueError) as exc:
+            # Booking indisponible ou réponse inattendue : on poursuit comme
+            # une entrée sans réservation (Parking attribue une place) plutôt
+            # que de renvoyer une 500 — même principe que les autres clients.
+            logger.warning("Booking indisponible, entrée traitée sans réservation : %r", exc)
             return None
-        response.raise_for_status()
 
-        # TODO[BOOKING-3] adapter le mapping de champs à la réponse réelle.
-        data = response.json()
+    @staticmethod
+    def _to_reservation(vehicle_id: str, data: dict) -> Reservation:
         place_type_data = data.get("reservedPlaceType", {})
         return Reservation(
             id=data["id"],
