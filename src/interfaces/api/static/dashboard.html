@@ -638,7 +638,6 @@
   <span>Access · microservice de contrôle d'accès du parking</span>
   <a href="/docs" target="_blank" rel="noopener">API /docs</a>
   <a href="/health" target="_blank" rel="noopener">/health</a>
-  <span>thème Catppuccin · police Meslo</span>
 </footer>
 
 <script>
@@ -1162,6 +1161,12 @@
     2: { state: "refused", text: "Barrière fermée" },
     3: { state: "pending", text: "Intervention d'un agent requise" },
   };
+  // « À confirmer » : Access ne peut pas trancher seul, la barrière reste
+  // fermée et un agent prend le relais sur place (procédure alternative).
+  const PENDING_HINT = {
+    unknown: "La barrière reste fermée. Ce code n'existe pas (ou plus) chez Vehicles : un agent vérifie le véhicule sur place, puis l'enregistre chez Vehicles avant un nouveau passage.",
+    other: "La barrière reste fermée : un agent doit vérifier sur place (par exemple le justificatif PMR) avant de laisser passer le véhicule.",
+  };
   const GATE_KICKER = { idle: "Borne", wait: "Traitement", ok: "Accès autorisé", refused: "Accès refusé", pending: "À confirmer" };
   const BARRIER_SVG =
     '<svg viewBox="0 0 120 96" aria-hidden="true">' +
@@ -1311,7 +1316,8 @@
       }
       facts.push(["Demande", requestLink(body.requestId)]);
       facts.push(["Traitement", elapsed() + " s"]);
-      renderGate(gate.state, gate.text, facts);
+      const hint = auth.result === 3 ? (body.vehicleId ? PENDING_HINT.other : PENDING_HINT.unknown) : null;
+      renderGate(gate.state, gate.text, facts, hint);
       addHistory(type, body, elapsed());
       refreshAll();
     } catch (err) {
