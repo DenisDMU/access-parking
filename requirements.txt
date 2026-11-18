@@ -1,4 +1,4 @@
-fastapi>=0.162.5
+fastapi>=0.163.1
 uvicorn[standard]>=0.30
 sqlalchemy>=2.0
 psycopg[binary]>=3.2   # pilote Postgres (base Neon en production)
