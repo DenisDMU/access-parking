@@ -390,6 +390,18 @@ diffusion est loggé mais ne bloque jamais la décision d'accès :
   l'historique git de `rabbitmq_event_publisher.py` pour un exemple de
   déclaration active si besoin.
 
+**Simuler des événements pour les autres services** :
+[`scripts/simulate_bus_events.py`](scripts/simulate_bus_events.py) publie à
+intervalles réguliers des entrées (`access.entry`) et sorties
+(`access.exit`) au format exact d'Access, sans passer par la borne ni
+appeler Parking/Pricing/Payment. Ils sont marqués comme simulés
+(`vehicleId` en `sim-…`, `payload.simulated = true`, `app_id =
+access-simulator`). `listen_event_bus.py` permet de vérifier la réception.
+
+```bash
+RABBITMQ_URL=amqps://… python scripts/simulate_bus_events.py --interval 30
+```
+
 Dans les deux cas, `GET /access/events` reste disponible pour relire les
 événements journalisés côté Access (utile même avec RabbitMQ, pour du debug
 local sans ouvrir l'interface de gestion).
