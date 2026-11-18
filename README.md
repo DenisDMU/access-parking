@@ -20,7 +20,7 @@
 | | |
 |---|---|
 | **Rôle** | Décide si un véhicule peut entrer/sortir du parking et coordonne les échanges avec Vehicles, Booking, Parking, Pricing, Payment (aucune donnée métier des autres services). |
-| **Version actuelle** | `3.2.0` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
+| **Version actuelle** | `3.3.0` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
 | **Dernière mise à jour** | 18 novembre 2026 (jalons 8 à 15 : UI, qualité, revue, traçabilité, observabilité, CI/CD, sécurité) |
 | **URL du service déployé** | https://access-api-a1u7.onrender.com |
 | **Documentation Swagger/OpenAPI** | https://access-api-a1u7.onrender.com/docs (ReDoc : `/redoc`, spec brute : `/openapi.json`) |
@@ -64,11 +64,11 @@
 | **API** | ✅ REST documentée (`/docs`), entrées/sorties validées, erreurs normalisées, `/health` | [section 11](#11-endpoints) |
 | **Intégration** | ✅ Vehicles, Parking, Pricing, Payment réels (REST) ; événements publiés sur RabbitMQ (bus d'équipe) · ⏳ Booking encore mocké | [section 5](#5-brancher-un-vrai-microservice-à-la-place-dun-mock), [section 6](#6-publication-dévénements--webhook-ou-rabbitmq) |
 | **UI** | ✅ Dashboard servi par Access : borne d'entrée/sortie, état du parking (présences, décisions, santé), journal d'événements, recherche | [section 12](#12-borne-et-journal-de-bord-dashboard) |
-| **Qualité** | ✅ 168 tests (unitaires + intégration), entrées invalides et cas limites couverts, `ruff` (lint + format), script de vérification reproductible | [section 9](#9-tests-et-qualité) |
+| **Qualité** | ✅ 170 tests (unitaires + intégration), entrées invalides et cas limites couverts, `ruff` (lint + format), script de vérification reproductible | [section 9](#9-tests-et-qualité) |
 | **Observabilité** | ✅ Correlation ID propagé à tous les services et événements, logs par décision, `/metrics` Prometheus (techniques + métier + intégration), config Prometheus fournie, `/health` avec version et commit | [section 9](#métriques-prometheus) |
 | **CI/CD et déploiement** | ✅ GitHub Actions (lint → tests → bandit → pip-audit → gitleaks), déploiement Render après CI verte, smoke test de l'instance déployée (version vérifiée), CHANGELOG, Dependabot | [section 9](#intégration-continue-cicd), [section 14](#14-déploiement-sur-render) |
 | **Sécurité** | ✅ Clé API (comparaison en temps constant) sur toutes les routes sauf `/health`, refus de démarrer en production avec une clé faible, validation stricte, erreurs sans stack trace, en-têtes de sécurité, CORS restreint, rate limiting, secrets hors Git, jamais de plaque | [section 10](#10-sécurité) |
-| **Version** | `3.2.0` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
+| **Version** | `3.3.0` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
 | **Dernière mise à jour** | 18 novembre 2026 | |
 
 ### Suivi des jalons
@@ -462,7 +462,7 @@ pytest tests/integration    # endpoints via TestClient FastAPI (SQLite en mémoi
 pytest -v            # détail de chaque cas
 ```
 
-Couverture (168 tests) :
+Couverture (170 tests) :
 
 - **Unitaires** — matrice complète de la règle de compatibilité
   véhicule/place, règle de présence, règle d'accessibilité ; chaque use case
@@ -502,7 +502,7 @@ précédente, `needs:` dans le workflow) et doivent **tous** passer — si une
 | Job | Outil | Ce qu'il vérifie |
 |---|---|---|
 | Lint | `ruff` | Erreurs, imports, bugs probables, règles de sécurité, **formatage homogène** (config : `ruff.toml`) |
-| Tests | `pytest` | Les 168 tests unitaires + intégration, sans aucun secret |
+| Tests | `pytest` | Les 170 tests unitaires + intégration, sans aucun secret |
 | Sécurité du code | `bandit` | Analyse statique (SAST) : injections, appels dangereux, secrets en dur… |
 | Dépendances | `pip-audit` | Vulnérabilités connues (CVE) dans `requirements.txt` |
 | Secrets | `gitleaks` | Aucun secret (clé API, URL CloudAMQP…) dans tout l'historique git |
@@ -752,11 +752,16 @@ Renseignez votre `X-API-Key` dans le champ prévu (stockée uniquement dans le
 - **Recherche** : une demande par `requestId`, l'historique d'un
   `vehicleId`, ou d'un code véhicule (résolu d'abord en `vehicleId`).
 
-Interface au style Apple : effet de verre dépoli (`backdrop-filter`) sur un
-fond de halos colorés, contrôle segmenté pour les onglets, typographie
-système, badges en français (« Autorisé », « Refusé », « À confirmer »),
-mode clair/sombre automatique, animations désactivées si le système le
-demande (`prefers-reduced-motion`). Aucune ressource externe.
+**Design** : thème [Catppuccin](https://catppuccin.com) — **Latte** (clair)
+par défaut, **Mocha** (sombre) en un clic, choix mémorisé dans le navigateur ;
+police **MesloLGS NF** embarquée (`static/fonts/`, sous-ensemble latin de
+15 Ko par graisse, licence Apache 2.0) ; surfaces en verre dépoli
+(`backdrop-filter`) sur des halos aux couleurs du thème. La borne affiche une
+barrière animée (levée, fermée, en attente), le journal se filtre par type
+d'événement, les listes ne se redessinent que si les données changent, et le
+rafraîchissement se met en pause quand l'onglet du navigateur est en
+arrière-plan. Aucune ressource externe ; animations désactivées avec
+`prefers-reduced-motion`.
 
 Testé dans Chrome (clair, sombre, mobile 390 px) : entrée puis sortie payée
 de bout en bout avec Pricing et Payment réels. L'onglet « État du parking »

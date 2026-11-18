@@ -14,3 +14,21 @@ def test_dashboard_served_with_borne_tab(client):
     # journal, recherche
     for tab in ('id="tab-borne"', 'id="tab-state"', 'id="tab-journal"', 'id="tab-search"'):
         assert tab in response.text
+
+
+def test_dashboard_embarque_theme_et_police(client):
+    html = client.get("/static/dashboard.html").text
+    # Thèmes Catppuccin (Latte par défaut, Mocha au choix) et police Meslo
+    assert 'data-theme="latte"' in html
+    assert '[data-theme="mocha"]' in html
+    assert "MesloLGS NF" in html
+    # Aucune ressource externe : tout est servi par Access lui-même
+    assert "https://" not in html.replace("http://www.w3.org/2000/svg", "")
+
+
+def test_police_servie_par_access(client):
+    for weight in ("Regular", "Bold"):
+        response = client.get(f"/static/fonts/MesloLGS-NF-{weight}.woff2")
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "font/woff2"
+        assert response.content[:4] == b"wOF2"
