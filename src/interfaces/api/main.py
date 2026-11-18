@@ -13,6 +13,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Request, status
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -26,9 +27,10 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from src import __version__
 from src.infrastructure.config import get_settings
 from src.infrastructure.db.session import init_db
-from src.infrastructure.logging_config import configure_logging
+from src.infrastructure.logging_config import configure_logging, get_correlation_id
 from src.infrastructure.security.api_key_auth import verify_api_key
 from src.interfaces.api import deps
+from src.interfaces.api.middleware import CORRELATION_HEADER, correlation_id_middleware
 from src.interfaces.api.rate_limit import limiter
 from src.interfaces.api.routers import access_router, events_router, health_router
 
@@ -56,8 +58,8 @@ app = FastAPI(
         "Access décide si un véhicule peut entrer ou sortir du parking et "
         "coordonne les échanges nécessaires avec Vehicles, Booking, Parking, "
         "Pricing et Payment. Il ne possède pas les données métier de ces "
-        "services et ne stocke/publie/renvoie jamais la plaque brute d'un "
-        "véhicule — uniquement un identifiant pseudonymisé (`vehiculeId`)."
+        "services et ne reçoit jamais la plaque d'un véhicule : uniquement son "
+        "code Vehicles, résolu en identifiant pseudonymisé (`vehicleId`)."
     ),
     version=__version__,
     lifespan=lifespan,
@@ -82,8 +84,13 @@ app.add_middleware(
     allow_origins=settings.cors_allowed_origins,
     allow_credentials=False,
     allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type", "X-API-Key"],
+    allow_headers=["Content-Type", "X-API-Key", CORRELATION_HEADER],
+    expose_headers=[CORRELATION_HEADER],
 )
+
+# Correlation ID + log d'accès (voir middleware.py). Ajouté en dernier =
+# middleware le plus externe : même une réponse CORS ou 429 porte le cid.
+app.middleware("http")(correlation_id_middleware)
 
 
 @app.exception_handler(StarletteHTTPException)
@@ -95,19 +102,28 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
 async def validation_exception_handler(
     request: Request, exc: RequestValidationError
 ) -> JSONResponse:
+    # jsonable_encoder : certaines erreurs Pydantic embarquent un objet
+    # exception dans `ctx`, non sérialisable tel quel (sinon 500 au lieu de 422).
+    logger.info(
+        "Requête invalide sur %s : %d erreur(s) de validation", request.url.path, len(exc.errors())
+    )
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-        content={"detail": exc.errors()},
+        content={"detail": jsonable_encoder(exc.errors())},
     )
 
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     # Aucune stack trace n'est jamais renvoyée au client (section 11).
-    logger.exception("Erreur interne non gérée")
+    # Le correlation ID est renvoyé au client : il permet de retrouver la
+    # ligne de log détaillée sans rien exposer de l'erreur elle-même.
+    logger.exception("Erreur interne non gérée sur %s %s", request.method, request.url.path)
+    correlation_id = get_correlation_id()
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"detail": "Erreur interne du serveur"},
+        content={"detail": "Erreur interne du serveur", "correlationId": correlation_id},
+        headers={CORRELATION_HEADER: correlation_id},
     )
 
 

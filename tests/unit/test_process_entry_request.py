@@ -45,7 +45,7 @@ def make_use_case(vehicles_port, booking_port=None, parking_port=None, presence_
 def test_entry_authorized_without_reservation_with_parking_assignment():
     vehicles = FakeVehiclesPort(
         {
-            "AA-111-AA": VehicleInfo(
+            1: VehicleInfo(
                 vehicle_id="v1", vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER)
             )
         }
@@ -53,20 +53,20 @@ def test_entry_authorized_without_reservation_with_parking_assignment():
     parking = FakeParkingPort()
     use_case = make_use_case(vehicles, parking_port=parking)
 
-    decision = use_case.execute("AA-111-AA", NOW, DetectionSource.LPR)
+    decision = use_case.execute(1, NOW, DetectionSource.LPR)
 
     assert decision.result is AuthorizationResult.AUTHORIZED
     assert decision.vehicle_id == "v1"
     assert decision.status is RequestStatus.PROCESSED
     assert "P-TEST-1" in parking.occupied
     # La plaque brute n'a été utilisée qu'une seule fois par le use case.
-    assert vehicles.calls == ["AA-111-AA"]
+    assert vehicles.calls == [1]
 
 
 def test_entry_authorized_with_existing_reservation():
     vehicles = FakeVehiclesPort(
         {
-            "GG-777-GG": VehicleInfo(
+            7: VehicleInfo(
                 vehicle_id="v_res", vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER)
             )
         }
@@ -83,7 +83,7 @@ def test_entry_authorized_with_existing_reservation():
     parking = FakeParkingPort()
     use_case = make_use_case(vehicles, booking_port=booking, parking_port=parking)
 
-    decision = use_case.execute("GG-777-GG", NOW, DetectionSource.MOBILE_APP)
+    decision = use_case.execute(7, NOW, DetectionSource.MOBILE_APP)
 
     assert decision.result is AuthorizationResult.AUTHORIZED
     assert parking.occupied == {"P-RES-1": "v_res"}
@@ -92,7 +92,7 @@ def test_entry_authorized_with_existing_reservation():
 def test_entry_refused_vehicle_already_present():
     vehicles = FakeVehiclesPort(
         {
-            "AA-111-AA": VehicleInfo(
+            1: VehicleInfo(
                 vehicle_id="v1", vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER)
             )
         }
@@ -101,7 +101,7 @@ def test_entry_refused_vehicle_already_present():
     presence.seed("v1", PresenceStatus.IN, request_id="previous-request")
     use_case = make_use_case(vehicles, presence_repo=presence)
 
-    decision = use_case.execute("AA-111-AA", NOW, DetectionSource.CAMERA)
+    decision = use_case.execute(1, NOW, DetectionSource.CAMERA)
 
     assert decision.result is AuthorizationResult.REFUSED
     assert "déjà présent" in decision.reason
@@ -110,7 +110,7 @@ def test_entry_refused_vehicle_already_present():
 def test_entry_refused_incompatible_vehicle_type_for_place():
     vehicles = FakeVehiclesPort(
         {
-            "AA-111-AA": VehicleInfo(
+            1: VehicleInfo(
                 vehicle_id="v1", vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER)
             )
         }
@@ -123,7 +123,7 @@ def test_entry_refused_incompatible_vehicle_type_for_place():
     )
     use_case = make_use_case(vehicles, parking_port=parking)
 
-    decision = use_case.execute("AA-111-AA", NOW, DetectionSource.TERMINAL)
+    decision = use_case.execute(1, NOW, DetectionSource.TERMINAL)
 
     assert decision.result is AuthorizationResult.REFUSED
     assert decision.vehicle_type_check_ok is False
@@ -133,7 +133,7 @@ def test_entry_refused_incompatible_vehicle_type_for_place():
 def test_entry_confirmation_required_disabled_without_permit():
     vehicles = FakeVehiclesPort(
         {
-            "FF-666-FF": VehicleInfo(
+            6: VehicleInfo(
                 vehicle_id="v_disabled",
                 vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER, is_handicap=True),
                 disability_permit=False,
@@ -148,7 +148,7 @@ def test_entry_confirmation_required_disabled_without_permit():
     )
     use_case = make_use_case(vehicles, parking_port=parking)
 
-    decision = use_case.execute("FF-666-FF", NOW, DetectionSource.LPR)
+    decision = use_case.execute(6, NOW, DetectionSource.LPR)
 
     assert decision.result is AuthorizationResult.CONFIRMATION_REQUIRED
     assert decision.disability_check_ok is False
@@ -159,7 +159,7 @@ def test_entry_confirmation_required_disabled_without_permit():
 def test_entry_with_disability_permit_is_authorized():
     vehicles = FakeVehiclesPort(
         {
-            "EE-555-EE": VehicleInfo(
+            5: VehicleInfo(
                 vehicle_id="v_disabled_ok",
                 vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER, is_handicap=True),
                 disability_permit=True,
@@ -174,13 +174,13 @@ def test_entry_with_disability_permit_is_authorized():
     )
     use_case = make_use_case(vehicles, parking_port=parking)
 
-    decision = use_case.execute("EE-555-EE", NOW, DetectionSource.LPR)
+    decision = use_case.execute(5, NOW, DetectionSource.LPR)
 
     assert decision.result is AuthorizationResult.AUTHORIZED
     assert decision.disability_check_ok is True
 
 
-def test_entry_unknown_vehicle_is_rejected_without_plate_persisted():
+def test_entry_unknown_vehicle_is_rejected():
     vehicles = FakeVehiclesPort({})
     access_repo = FakeAccessRepo()
     use_case = ProcessEntryRequest(
@@ -193,13 +193,10 @@ def test_entry_unknown_vehicle_is_rejected_without_plate_persisted():
         ai_vision_port=FakeAIVisionPort(),
     )
 
-    decision = use_case.execute("UN-000-KN", NOW, DetectionSource.CAMERA)
+    decision = use_case.execute(999, NOW, DetectionSource.CAMERA)
 
     assert decision.vehicle_id is None
     assert decision.status is RequestStatus.REJECTED
     assert decision.result is AuthorizationResult.CONFIRMATION_REQUIRED
-    # Aucune donnée persistée ne doit référencer la plaque brute.
     request = access_repo.requests[decision.request_id]
     assert request.vehicle_id is None
-    for event in access_repo.events.values():
-        assert "UN-000-KN" not in str(event.payload)

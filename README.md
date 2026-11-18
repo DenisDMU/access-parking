@@ -3,8 +3,8 @@
 > Décide si un véhicule peut **entrer** ou **sortir** du parking et coordonne les
 > échanges nécessaires avec les services **Vehicles**, **Booking**, **Parking**,
 > **Pricing** et **Payment**. Fait partie du projet fil rouge "Gestion d'un
-> parking" (voir `.claude/access-microservice-spec.md` pour la spécification
-> complète, et `.claude/consignes.md` pour le contexte du projet global).
+> parking" ; la référence fonctionnelle est le document commun « Règles
+> métier » du projet.
 
 > **Convention de nommage** : tous les identifiants de code (classes, champs,
 > colonnes SQL, clés JSON de l'API) sont en **anglais**. Les *messages*
@@ -20,15 +20,16 @@
 | | |
 |---|---|
 | **Rôle** | Décide si un véhicule peut entrer/sortir du parking et coordonne les échanges avec Vehicles, Booking, Parking, Pricing, Payment (aucune donnée métier des autres services). |
-| **Version actuelle** | `2.2.0` — la version et le SHA du commit déployé sont exposés par `GET /health` |
+| **Version actuelle** | `3.1.0` — la version et le SHA du commit déployé sont exposés par `GET /health` |
+| **Dernière mise à jour** | 18 novembre 2026 (jalons 8 « UI » et 9 « Qualité et fiabilité ») |
 | **URL du service déployé** | https://access-api-a1u7.onrender.com |
 | **Documentation Swagger/OpenAPI** | https://access-api-a1u7.onrender.com/docs (ReDoc : `/redoc`, spec brute : `/openapi.json`) |
-| **Dépendances (services appelés)** | Vehicles *(mocké)*, Booking *(mocké)*, **Parking** *(réel)*, **Pricing** *(réel)*, **Payment** *(réel)* |
-| **Tester le service** | Collection Postman `postman/Access-Render.postman_collection.json` + environnement `Access — Render` (clé dans l'en-tête `X-API-Key`) — voir [section 13](#13-postman). Sans clé : `GET /health`. |
+| **Dépendances (services appelés)** | **Vehicles** *(réel)*, Booking *(mocké)*, **Parking** *(réel)*, **Pricing** *(réel)*, **Payment** *(réel)* |
+| **Tester le service** | Dashboard `/` (borne + état du parking), script reproductible [`scripts/smoke_test.sh`](scripts/smoke_test.sh) (voir [section 9](#9-tests-et-qualité)), Swagger `/docs`. Sans clé : `GET /health`. |
 
 ### Fonctionnalités
 
-- [x] Résoudre une plaque en identifiant pseudonymisé, sans jamais la stocker/logger/renvoyer.
+- [x] Identifier un véhicule par son code Vehicles, sans jamais recevoir sa plaque (seul l'identifiant pseudonymisé circule).
 - [x] Autoriser l'entrée d'un véhicule sans réservation (place attribuée automatiquement).
 - [x] Autoriser l'entrée d'un véhicule avec réservation active.
 - [x] Refuser l'entrée d'un véhicule déjà présent.
@@ -39,17 +40,47 @@
 - [x] Publier un événement (webhook ou RabbitMQ) à chaque entrée/sortie/refus.
 - [x] Lister/consulter l'historique des demandes et des événements publiés (audit).
 - [x] Simuler une borne d'entrée/sortie depuis le dashboard (décision, montant et paiement en direct).
+- [x] Voir l'état du parking vu par Access : véhicules présents, dernières décisions, santé et version du service (dashboard + `GET /access/presences`).
+- [x] Refuser une sortie datée avant l'entrée (cas limite, jamais transmis à Pricing/Payment).
+- [x] Tracer chaque requête dans les logs par un correlation ID (`X-Correlation-ID`, reçu ou généré, renvoyé dans la réponse).
 - [x] Protéger toutes les routes (sauf `/health`) par clé API.
 - [x] Exposer la version et le commit déployés (`/health`) et des métriques d'exploitation (`/metrics`).
-- [ ] Résoudre un véhicule via le vrai service **Vehicles**.
 - [ ] Vérifier une réservation via le vrai service **Booking**.
+- [x] Résoudre un véhicule via le vrai service **Vehicles** (`GET /api/vehicles/{code}`).
 - [x] Attribuer/occuper/libérer une place via le vrai service **Parking**.
 - [x] Calculer un prix via le vrai service **Pricing**.
 - [x] Exécuter un paiement via le vrai service **Payment** (idempotent : rejouer une sortie ne débite jamais deux fois).
 
-> Une case n'est cochée que si le comportement est réellement vérifié —
-> montants Pricing et compteurs Parking réels confirmés dans `JOURNAL.md`
-> et `reponse.md`.
+> Une case n'est cochée que si le comportement est réellement vérifié
+> (tests automatisés, et pour les services réels : passages de bout en bout
+> depuis la borne du dashboard contre les services déployés de l'équipe).
+
+### Tableau de suivi (axes de maturité)
+
+| Axe | État | Ce qui le prouve |
+|---|---|---|
+| **Métier** | ✅ Entrée (avec/sans réservation), sortie payée, refus (présence, compatibilité, paiement, date incohérente), confirmation PMR / véhicule inconnu | Règles pures dans `src/domain/rules/`, use cases `ProcessEntryRequest` / `ProcessExitRequest`, tests unitaires |
+| **API** | ✅ REST documentée (`/docs`), entrées/sorties validées, erreurs normalisées, `/health` | [section 11](#11-endpoints) |
+| **Intégration** | ✅ Vehicles, Parking, Pricing, Payment réels (REST) ; événements publiés sur RabbitMQ (bus d'équipe) · ⏳ Booking encore mocké | [section 5](#5-brancher-un-vrai-microservice-à-la-place-dun-mock), [section 6](#6-publication-dévénements--webhook-ou-rabbitmq) |
+| **UI** | ✅ Dashboard servi par Access : borne d'entrée/sortie, état du parking (présences, décisions, santé), journal d'événements, recherche | [section 12](#12-borne-et-journal-de-bord-dashboard) |
+| **Qualité** | ✅ 152 tests (unitaires + intégration), entrées invalides et cas limites couverts, `ruff` (lint + format), script de vérification reproductible | [section 9](#9-tests-et-qualité) |
+| **Observabilité** | ✅ Logs avec correlation ID (une ligne par décision métier + log d'accès), `/metrics` Prometheus (requêtes, latences, codes), `/health` avec version et commit · ⏳ métriques métier et propagation du correlation ID aux autres services (jalons 12-13) | [section 9](#9-tests-et-qualité) |
+| **CI/CD et déploiement** | ✅ GitHub Actions (lint → tests → bandit → pip-audit → gitleaks), déploiement Render après CI verte, Dependabot | [section 9](#intégration-continue-cicd), [section 14](#14-déploiement-sur-render) |
+| **Sécurité** | ✅ Clé API sur toutes les routes sauf `/health`, validation stricte, erreurs sans stack trace, CORS restreint, rate limiting, secrets hors Git, jamais de plaque | [section 10](#10-sécurité) |
+| **Version** | `3.1.0` (`src/__init__.py`, exposée par `/health` et `/docs`) | |
+| **Dernière mise à jour** | 18 novembre 2026 | |
+
+### Suivi des jalons
+
+| Jalon | Date | État |
+|---|---|---|
+| 5 — Structuration du rendu | 3 septembre | ✅ README, fiche d'identité, axes de maturité, version, date |
+| 6 — MVP métier et API | 22 octobre | ✅ Workflows entrée/sortie, API documentée, `/health` |
+| 7 — Première intégration | 28 octobre | ✅ Pricing, Parking, Payment puis Vehicles branchés en réel |
+| 8 — UI de démonstration et d'exploitation | 18 novembre (matin) | ✅ Onglet « État du parking » ajouté (objets métier, état, opérations, résultats) |
+| 9 — Qualité et fiabilité | 18 novembre (après-midi) | ✅ Validation renforcée, cas limites, logs avec correlation ID, smoke test |
+| 12-13 — Traçabilité, observabilité | 25 novembre | 🟡 Correlation ID déjà généré/loggé/renvoyé ; reste la propagation vers les services appelés et les métriques métier |
+| 14-15 — CI/CD, sécurité | 27 novembre | 🟡 Déjà en place (voir axes ci-dessus), à revoir avec l'enseignant |
 
 ---
 
@@ -63,7 +94,7 @@
 6. [Publication d'événements : webhook ou RabbitMQ](#6-publication-dévénements--webhook-ou-rabbitmq)
 7. [Ajouter une règle métier](#7-ajouter-une-règle-métier)
 8. [Enums (tables de correspondance)](#8-enums-tables-de-correspondance)
-9. [Tests](#9-tests)
+9. [Tests et qualité](#9-tests-et-qualité)
 10. [Sécurité](#10-sécurité)
 11. [Endpoints](#11-endpoints)
 12. [Borne et journal de bord (dashboard)](#12-borne-et-journal-de-bord-dashboard)
@@ -79,8 +110,8 @@
 Access est le **point central** du workflow d'entrée/sortie du parking. Il ne
 possède **aucune donnée métier des autres services** (identité véhicule,
 réservations, disponibilité des places, tarifs, transactions) : il les
-interroge via 5 ports dédiés (Parking, Pricing et Payment réels, Vehicles
-et Booking encore mockés) et ne conserve en propre
+interroge via 5 ports dédiés (Vehicles, Parking, Pricing et Payment réels,
+Booking encore mocké) et ne conserve en propre
 que ses propres objets métier (`AccessRequest`, `AccessAuthorization`,
 `AccessEvent`) plus un cache technique de présence (`vehicle_presence`).
 
@@ -94,9 +125,9 @@ sequenceDiagram
     participant Pr as Pricing
     participant Pa as Payment
 
-    V->>A: Entrée (plaque brute)
-    A->>Ve: get_vehicle_info(plate)
-    Ve-->>A: vehicleId (pseudonymisé) + attributs
+    V->>A: Entrée (code véhicule)
+    A->>Ve: GET /api/vehicles/{code}
+    Ve-->>A: pseudoId (= vehicleId) + attributs
     A->>B: get_reservation(vehicleId)
     alt pas de réservation
         A->>P: request_place(vehicleType)
@@ -104,8 +135,8 @@ sequenceDiagram
     A-->>V: Autorisation (AUTHORIZED / REFUSED / CONFIRMATION_REQUIRED)
     A--)A: Publie VEHICLE_ENTERED / ACCESS_REFUSED
 
-    V->>A: Sortie (plaque brute)
-    A->>Ve: get_vehicle_info(plate)
+    V->>A: Sortie (code véhicule)
+    A->>Ve: GET /api/vehicles/{code}
     A->>Pr: calculate_price(...)
     Pr-->>A: amount
     A->>Pa: POST /payments (clé d'idempotence = stationnement)
@@ -117,12 +148,14 @@ sequenceDiagram
     A--)A: Publie VEHICLE_EXITED / ACCESS_REFUSED
 ```
 
-**Règle absolue (RGPD) : la plaque brute n'est utilisée qu'à un seul endroit**
-de toute la codebase — l'appel `VehiclesServicePort.get_vehicle_info(plate)`
-depuis les use cases `ProcessEntryRequest` / `ProcessExitRequest` /
-`CheckPlateKnown`. Elle n'est **jamais** persistée, publiée dans un événement,
-renvoyée par l'API, ni écrite dans un log (un filtre de logging redonde même
-cette garantie en profondeur, voir [section 10](#10-sécurité)).
+**Règle absolue (RGPD) : Access ne voit jamais la plaque.** C'est Vehicles
+qui identifie la plaque et lui associe un `code` ; Access reçoit uniquement
+ce code et consulte la donnée anonymisée correspondante
+(`VehiclesServicePort.get_vehicle_info(vehicle_code)`, depuis
+`ProcessEntryRequest` / `ProcessExitRequest` / `CheckVehicleKnown`). Seul le
+`pseudoId` renvoyé par Vehicles (le `vehicleId`) est persisté, publié et
+renvoyé. Un filtre de logging masque en plus toute sous-chaîne au format
+plaque, en défense en profondeur (voir [section 10](#10-sécurité)).
 
 ---
 
@@ -164,21 +197,14 @@ Toutes les autres routes exigent l'en-tête `X-API-Key` (valeur de `API_KEY`
 dans `.env`, `change-me` par défaut). Dans Swagger, cliquez sur **Authorize**
 et collez la clé.
 
-Un registre de plaques de démonstration est câblé dans le mock Vehicles pour
-exercer chaque cas manuellement — détail dans
-[`mock_vehicles_client.py`](src/infrastructure/external/mock_vehicles_client.py) :
-
-| Plaque       | vehicleId              | Profil                                                       |
-|--------------|--------------------------|---------------------------------------------------------------|
-| `AA-111-AA`  | `v_standard_4wheeler`    | 4 roues standard                                               |
-| `BB-222-BB`  | `v_2wheeler`             | 2 roues                                                        |
-| `CC-333-CC`  | `v_xl`                   | 4 roues XL                                                     |
-| `DD-444-DD`  | `v_electric`             | 4 roues électrique                                             |
-| `EE-555-EE`  | `v_disabled_ok`          | 4 roues handicapé, **avec** justificatif d'accessibilité       |
-| `FF-666-FF`  | `v_disabled_no_permit`   | 4 roues handicapé, **sans** justificatif (→ confirmation)      |
-| `GG-777-GG`  | `v_with_reservation`     | 4 roues standard, **a une réservation active** (Booking)       |
-| `HH-888-HH`  | `v_payment_fail`         | 4 roues standard (profil historique : Payment est désormais réel, un refus n'arrive qu'aléatoirement, ~5 %) |
-| toute autre  | —                        | inconnue de Vehicles (→ rejet)                                 |
+Les véhicules sont ceux du vrai service Vehicles : pour tester un passage,
+enregistrez d'abord un véhicule chez Vehicles (`POST /api/vehicles/identify`,
+voir son [Swagger](https://parking-vehicles.onrender.com/swagger-ui/index.html)),
+puis utilisez le `code` choisi dans les demandes d'Access. Un code inconnu de
+Vehicles donne un rejet "véhicule inconnu". Les tests automatisés utilisent
+un registre déterministe de codes 1 à 8 (`DEMO_VEHICLES`, dans
+[`tests/unit/fakes.py`](tests/unit/fakes.py)) qui couvre chaque profil
+(2 roues, XL, électrique, PMR avec/sans justificatif, réservation...).
 
 ---
 
@@ -198,7 +224,7 @@ src/
 │
 ├── infrastructure/     # Implémentations concrètes des ports
 │   ├── db/              # SQLAlchemy : modèles, session, repositories SQLite
-│   ├── external/        # Mocks + squelettes HTTP (5 services) + OutboxEventPublisher/
+│   ├── external/        # Clients HTTP (5 services, mock Booking) + OutboxEventPublisher/
 │   │                      # RabbitMQEventPublisher (publication d'événements — aussi des
 │   │                      # appels vers l'extérieur, donc regroupés ici plutôt qu'à part)
 │   ├── ai/              # Adaptateur LPR/vision fake déterministe
@@ -284,33 +310,32 @@ aucune route, aucun schéma n'a changé.
 
 ## 5. Brancher un vrai microservice à la place d'un mock
 
-Chaque service externe a sa **propre bascule mock/réel**
+Chaque service externe a eu sa **propre bascule mock/réel**
 (`VEHICLES_USE_MOCK`, `BOOKING_USE_MOCK`, `PARKING_USE_MOCK`,
-`PRICING_USE_MOCK`, `PAYMENT_USE_MOCK` — les trois dernières ont disparu
-depuis que ces services sont branchés en réel) — `USE_MOCKS` reste la valeur par
+`PRICING_USE_MOCK`, `PAYMENT_USE_MOCK` — seule `BOOKING_USE_MOCK` subsiste,
+les autres ont disparu depuis que ces services sont branchés en réel) — `USE_MOCKS` reste la valeur par
 défaut globale tant qu'aucune bascule individuelle n'est définie. **C'est
 volontaire** : vos camarades finissent leur service chacun à son rythme, pas
 question d'attendre que les 5 soient prêts pour en brancher un premier. Les
 5 squelettes HTTP existent déjà (`infrastructure/external/http_*_client.py`),
 chacun avec des `TODO` explicites listant ce qui reste à confirmer avec
 l'équipe du service concerné (route exacte, méthode HTTP, noms de champs
-JSON, codes d'erreur). Pour finaliser Vehicles par exemple :
+JSON, codes d'erreur). Pour finaliser Booking, le dernier service mocké :
 
-1. Ouvrez `src/infrastructure/external/http_vehicles_client.py` et traitez
-   chaque `TODO[VEHICLES-*]` avec la vraie spec de l'équipe Vehicles (route,
-   méthode, champs de réponse, code "inconnu").
-2. Renseignez `VEHICLES_SERVICE_URL` (son URL réelle) et ajoutez
-   `VEHICLES_USE_MOCK=false` — dans `.env` en local, ou dans **Render →
+1. Ouvrez `src/infrastructure/external/http_booking_client.py` et traitez
+   chaque `TODO[BOOKING-*]` avec la vraie spec de l'équipe Booking (route,
+   méthode, champs de réponse, code "pas de réservation").
+2. Renseignez `BOOKING_SERVICE_URL` (son URL réelle) et ajoutez
+   `BOOKING_USE_MOCK=false` — dans `.env` en local, ou dans **Render →
    access-api → Environment** pour la version déployée.
-3. C'est tout — `deps.py::get_vehicles_port()` bascule automatiquement sur
-   `HttpVehiclesClient` dès que `VEHICLES_USE_MOCK=false`, **sans toucher au
-   `USE_MOCKS` global** ni aux 4 autres services qui restent mockés en
-   attendant.
+3. C'est tout — `deps.py::get_booking_port()` bascule automatiquement sur
+   `HttpBookingClient` dès que `BOOKING_USE_MOCK=false`, **sans toucher au
+   `USE_MOCKS` global**.
 
 > ⚠️ **CORS n'a rien à voir avec ce branchement.** `CORS_ALLOWED_ORIGINS`
 > ne concerne que du JavaScript exécuté **dans un navigateur** qui
 > appellerait l'API Access depuis un autre domaine — pas les appels
-> serveur-à-serveur (Access → Vehicles via `httpx`, ou l'inverse). Rien à
+> serveur-à-serveur (Access → Booking via `httpx`, ou l'inverse). Rien à
 > configurer côté CORS pour brancher un microservice de l'équipe.
 
 **Aucune autre couche à toucher** : ni `domain`, ni `application`, ni les
@@ -321,7 +346,7 @@ même fichier `deps.py`) — chaque squelette liste ses propres `TODO` :
 
 | Service  | Fichier squelette                      | Points ouverts principaux |
 |----------|------------------------------------------|----------------------------|
-| Vehicles | `http_vehicles_client.py`  | Route/méthode, code "inconnu", noms de champs |
+| **Vehicles** | `http_vehicles_client.py` | **✅ Branché** (`GET /api/vehicles/{code}`) — `pseudoId` devient le `vehicleId`, `disabled` vaut type PMR **et** justificatif, toute réponse non-200 = véhicule inconnu, voir section 16 |
 | Booking  | `http_booking_client.py`   | Route/méthode, code "pas de réservation", `placeId` déjà assigné ou non |
 | **Parking** | `http_parking_client.py` | **✅ Branché** (`hold`/`confirm_entry`/`free`, catégories STANDARD/XL/ELECTRIC/HANDICAPPED/TWO_WHEELS) — pas de `placeId` réel, encodage synthétique `"CATEGORIE:walkin\|booking"`, voir section 16 |
 | **Pricing** | `http_pricing_client.py` | **✅ Branché** (`PRICING_USE_MOCK=false`) contre le vrai service (`POST /quote`) — mapping `PlaceType → zone` et arrondi de durée pour les réservations restent des hypothèses documentées dans le fichier, voir aussi section 16 |
@@ -364,6 +389,18 @@ diffusion est loggé mais ne bloque jamais la décision d'accès :
   `passive=True`) puisqu'il n'existera pas encore localement ; voir
   l'historique git de `rabbitmq_event_publisher.py` pour un exemple de
   déclaration active si besoin.
+
+**Simuler des événements pour les autres services** :
+[`scripts/simulate_bus_events.py`](scripts/simulate_bus_events.py) publie à
+intervalles réguliers des entrées (`access.entry`) et sorties
+(`access.exit`) au format exact d'Access, sans passer par la borne ni
+appeler Parking/Pricing/Payment. Ils sont marqués comme simulés
+(`vehicleId` en `sim-…`, `payload.simulated = true`, `app_id =
+access-simulator`). `listen_event_bus.py` permet de vérifier la réception.
+
+```bash
+RABBITMQ_URL=amqps://… python scripts/simulate_bus_events.py --interval 30
+```
 
 Dans les deux cas, `GET /access/events` reste disponible pour relire les
 événements journalisés côté Access (utile même avec RabbitMQ, pour du debug
@@ -410,7 +447,7 @@ au cas "véhicule inconnu de Vehicles")
 
 ---
 
-## 9. Tests
+## 9. Tests et qualité
 
 ```bash
 source .venv/bin/activate
@@ -420,23 +457,30 @@ pytest tests/integration    # endpoints via TestClient FastAPI (SQLite en mémoi
 pytest -v            # détail de chaque cas
 ```
 
-Couverture (110 tests) :
+Couverture (152 tests) :
 
 - **Unitaires** — matrice complète de la règle de compatibilité
   véhicule/place, règle de présence, règle d'accessibilité ; chaque use case
   (`ProcessEntryRequest`, `ProcessExitRequest`) avec tous les ports mockés ;
   comportement best-effort de `RabbitMQEventPublisher` (broker injoignable) ;
-  client Payment contre un faux serveur (`httpx.MockTransport`) : contrat
-  du payload, polling, refus définitif, rejeu idempotent, délai dépassé,
-  erreurs serveur.
+  clients Payment et Vehicles contre un faux serveur (`httpx.MockTransport`) :
+  contrat du payload, polling, refus définitif, rejeu idempotent, délai
+  dépassé, erreurs serveur ; mapping de la réponse Vehicles, code inconnu
+  (500/404), panne réseau, réponse inattendue ; règle `stay_rule` (sortie
+  avant l'entrée) ; vue des véhicules présents (`ListPresentVehicles`).
 - **Intégration** — entrée autorisée (sans/avec réservation), entrée refusée
   (déjà présent, type incompatible), entrée en confirmation requise
   (accessibilité), entrée rejetée (véhicule inconnu), sortie autorisée,
   sortie refusée (paiement échoué, véhicule non présent), `/health`,
-  `/access/plates/.../known`, et un **test dédié** qui rejoue plusieurs
-  scénarios puis inspecte directement chaque table SQLite pour garantir
-  qu'aucune valeur au format plaque française n'y apparaît
-  (`tests/integration/test_no_plate_leak.py`).
+  `/access/vehicles/.../known`, `/access/presences` (suit entrée puis
+  sortie). `test_quality.py` couvre les **entrées invalides** (corps vide,
+  code négatif ou hors bornes, type/source inconnus, date illisible, JSON
+  mal formé, photo corrompue, période inversée, `limit` hors bornes, clé
+  invalide), les **cas limites** (sortie datée avant l'entrée, date sans
+  fuseau) et les **logs** (correlation ID reçu/généré/assaini, décision
+  loggée avec son cid, niveaux de log). L'ancien test anti-fuite de plaque
+  (`test_no_plate_leak.py`) a été retiré : Access ne reçoit plus de plaque,
+  il n'y a plus rien à faire fuiter.
 
 ### Intégration continue (CI/CD)
 
@@ -449,7 +493,7 @@ précédente, `needs:` dans le workflow) et doivent **tous** passer — si une
 | Job | Outil | Ce qu'il vérifie |
 |---|---|---|
 | Lint | `ruff` | Erreurs, imports, bugs probables, règles de sécurité, **formatage homogène** (config : `ruff.toml`) |
-| Tests | `pytest` | Les 110 tests unitaires + intégration, sans aucun secret |
+| Tests | `pytest` | Les 152 tests unitaires + intégration, sans aucun secret |
 | Sécurité du code | `bandit` | Analyse statique (SAST) : injections, appels dangereux, secrets en dur… |
 | Dépendances | `pip-audit` | Vulnérabilités connues (CVE) dans `requirements.txt` |
 | Secrets | `gitleaks` | Aucun secret (clé API, URL CloudAMQP…) dans tout l'historique git |
@@ -467,15 +511,67 @@ pip install -r requirements-dev.txt
 ruff check src tests && ruff format --check src tests && pytest && bandit -r src -q && pip-audit -r requirements.txt
 ```
 
+### Vérifier une instance déployée (smoke test)
+
+[`scripts/smoke_test.sh`](scripts/smoke_test.sh) rejoue les contrôles
+essentiels contre n'importe quelle instance (locale ou Render) et sort en
+erreur si l'un d'eux échoue : santé et version, authentification (401),
+validation des entrées (422/400/404), `/metrics`, `/access/presences`.
+Avec `VEHICLE_CODE` (un code enregistré chez Vehicles), il enchaîne en plus
+un vrai passage entrée → présence → sortie payée — ⚠️ ce mode appelle
+réellement Parking, Pricing et Payment.
+
+```bash
+BASE_URL=http://localhost:8000 API_KEY=change-me ./scripts/smoke_test.sh
+```
+
+```bash
+BASE_URL=https://access-api-a1u7.onrender.com API_KEY=<clé Render> VEHICLE_CODE=<code> ./scripts/smoke_test.sh
+```
+
+Toutes ses requêtes portent le même `X-Correlation-ID` (affiché en tête) :
+il suffit de le chercher dans les logs Render pour retrouver tout le passage.
+
+### Logs exploitables
+
+Format : `date niveau module [cid=<correlation ID>] message`. Exemple réel
+d'une entrée refusée :
+
+```
+2026-11-18 08:52:40,216 WARNING src.infrastructure.external.http_vehicles_client [cid=febf097b-…] Service Vehicles indisponible : ConnectError('[Errno 61] Connection refused')
+2026-11-18 08:52:40,219 WARNING src.application.use_cases.process_entry_request [cid=febf097b-…] Entrée rejetée : véhicule inconnu de Vehicles (request=a8e81710-…)
+2026-11-18 08:52:40,221 INFO access.http [cid=febf097b-…] POST /api/v1/access/requests -> 200 (77 ms)
+```
+
+- **Correlation ID** (`src/interfaces/api/middleware.py`) : repris de
+  l'en-tête `X-Correlation-ID` s'il est bien formé (`[A-Za-z0-9._-]`, 64
+  caractères max — sinon ignoré, pour empêcher l'injection de fausses lignes
+  de log), généré sinon (UUID), renvoyé dans l'en-tête de réponse et dans le
+  corps des erreurs 500. Identifiant technique opaque : jamais de plaque ni
+  de donnée personnelle.
+- **Une ligne par décision métier** (use cases) : entrée/sortie autorisée,
+  refusée (avec le motif), en attente de confirmation, véhicule inconnu —
+  toujours avec l'id de la demande et le `vehicleId` pseudonymisé.
+- **Log d'accès** : `INFO` pour les écritures (passages à la borne),
+  `WARNING` pour toute réponse 4xx/5xx, `DEBUG` pour les lectures réussies
+  (polling du dashboard), `/health` et les fichiers statiques — visibles
+  avec `LOG_LEVEL=DEBUG`. Le log d'accès natif d'uvicorn est désactivé sur
+  Render (`--no-access-log`) pour éviter les doublons sans cid.
+- **Appels aux autres services** : chaque échec (timeout, 5xx, réponse
+  inattendue) est loggé en `WARNING` par le client HTTP concerné.
+
 ---
 
 ## 10. Sécurité
 
 - **Authentification** : clé API (`X-API-Key`) sur toutes les routes sauf
   `/health` (`src/infrastructure/security/api_key_auth.py`). Jamais loggée.
-- **Validation stricte** : Pydantic, y compris le format de plaque française
-  (`^[A-Z]{2}-\d{3}-[A-Z]{2}$`) sur la requête d'entrée et sur le path param
-  de `/access/plates/{plate}/known`.
+- **Validation stricte** : Pydantic, y compris le code véhicule (entier
+  entre 0 et 2 147 483 647) dans le corps des demandes et dans le path param
+  de `/access/vehicles/{vehicle_code}/known`, la taille de `photoBase64`
+  (4 Mo max), les filtres d'audit (`limit` 1-500, `from` ≤ `to`, longueur des
+  identifiants). Toute entrée invalide → 422 (400 pour une photo non
+  décodable), sans rien persister ni appeler d'autre service.
 - **CORS restrictif** : liste blanche configurable (`CORS_ALLOWED_ORIGINS`,
   limitée à l'URL du service sur Render), méthodes `GET`/`POST` et en-têtes
   `Content-Type`/`X-API-Key` uniquement, sans credentials (l'authentification
@@ -487,7 +583,8 @@ ruff check src tests && ruff format --check src tests && pytest && bandit -r src
 - **Gestion d'erreurs centralisée** : `main.py` intercepte `HTTPException`,
   les erreurs de validation et toute exception non prévue — **aucune stack
   trace n'est jamais renvoyée au client** (500 générique, détail loggé côté
-  serveur uniquement).
+  serveur uniquement, avec un `correlationId` permettant de retrouver la
+  ligne de log correspondante).
 - **RGPD / minimisation des données** : voir la règle absolue en
   [section 1](#1-présentation). En complément de la discipline de code, un
   `logging.Filter` (`RedactPlateFilter`) masque toute sous-chaîne au format
@@ -503,20 +600,22 @@ Préfixe `/api/v1` (sauf `/health` et `/metrics`).
 |---|---|---|---|
 | POST | `/access/requests` | Oui | Crée et traite une demande d'accès (entrée ou sortie) |
 | GET | `/access/requests/{id}` | Oui | Détail d'une demande + décision |
-| GET | `/access/requests?vehicleId=&type=&from=&to=` | Oui | Liste/filtre (audit) |
-| GET | `/access/plates/{plate}/known` | Oui | Vérifie si une plaque est connue, sans rien persister |
+| GET | `/access/requests?vehicleId=&type=&from=&to=&limit=` | Oui | Liste/filtre (audit), plus récentes d'abord, avec la décision (`result`, `reason`, `paymentAmount`) |
+| GET | `/access/presences` | Oui | Véhicules actuellement présents (heure d'entrée, place attribuée, réservation) |
+| GET | `/access/vehicles/{vehicle_code}/known` | Oui | Vérifie si un code véhicule est connu de Vehicles, sans rien persister |
 | GET | `/access/events` | Oui | Liste les événements publiés (outbox, démo/observabilité) |
 | GET | `/health` | Non | Healthcheck (API + DB) + version et SHA du commit déployé |
 | GET | `/metrics` | Oui | Métriques Prometheus (requêtes, latences, codes HTTP par route) |
 
 Documentation interactive complète (schémas, exemples, codes d'erreur) sur
-`/docs`.
+`/docs`. Toutes les réponses portent l'en-tête `X-Correlation-ID` (voir
+[section 9](#logs-exploitables)).
 
 ### Exemple — `POST /access/requests` (entrée)
 
 ```json
 {
-  "plate": "AA-111-AA",
+  "vehicleCode": 1,
   "type": 1,
   "date": "2026-09-02T10:15:00Z",
   "source": 3,
@@ -524,12 +623,12 @@ Documentation interactive complète (schémas, exemples, codes d'erreur) sur
 }
 ```
 
-Réponse — ne contient jamais la plaque :
+Réponse — `vehicleId` est le `pseudoId` renvoyé par Vehicles :
 
 ```json
 {
   "requestId": "b3a1f7b0-...-uuid",
-  "vehicleId": "v_standard_4wheeler",
+  "vehicleId": "301b7c98-3634-4842-8ff5-baf503c53302",
   "type": 1,
   "status": 2,
   "authorization": {
@@ -552,10 +651,10 @@ aucun souci CORS). Accessible sur http://localhost:8000/ (redirige
 automatiquement) ou http://localhost:8000/static/dashboard.html.
 
 Renseignez votre `X-API-Key` dans le champ prévu (stockée uniquement dans le
-`localStorage` de votre navigateur). Trois onglets :
+`localStorage` de votre navigateur). Quatre onglets :
 
-- **Borne** (par défaut) : simule une borne d'entrée/sortie. On saisit une
-  plaque (ou on clique sur une plaque de démonstration), on choisit l'heure
+- **Borne** (par défaut) : simule une borne d'entrée/sortie. On saisit le
+  code véhicule attribué par Vehicles, on choisit l'heure
   de passage, puis **Entrée** ou **Sortie** : la décision d'Access s'affiche
   en direct (barrière ouverte / fermée / intervention requise, motif,
   véhicule pseudonymisé, montant, identifiant du paiement réel). Pendant une
@@ -563,26 +662,40 @@ Renseignez votre `X-API-Key` dans le champ prévu (stockée uniquement dans le
   L'heure de passage « Dans 2 h 30 » simule une durée de stationnement :
   sans elle, une sortie juste après l'entrée tombe dans la 1re heure
   gratuite (0 €, aucun paiement). L'historique de la session n'affiche
-  jamais la plaque, seulement le `vehicleId` pseudonymisé.
+  que le `vehicleId` pseudonymisé.
+- **État du parking** : ce que voit Access à l'instant — santé, version et
+  commit du service (`/health`), nombre de véhicules présents, décisions
+  récentes (autorisées / refusées / confirmation requise), liste des
+  **véhicules présents** (place attribuée, réservation, heure et durée de
+  présence) et des **dernières demandes** avec leur motif et montant. Un
+  clic ouvre le détail. Rappel des opérations disponibles (borne, recherche,
+  journal, `/docs`, `/metrics`). Rafraîchi automatiquement.
 - **Journal** : la liste des événements se rafraîchit automatiquement
   (intervalle configurable), avec un badge coloré par type d'événement et le
   détail JSON dépliable.
 - **Recherche** : une demande par `requestId`, l'historique d'un
-  `vehicleId`, ou d'une plaque (résolue d'abord en `vehicleId`).
+  `vehicleId`, ou d'un code véhicule (résolu d'abord en `vehicleId`).
 
 Testé dans Chrome (clair, sombre, mobile 390 px) : entrée puis sortie payée
-de bout en bout avec Pricing et Payment réels.
+de bout en bout avec Pricing et Payment réels. L'onglet « État du parking »
+a été vérifié en local (bureau et mobile 375 px, sans défilement
+horizontal).
 
 ---
 
 ## 13. Postman
 
-Un dossier [`postman/`](postman/) contient :
+> ⚠️ Le dossier `postman/` est **exclu du dépôt** (`.gitignore`) : les
+> collections ci-dessous restent sur le poste du développeur. La vérification
+> reproductible **versionnée** est [`scripts/smoke_test.sh`](scripts/smoke_test.sh)
+> ([section 9](#vérifier-une-instance-déployée-smoke-test)).
+
+Un dossier `postman/` (local) contient :
 
 - `Access-Microservice.postman_collection.json` — toutes les routes,
   organisées par dossier (Health / Access — Entry / Access — Exit / Access —
   Lookup / Events / **Errors — edge cases**), avec des exemples prêts à
-  l'emploi pour chaque scénario du tableau de plaques de démo (entrée
+  l'emploi pour chaque scénario métier (entrée
   simple, réservation, accessibilité, véhicule inconnu, sortie payée,
   paiement refusé...).
 - `Access-Microservice.postman_environment.json` — variables `baseUrl` et
@@ -603,7 +716,7 @@ clé Access. ⏱️ Une sortie prend désormais ~15-30 s : Access attend le stat
 final du paiement (polling), c'est normal.
 
 Le dossier **"Errors — edge cases"** contient volontairement des requêtes
-invalides (pas de clé API, plaque mal formée, type invalide, champ manquant,
+invalides (pas de clé API, code véhicule invalide, type invalide, champ manquant,
 `photoBase64` corrompu, id inexistant, rate limit) — chacune avec un script
 de test Postman qui vérifie le code HTTP attendu, pour voir concrètement à
 quoi ressemblent les erreurs de l'API.
@@ -661,8 +774,8 @@ le reste de l'API fonctionne normalement (best-effort : la publication
 4. Ouvrez `postman/Access-Render.postman_environment.json` dans Postman et
    renseignez `baseUrl` (l'URL de l'étape 3) et `apiKey` (la clé de l'étape 2) —
    ou envoyez-moi l'URL, je peux mettre à jour le fichier directement.
-5. Vérifiez `GET /health` puis un scénario complet (voir tableau de plaques
-   de démo, section 3) avec la collection **"Access — Render"**.
+5. Vérifiez `GET /health` puis un scénario complet (avec un code véhicule
+   enregistré chez Vehicles, section 3) avec la collection **"Access — Render"**.
 
 ### ⚠️ Points à vérifier / limites connues
 
@@ -710,14 +823,13 @@ public partagé :
 
 - **Ils veulent qu'Access les appelle (Vehicles, Booking, Parking, Pricing,
   Payment)** : une fois leur propre service déployé (Render ou ailleurs),
-  donne-moi son URL publique → je mets à jour `VEHICLES_SERVICE_URL` (etc.)
+  donne-moi son URL publique → je mets à jour `BOOKING_SERVICE_URL` (etc.)
   dans les variables d'environnement Render de `access-api`, je complète le
   squelette HTTP correspondant (`infrastructure/external/http_*_client.py`,
   déjà prêt avec des `TODO` précis, section 5) avec leur vrai contrat
   d'API, puis bascule la variable **de ce service uniquement**
-  (`VEHICLES_USE_MOCK=false`, `BOOKING_USE_MOCK=false`, etc.) — les autres
-  restent mockés tant que leurs équipes ne sont pas prêtes, aucune autre
-  couche à toucher.
+  (`BOOKING_USE_MOCK=false`) — Vehicles, Parking, Pricing et Payment sont
+  déjà branchés en réel, aucune autre couche à toucher.
 - **Ils veulent recevoir les événements d'Access** (`VEHICLE_ENTERED` /
   `VEHICLE_EXITED` / `ACCESS_REFUSED`) : c'est déjà fait pour tout le monde
   qui écoute le bus partagé de l'équipe — Access publie sur l'exchange
@@ -739,6 +851,10 @@ répondant aux besoins fonctionnels du use case "Sortie" (retrouver la place
 et son type à partir de la seule présence), quelques extensions **minimes et
 non intrusives** ont été ajoutées :
 
+- `VehiclePresenceRepositoryPort.list_present` et le use case
+  `ListPresentVehicles` : lecture seule, pour la vue « État du parking »
+  (`GET /access/presences`) ; `ListAccessRequests` renvoie chaque demande
+  avec sa décision, et `AccessFilters` a gagné un `limit`.
 - `AccessRepositoryPort.get_authorization_by_request`,
   `get_event_by_request` et `list_events` : lecture supplémentaire, aucune
   règle métier ajoutée. Le `placeId`/type de place attribué à l'entrée est
@@ -779,6 +895,20 @@ non intrusives** ont été ajoutées :
   refusée avec "réessayez", ce qui est sans risque puisque rejouer la sortie
   renvoie le même paiement (jamais de double encaissement). Un stationnement
   à 0 € ne déclenche aucun paiement (Payment refuse un montant nul).
+- `VehiclesServicePort.get_vehicle_info(vehicle_code)` (au lieu de
+  `(plate)`) : Vehicles identifie la plaque et lui attribue un `code` ;
+  Access ne reçoit plus que ce code (`vehicleCode` dans
+  `POST /access/requests`, route `/access/vehicles/{vehicle_code}/known` au
+  lieu de `/access/plates/{plate}/known`) et consulte
+  `GET /api/vehicles/{code}`. Changement de contrat de l'API Access, d'où la
+  version `3.0.0`. Le `pseudoId` renvoyé devient le `vehicleId`.
+  Vehicles n'expose pas de justificatif PMR distinct : `disabled` sert à la
+  fois de type de véhicule (`is_handicap`) et de justificatif
+  (`disability_permit`), donc un véhicule PMR est toujours autorisé sur une
+  place PMR (plus de `CONFIRMATION_REQUIRED` pour justificatif manquant avec
+  le vrai service). Vehicles renvoie 500 (et non 404) pour un code inconnu :
+  toute réponse non-200 ou erreur réseau est traitée comme "véhicule
+  inconnu" (procédure alternative), jamais comme un plantage d'Access.
 
 **Nommage anglais vs. contenu français** : tous les identifiants de code
 (classes d'entités, champs, colonnes SQL, clés JSON) sont en anglais — la
@@ -794,4 +924,4 @@ toutes centralisées dans les deux use cases `Process*Request`).
 
 Toutes ces extensions sont documentées dans le code (docstrings des ports
 concernés) et n'affaiblissent aucune des garanties de la spec — notamment la
-règle RGPD de non-circulation de la plaque brute, vérifiée par un test dédié.
+règle RGPD de non-circulation de la plaque brute, qu'Access ne reçoit même plus.

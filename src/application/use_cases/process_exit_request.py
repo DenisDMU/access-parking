@@ -1,10 +1,11 @@
 """Use case `ProcessExitRequest` — workflow "Sortie".
 
 Déroulé (section 8 de la spec) :
-1. Résolution Vehicles (seul endroit où la plaque brute est utilisée).
+1. Résolution Vehicles du code véhicule → identifiant pseudonymisé.
 2. Création de la demande d'accès (EXIT).
 3. Règle de présence → refus si le véhicule n'est pas `IN`.
-4. Récupération du stationnement en cours (demande d'entrée associée).
+4. Récupération du stationnement en cours (demande d'entrée associée) ;
+   refus si la sortie est datée avant l'entrée (cas limite, `stay_rule`).
 5. Calcul du prix (Pricing).
 6. Paiement (Payment) → refus si échec ou résultat indéterminé.
 7. Autorisation, libération de la place.
@@ -14,6 +15,7 @@ Déroulé (section 8 de la spec) :
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from uuid import uuid4
 
@@ -29,6 +31,7 @@ from src.domain.ports.vehicle_presence_repository_port import (
 )
 from src.domain.ports.vehicles_service_port import VehiclesServicePort
 from src.domain.rules.presence_rule import can_exit
+from src.domain.rules.stay_rule import is_exit_date_valid
 from src.domain.value_objects.dto import ExitDecision, PlaceType
 from src.domain.value_objects.enums import (
     AuthorizationResult,
@@ -39,6 +42,9 @@ from src.domain.value_objects.enums import (
     RequestType,
     VehicleCategory,
 )
+
+# Logs métier : une ligne par décision (voir process_entry_request.py).
+logger = logging.getLogger(__name__)
 
 
 def _place_type_from_payload(payload: dict | None) -> PlaceType:
@@ -77,15 +83,13 @@ class ProcessExitRequest:
 
     def execute(
         self,
-        plate: str,
+        vehicle_code: int,
         date: datetime,
         source: DetectionSource,
     ) -> ExitDecision:
         request_id = str(uuid4())
 
-        # Seul endroit de toute la codebase où la plaque brute est utilisée.
-        vehicle_info = self._vehicles_port.get_vehicle_info(plate)
-        del plate  # ne doit plus jamais être référencée ci-dessous
+        vehicle_info = self._vehicles_port.get_vehicle_info(vehicle_code)
 
         if vehicle_info is None:
             return self._reject_unknown_vehicle(request_id, date, source)
@@ -117,6 +121,16 @@ class ProcessExitRequest:
         is_reservation = (
             bool(entry_event.payload.get("reservation", False)) if entry_event else False
         )
+
+        if not is_exit_date_valid(entry_date, date):
+            # Cas limite : durée négative — jamais transmise à Pricing.
+            return self._refuse(
+                request_id=request_id,
+                vehicle_id=vehicle_id,
+                date=date,
+                source=source,
+                reason="Date de sortie antérieure à la date d'entrée",
+            )
 
         amount = self._pricing_port.calculate_price(
             vehicle_id, entry_date, date, place_type, is_reservation
@@ -183,6 +197,13 @@ class ProcessExitRequest:
         )
         self._access_repo.save_request(request)
         self._access_repo.save_authorization(authorization)
+        logger.info(
+            "Sortie autorisée (request=%s, vehicle=%s, montant=%s, paiement=%s)",
+            request_id,
+            vehicle_id,
+            amount,
+            payment_id,
+        )
         self._event_publisher.publish(
             AccessEvent(
                 id=str(uuid4()),
@@ -228,6 +249,7 @@ class ProcessExitRequest:
         )
         self._access_repo.save_request(request)
         self._access_repo.save_authorization(authorization)
+        logger.warning("Sortie rejetée : véhicule inconnu de Vehicles (request=%s)", request_id)
         self._event_publisher.publish(
             AccessEvent(
                 id=str(uuid4()),
@@ -273,6 +295,13 @@ class ProcessExitRequest:
         )
         self._access_repo.save_request(request)
         self._access_repo.save_authorization(authorization)
+        logger.info(
+            "Sortie refusée (request=%s, vehicle=%s, montant=%s) : %s",
+            request_id,
+            vehicle_id,
+            amount,
+            reason,
+        )
         self._event_publisher.publish(
             AccessEvent(
                 id=str(uuid4()),

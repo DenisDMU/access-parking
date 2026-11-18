@@ -1,73 +1,76 @@
-"""Client HTTP réel vers le service **Vehicles** — SQUELETTE À FINALISER.
+"""Client HTTP réel vers le service **Vehicles** de l'équipe.
 
-Implémente `VehiclesServicePort` avec les mêmes signatures que le mock
-(`mock_vehicles_client.py`) : remplacer le mock par ce client ne touche
-aucune autre couche (domain/application/interfaces), conformément à
-l'architecture hexagonale — voir README section 5.
+Implémente `VehiclesServicePort`. Contrat vérifié par des appels réels contre
+https://parking-vehicles.onrender.com (swagger `/v3/api-docs`) :
 
-Activation : dans `.env`, `USE_MOCKS=false` + `VEHICLES_SERVICE_URL=<url
-réelle>` — `deps.py::get_vehicles_port()` instancie alors automatiquement ce
-client.
+  GET /api/vehicles/{code}
+    → 200 { pseudoId (uuid), code, electric, disabled, xl, twoWheels }
 
-──────────────────────────────────────────────────────────────────────────
-TODO avant mise en service — À valider avec l'équipe Vehicles :
-  [ ] TODO[VEHICLES-1] Route + méthode HTTP exactes.
-      Hypothèse actuelle : POST {base_url}/vehicles/resolve
-      Alternative possible : GET {base_url}/vehicles?plate=...
-      (⚠️ si GET, la plaque brute finirait dans l'URL donc potentiellement
-      dans les logs d'accès de Vehicles — à éviter si possible, préférer un
-      corps de requête POST).
-  [ ] TODO[VEHICLES-2] Code retourné si la plaque est inconnue.
-      Hypothèse actuelle : 404. Si Vehicles renvoie plutôt 200 avec un champ
-      nul, adapter `get_vehicle_info` en conséquence.
-  [ ] TODO[VEHICLES-3] Noms exacts des champs de la réponse JSON
-      (vehicleId ? vehicle_id ?) et forme de `vehicleType` (objet imbriqué
-      avec category/isXl/isElectric/isHandicap, ou champs à plat ?).
-  [ ] TODO[VEHICLES-4] Gestion d'erreurs réseau : actuellement toute erreur
-      httpx (timeout, 5xx, connexion refusée) remonte telle quelle — décider
-      si Access doit dégrader la décision (ex. REFUSED) plutôt que planter
-      en 500 (hors périmètre MVP officiellement, mais à trancher en équipe).
-──────────────────────────────────────────────────────────────────────────
+- Access ne manipule jamais la plaque : Vehicles l'a déjà identifiée
+  (`POST /api/vehicles/identify`, hors périmètre d'Access) et lui a associé
+  un `code`. Access ne consulte que la donnée anonymisée de ce code.
+- `pseudoId` devient le `vehicle_id` pseudonymisé qui circule dans tout le
+  reste du système (présence, événements, audit).
+- `disabled` alimente à la fois le type de véhicule (`is_handicap`) et le
+  justificatif PMR : Vehicles n'expose pas de justificatif distinct (voir
+  README section 16).
+- Vehicles renvoie 500 (et non 404) pour un code inconnu : impossible de le
+  distinguer d'une panne. Toute réponse non-200 ou erreur réseau → `None`,
+  soit "véhicule inconnu" → procédure alternative à la barrière, jamais un
+  plantage d'Access.
 """
 
 from __future__ import annotations
+
+import logging
 
 import httpx
 
 from src.domain.value_objects.dto import VehicleInfo, VehicleType
 from src.domain.value_objects.enums import VehicleCategory
 
+logger = logging.getLogger(__name__)
+
 
 class HttpVehiclesClient:
     """Implémente `VehiclesServicePort` via un vrai appel HTTP à Vehicles."""
 
-    def __init__(self, base_url: str, timeout_s: float = 20.0) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        timeout_s: float = 20.0,
+        transport: httpx.BaseTransport | None = None,
+    ) -> None:
         self._base_url = base_url.rstrip("/")
         self._timeout_s = timeout_s
+        self._transport = transport  # injecté par les tests (httpx.MockTransport)
 
-    def get_vehicle_info(self, raw_plate: str) -> VehicleInfo | None:
-        # TODO[VEHICLES-1] confirmer route/méthode avec l'équipe Vehicles.
-        with httpx.Client(timeout=self._timeout_s) as client:
-            response = client.post(f"{self._base_url}/vehicles/resolve", json={"plate": raw_plate})
-        # `raw_plate` sort de portée ici — ne plus la référencer au-delà.
-
-        # TODO[VEHICLES-2] confirmer le code "véhicule inconnu" (404 supposé).
-        if response.status_code == 404:
-            return None
-        response.raise_for_status()
-
-        # TODO[VEHICLES-3] adapter le mapping de champs à la réponse réelle.
-        data = response.json()
-        vehicle_type_data = data.get("vehicleType", {})
-        return VehicleInfo(
-            vehicle_id=data["vehicleId"],
-            vehicle_type=VehicleType(
-                category=VehicleCategory(
-                    vehicle_type_data.get("category", VehicleCategory.FOUR_WHEELER)
+    def get_vehicle_info(self, vehicle_code: int) -> VehicleInfo | None:
+        try:
+            with httpx.Client(timeout=self._timeout_s, transport=self._transport) as client:
+                response = client.get(f"{self._base_url}/api/vehicles/{vehicle_code}")
+            if response.status_code != 200:
+                logger.warning(
+                    "Vehicles n'a pas résolu le code véhicule (HTTP %s)", response.status_code
+                )
+                return None
+            data = response.json()
+            disabled = bool(data.get("disabled", False))
+            return VehicleInfo(
+                vehicle_id=str(data["pseudoId"]),
+                vehicle_type=VehicleType(
+                    category=(
+                        VehicleCategory.TWO_WHEELER
+                        if data.get("twoWheels")
+                        else VehicleCategory.FOUR_WHEELER
+                    ),
+                    is_xl=bool(data.get("xl", False)),
+                    is_electric=bool(data.get("electric", False)),
+                    is_handicap=disabled,
                 ),
-                is_xl=vehicle_type_data.get("isXl", False),
-                is_electric=vehicle_type_data.get("isElectric", False),
-                is_handicap=vehicle_type_data.get("isHandicap", False),
-            ),
-            disability_permit=data.get("disabilityPermit", False),
-        )
+                disability_permit=disabled,
+            )
+        except (httpx.HTTPError, KeyError, ValueError) as exc:
+            # ValueError/KeyError : réponse non-JSON ou contrat inattendu.
+            logger.warning("Service Vehicles indisponible : %r", exc)
+            return None

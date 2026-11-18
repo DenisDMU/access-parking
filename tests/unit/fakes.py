@@ -4,12 +4,13 @@ tests unitaires des use cases (section 13 : "tous les ports mockés")."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from src.domain.entities.access_authorization import AccessAuthorization
 from src.domain.entities.access_event import AccessEvent
 from src.domain.entities.access_request import AccessRequest
+from src.domain.entities.vehicle_presence import VehiclePresence
 from src.domain.value_objects.dto import (
     AccessFilters,
     AICheckResult,
@@ -20,17 +21,57 @@ from src.domain.value_objects.dto import (
     VehicleInfo,
     VehicleType,
 )
-from src.domain.value_objects.enums import PresenceStatus
+from src.domain.value_objects.enums import PresenceStatus, VehicleCategory
+
+# Registre déterministe de codes véhicule "connus" (ex-mock Vehicles), pensé
+# pour exercer chaque branche des règles métier dans les tests d'intégration.
+# `v_with_reservation` est l'identifiant attendu par le mock Booking.
+DEMO_VEHICLES: dict[int, VehicleInfo] = {
+    1: VehicleInfo(
+        vehicle_id="v_standard_4wheeler",
+        vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER),
+    ),
+    2: VehicleInfo(
+        vehicle_id="v_2wheeler",
+        vehicle_type=VehicleType(category=VehicleCategory.TWO_WHEELER),
+    ),
+    3: VehicleInfo(
+        vehicle_id="v_xl",
+        vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER, is_xl=True),
+    ),
+    4: VehicleInfo(
+        vehicle_id="v_electric",
+        vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER, is_electric=True),
+    ),
+    5: VehicleInfo(
+        vehicle_id="v_disabled_ok",
+        vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER, is_handicap=True),
+        disability_permit=True,
+    ),
+    6: VehicleInfo(
+        vehicle_id="v_disabled_no_permit",
+        vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER, is_handicap=True),
+        disability_permit=False,
+    ),
+    7: VehicleInfo(
+        vehicle_id="v_with_reservation",
+        vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER),
+    ),
+    8: VehicleInfo(
+        vehicle_id="v_standard_4wheeler_bis",
+        vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER),
+    ),
+}
 
 
 class FakeVehiclesPort:
-    def __init__(self, registry: dict[str, VehicleInfo] | None = None) -> None:
+    def __init__(self, registry: dict[int, VehicleInfo] | None = None) -> None:
         self.registry = registry or {}
-        self.calls: list[str] = []
+        self.calls: list[int] = []
 
-    def get_vehicle_info(self, raw_plate: str) -> VehicleInfo | None:
-        self.calls.append(raw_plate)
-        return self.registry.get(raw_plate)
+    def get_vehicle_info(self, vehicle_code: int) -> VehicleInfo | None:
+        self.calls.append(vehicle_code)
+        return self.registry.get(vehicle_code)
 
 
 class FakeBookingPort:
@@ -134,6 +175,18 @@ class FakePresenceRepo:
     def seed(self, vehicle_id: str, status: PresenceStatus, request_id: str | None = None) -> None:
         self.set_status(vehicle_id, status, request_id)
 
+    def list_present(self) -> list[VehiclePresence]:
+        return [
+            VehiclePresence(
+                vehicle_id=vehicle_id,
+                status=record.status,
+                updated_at=datetime.now(UTC),
+                current_request_id=record.current_request_id,
+            )
+            for vehicle_id, record in self._store.items()
+            if record.status is PresenceStatus.IN
+        ]
+
 
 @dataclass
 class FakeAccessRepo:
@@ -159,6 +212,9 @@ class FakeAccessRepo:
             results = [r for r in results if r.vehicle_id == filters.vehicle_id]
         if filters.type is not None:
             results = [r for r in results if r.type == filters.type]
+        results.sort(key=lambda r: r.date, reverse=True)
+        if filters.limit is not None:
+            results = results[: filters.limit]
         return results
 
     def get_authorization_by_request(self, request_id: str) -> AccessAuthorization | None:

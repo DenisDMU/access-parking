@@ -5,10 +5,10 @@ vers `infrastructure`/`interfaces`), conformément à la règle de dépendance
 stricte de l'architecture hexagonale.
 
 Déroulé (section 8 de la spec) :
-1. Réceptionner la plaque brute (valeur volatile, locale à cette méthode).
+1. Réceptionner le code véhicule (Vehicles a déjà identifié la plaque).
 2. Analyse IA optionnelle (photo) → `ai_check`.
-3. Résolution Vehicles (seul endroit où la plaque brute est utilisée).
-4. Véhicule inconnu → rejet journalisé sans plaque, `stop`.
+3. Résolution Vehicles du code → identifiant pseudonymisé + type de véhicule.
+4. Véhicule inconnu → rejet journalisé, `stop`.
 5. Règle de présence → refus si déjà `IN`.
 6. Réservation (Booking) sinon attribution de place (Parking).
 7. Règle de compatibilité véhicule/place → refus si incompatible.
@@ -19,6 +19,7 @@ Déroulé (section 8 de la spec) :
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from uuid import uuid4
 
@@ -46,6 +47,11 @@ from src.domain.value_objects.enums import (
     RequestStatus,
     RequestType,
 )
+
+# Logs métier : une ligne par décision, toujours avec l'id de la demande et
+# l'identifiant pseudonymisé du véhicule (jamais de plaque, jamais de code
+# Vehicles). Le correlation ID est ajouté automatiquement par le logging.
+logger = logging.getLogger(__name__)
 
 
 def _place_type_to_payload(place_type: PlaceType) -> dict:
@@ -78,7 +84,7 @@ class ProcessEntryRequest:
 
     def execute(
         self,
-        plate: str,
+        vehicle_code: int,
         date: datetime,
         source: DetectionSource,
         photo: bytes | None = None,
@@ -94,9 +100,7 @@ class ProcessEntryRequest:
                 "timestamp": ai_result.timestamp.isoformat(),
             }
 
-        # Seul endroit de toute la codebase où la plaque brute est utilisée.
-        vehicle_info = self._vehicles_port.get_vehicle_info(plate)
-        del plate  # ne doit plus jamais être référencée ci-dessous
+        vehicle_info = self._vehicles_port.get_vehicle_info(vehicle_code)
 
         if vehicle_info is None:
             return self._reject_unknown_vehicle(request_id, date, source, ai_check)
@@ -180,6 +184,12 @@ class ProcessEntryRequest:
             )
             self._access_repo.save_request(request)
             self._access_repo.save_authorization(authorization)
+            logger.info(
+                "Entrée en attente de confirmation PMR (request=%s, vehicle=%s, place=%s)",
+                request_id,
+                vehicle_id,
+                place_id,
+            )
             self._event_publisher.publish(
                 AccessEvent(
                     id=str(uuid4()),
@@ -231,6 +241,13 @@ class ProcessEntryRequest:
         )
         self._access_repo.save_request(request)
         self._access_repo.save_authorization(authorization)
+        logger.info(
+            "Entrée autorisée (request=%s, vehicle=%s, place=%s, réservation=%s)",
+            request_id,
+            vehicle_id,
+            place_id,
+            is_reservation,
+        )
         self._event_publisher.publish(
             AccessEvent(
                 id=str(uuid4()),
@@ -282,6 +299,7 @@ class ProcessEntryRequest:
         )
         self._access_repo.save_request(request)
         self._access_repo.save_authorization(authorization)
+        logger.warning("Entrée rejetée : véhicule inconnu de Vehicles (request=%s)", request_id)
         self._event_publisher.publish(
             AccessEvent(
                 id=str(uuid4()),
@@ -331,6 +349,7 @@ class ProcessEntryRequest:
         )
         self._access_repo.save_request(request)
         self._access_repo.save_authorization(authorization)
+        logger.info("Entrée refusée (request=%s, vehicle=%s) : %s", request_id, vehicle_id, reason)
         self._event_publisher.publish(
             AccessEvent(
                 id=str(uuid4()),

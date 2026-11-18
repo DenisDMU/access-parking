@@ -37,7 +37,9 @@ services:
     region: frankfurt
     branch: main
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "uvicorn src.interfaces.api.main:app --host 0.0.0.0 --port $PORT"
+    # --no-access-log : Access écrit son propre log d'accès, avec correlation ID
+    # (src/interfaces/api/middleware.py) — évite les lignes en double.
+    startCommand: "uvicorn src.interfaces.api.main:app --host 0.0.0.0 --port $PORT --no-access-log"
     healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
@@ -54,14 +56,14 @@ services:
         # ajouter ici l'URL d'un front d'équipe si un jour il appelle Access.
         value: "https://access-api-a1u7.onrender.com"
       - key: USE_MOCKS
-        # Valeur par défaut pour les 5 services. Dès qu'un camarade a un
-        # vrai service prêt : ajoute ICI, à la main dans Render > Environment,
-        # une variable dédiée pour CE service uniquement (ex.
-        # VEHICLES_USE_MOCK=false) sans toucher à USE_MOCKS ni aux autres —
-        # voir README section 5.
+        # Ne concerne plus que Booking (seul service encore mocké). Quand
+        # Booking sera prêt : ajoute à la main dans Render > Environment
+        # BOOKING_USE_MOCK=false — voir README section 5.
         value: "true"
       - key: VEHICLES_SERVICE_URL
-        value: http://localhost:8001
+        # Service reel de l'equipe branche - mock supprime du code, aucune
+        # bascule possible pour ce service (voir README section 5/16).
+        value: https://parking-vehicles.onrender.com
       - key: BOOKING_SERVICE_URL
         value: http://localhost:8002
       - key: PARKING_SERVICE_URL

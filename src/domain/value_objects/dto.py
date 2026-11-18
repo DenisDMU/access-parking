@@ -114,6 +114,9 @@ class AccessFilters:
     type: RequestType | None = None
     date_from: datetime | None = None
     date_to: datetime | None = None
+    # Nombre maximal de demandes renvoyées (les plus récentes d'abord) —
+    # `None` = pas de limite (usage interne uniquement, l'API impose un plafond).
+    limit: int | None = None
 
 
 @dataclass(frozen=True)
@@ -142,3 +145,20 @@ class ExitDecision:
     result: AuthorizationResult
     reason: str | None
     payment_amount: Decimal | None = None
+
+
+@dataclass(frozen=True)
+class PresentVehicle:
+    """Véhicule actuellement présent dans le parking (vue d'exploitation).
+
+    Reconstruit uniquement à partir des propres données d'Access : la
+    présence `IN`, la demande d'entrée associée et le payload de son
+    événement `VEHICLE_ENTERED` (place attribuée). Jamais de plaque.
+    """
+
+    vehicle_id: str
+    entry_request_id: str | None
+    entered_at: datetime | None
+    place_id: str | None
+    place_type: PlaceType | None
+    is_reservation: bool
