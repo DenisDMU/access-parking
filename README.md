@@ -20,8 +20,8 @@
 | | |
 |---|---|
 | **Rôle** | Décide si un véhicule peut entrer/sortir du parking et coordonne les échanges avec Vehicles, Booking, Parking, Pricing, Payment (aucune donnée métier des autres services). |
-| **Version actuelle** | `3.1.0` — la version et le SHA du commit déployé sont exposés par `GET /health` |
-| **Dernière mise à jour** | 18 novembre 2026 (jalons 8 « UI » et 9 « Qualité et fiabilité ») |
+| **Version actuelle** | `3.2.0` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
+| **Dernière mise à jour** | 18 novembre 2026 (jalons 8 à 15 : UI, qualité, revue, traçabilité, observabilité, CI/CD, sécurité) |
 | **URL du service déployé** | https://access-api-a1u7.onrender.com |
 | **Documentation Swagger/OpenAPI** | https://access-api-a1u7.onrender.com/docs (ReDoc : `/redoc`, spec brute : `/openapi.json`) |
 | **Dépendances (services appelés)** | **Vehicles** *(réel)*, Booking *(mocké)*, **Parking** *(réel)*, **Pricing** *(réel)*, **Payment** *(réel)* |
@@ -42,7 +42,8 @@
 - [x] Simuler une borne d'entrée/sortie depuis le dashboard (décision, montant et paiement en direct).
 - [x] Voir l'état du parking vu par Access : véhicules présents, dernières décisions, santé et version du service (dashboard + `GET /access/presences`).
 - [x] Refuser une sortie datée avant l'entrée (cas limite, jamais transmis à Pricing/Payment).
-- [x] Tracer chaque requête dans les logs par un correlation ID (`X-Correlation-ID`, reçu ou généré, renvoyé dans la réponse).
+- [x] Tracer chaque requête dans les logs par un correlation ID (`X-Correlation-ID`, reçu ou généré, renvoyé dans la réponse) et le **transmettre** à chaque service appelé et dans chaque événement publié.
+- [x] Exposer des métriques métier Prometheus (décisions, refus par motif, paiements, montants, véhicules présents, appels aux autres services, événements publiés).
 - [x] Protéger toutes les routes (sauf `/health`) par clé API.
 - [x] Exposer la version et le commit déployés (`/health`) et des métriques d'exploitation (`/metrics`).
 - [ ] Vérifier une réservation via le vrai service **Booking**.
@@ -63,11 +64,11 @@
 | **API** | ✅ REST documentée (`/docs`), entrées/sorties validées, erreurs normalisées, `/health` | [section 11](#11-endpoints) |
 | **Intégration** | ✅ Vehicles, Parking, Pricing, Payment réels (REST) ; événements publiés sur RabbitMQ (bus d'équipe) · ⏳ Booking encore mocké | [section 5](#5-brancher-un-vrai-microservice-à-la-place-dun-mock), [section 6](#6-publication-dévénements--webhook-ou-rabbitmq) |
 | **UI** | ✅ Dashboard servi par Access : borne d'entrée/sortie, état du parking (présences, décisions, santé), journal d'événements, recherche | [section 12](#12-borne-et-journal-de-bord-dashboard) |
-| **Qualité** | ✅ 152 tests (unitaires + intégration), entrées invalides et cas limites couverts, `ruff` (lint + format), script de vérification reproductible | [section 9](#9-tests-et-qualité) |
-| **Observabilité** | ✅ Logs avec correlation ID (une ligne par décision métier + log d'accès), `/metrics` Prometheus (requêtes, latences, codes), `/health` avec version et commit · ⏳ métriques métier et propagation du correlation ID aux autres services (jalons 12-13) | [section 9](#9-tests-et-qualité) |
-| **CI/CD et déploiement** | ✅ GitHub Actions (lint → tests → bandit → pip-audit → gitleaks), déploiement Render après CI verte, Dependabot | [section 9](#intégration-continue-cicd), [section 14](#14-déploiement-sur-render) |
-| **Sécurité** | ✅ Clé API sur toutes les routes sauf `/health`, validation stricte, erreurs sans stack trace, CORS restreint, rate limiting, secrets hors Git, jamais de plaque | [section 10](#10-sécurité) |
-| **Version** | `3.1.0` (`src/__init__.py`, exposée par `/health` et `/docs`) | |
+| **Qualité** | ✅ 168 tests (unitaires + intégration), entrées invalides et cas limites couverts, `ruff` (lint + format), script de vérification reproductible | [section 9](#9-tests-et-qualité) |
+| **Observabilité** | ✅ Correlation ID propagé à tous les services et événements, logs par décision, `/metrics` Prometheus (techniques + métier + intégration), config Prometheus fournie, `/health` avec version et commit | [section 9](#métriques-prometheus) |
+| **CI/CD et déploiement** | ✅ GitHub Actions (lint → tests → bandit → pip-audit → gitleaks), déploiement Render après CI verte, smoke test de l'instance déployée (version vérifiée), CHANGELOG, Dependabot | [section 9](#intégration-continue-cicd), [section 14](#14-déploiement-sur-render) |
+| **Sécurité** | ✅ Clé API (comparaison en temps constant) sur toutes les routes sauf `/health`, refus de démarrer en production avec une clé faible, validation stricte, erreurs sans stack trace, en-têtes de sécurité, CORS restreint, rate limiting, secrets hors Git, jamais de plaque | [section 10](#10-sécurité) |
+| **Version** | `3.2.0` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
 | **Dernière mise à jour** | 18 novembre 2026 | |
 
 ### Suivi des jalons
@@ -79,8 +80,12 @@
 | 7 — Première intégration | 28 octobre | ✅ Pricing, Parking, Payment puis Vehicles branchés en réel |
 | 8 — UI de démonstration et d'exploitation | 18 novembre (matin) | ✅ Onglet « État du parking » ajouté (objets métier, état, opérations, résultats) |
 | 9 — Qualité et fiabilité | 18 novembre (après-midi) | ✅ Validation renforcée, cas limites, logs avec correlation ID, smoke test |
-| 12-13 — Traçabilité, observabilité | 25 novembre | 🟡 Correlation ID déjà généré/loggé/renvoyé ; reste la propagation vers les services appelés et les métriques métier |
-| 14-15 — CI/CD, sécurité | 27 novembre | 🟡 Déjà en place (voir axes ci-dessus), à revoir avec l'enseignant |
+| 10-11 — Revue de code et d'intégration | 24 novembre | ✅ Dossier préparé : [docs/REVUE.md](docs/REVUE.md) (contrats, échanges, workflows, écarts constatés) |
+| 12 — Traçabilité | 25 novembre (matin) | ✅ Correlation ID reçu ou généré, loggé, transmis à tous les services appelés et dans les événements |
+| 13 — Observabilité | 25 novembre (après-midi) | ✅ `/metrics` : métriques techniques, métier et d'intégration ; [config Prometheus](monitoring/prometheus.yml) |
+| 14 — CI/CD et déploiement | 27 novembre (matin) | ✅ CI 5 étapes, déploiement après CI verte, smoke test de l'instance déployée, CHANGELOG |
+| 15 — Sécurisation | 27 novembre (après-midi) | ✅ Authentification, validation, secrets, erreurs, en-têtes de sécurité |
+| 16-18 — Synthèse et présentation | 16 et 18 décembre | ⏳ À préparer |
 
 ---
 
@@ -457,7 +462,7 @@ pytest tests/integration    # endpoints via TestClient FastAPI (SQLite en mémoi
 pytest -v            # détail de chaque cas
 ```
 
-Couverture (152 tests) :
+Couverture (168 tests) :
 
 - **Unitaires** — matrice complète de la règle de compatibilité
   véhicule/place, règle de présence, règle d'accessibilité ; chaque use case
@@ -478,7 +483,11 @@ Couverture (152 tests) :
   mal formé, photo corrompue, période inversée, `limit` hors bornes, clé
   invalide), les **cas limites** (sortie datée avant l'entrée, date sans
   fuseau) et les **logs** (correlation ID reçu/généré/assaini, décision
-  loggée avec son cid, niveaux de log). L'ancien test anti-fuite de plaque
+  loggée avec son cid, niveaux de log). `test_correlation_propagation.py`
+  vérifie la transmission du correlation ID (HTTP et RabbitMQ) et les
+  métriques des appels sortants ; `test_observability.py` les métriques
+  métier, la jauge des présences et les en-têtes de sécurité ;
+  `test_security.py` la gestion des secrets au démarrage. L'ancien test anti-fuite de plaque
   (`test_no_plate_leak.py`) a été retiré : Access ne reçoit plus de plaque,
   il n'y a plus rien à faire fuiter.
 
@@ -493,10 +502,24 @@ précédente, `needs:` dans le workflow) et doivent **tous** passer — si une
 | Job | Outil | Ce qu'il vérifie |
 |---|---|---|
 | Lint | `ruff` | Erreurs, imports, bugs probables, règles de sécurité, **formatage homogène** (config : `ruff.toml`) |
-| Tests | `pytest` | Les 152 tests unitaires + intégration, sans aucun secret |
+| Tests | `pytest` | Les 168 tests unitaires + intégration, sans aucun secret |
 | Sécurité du code | `bandit` | Analyse statique (SAST) : injections, appels dangereux, secrets en dur… |
 | Dépendances | `pip-audit` | Vulnérabilités connues (CVE) dans `requirements.txt` |
 | Secrets | `gitleaks` | Aucun secret (clé API, URL CloudAMQP…) dans tout l'historique git |
+
+Un second workflow, [`smoke.yml`](.github/workflows/smoke.yml), vérifie
+l'**instance déployée** (manuellement ou chaque matin de semaine) avec
+`scripts/smoke_test.sh`, y compris que la version en ligne est bien celle du
+dépôt. Il a besoin du secret GitHub `ACCESS_API_KEY` (sinon il s'ignore).
+
+**Procédure de déploiement reproductible** : fusion d'une PR dans `main` →
+CI → déploiement automatique Render (`render.yaml`, configuration par
+variables d'environnement) → `GET /health` doit afficher la nouvelle
+`version` et le `commit` fusionné → workflow « Smoke test ». Chaque version
+est décrite dans le [CHANGELOG](CHANGELOG.md). ⚠️ Après une modification
+des variables de `render.yaml`, vérifier dans **Render → Environment**
+qu'elles sont bien appliquées (incident du 18/11, voir
+[docs/REVUE.md](docs/REVUE.md)).
 
 Render est configuré en **Auto-Deploy : After CI Checks Pass** : un commit
 sur `main` n'est déployé que si le pipeline est entièrement vert. En
@@ -559,13 +582,66 @@ d'une entrée refusée :
   Render (`--no-access-log`) pour éviter les doublons sans cid.
 - **Appels aux autres services** : chaque échec (timeout, 5xx, réponse
   inattendue) est loggé en `WARNING` par le client HTTP concerné.
+- **Propagation (jalon 12)** : le même correlation ID est transmis dans
+  l'en-tête `X-Correlation-ID` de **chaque appel sortant** (Vehicles, Booking,
+  Parking, Pricing, Payment, webhooks — `infrastructure/external/outgoing_http.py`)
+  et dans chaque **événement RabbitMQ** (propriété AMQP `correlation_id`,
+  en-tête `X-Correlation-ID`, champ `correlationId` du corps). Un service qui
+  le reprend dans ses logs permet de suivre un passage de bout en bout.
+
+### Métriques Prometheus
+
+`GET /metrics` (clé API requise), format Prometheus :
+
+| Métrique | Type | Ce qu'elle mesure |
+|---|---|---|
+| `http_requests_total`, `http_request_duration_seconds` | technique | Requêtes reçues par route, méthode, code ; latences |
+| `access_decisions_total{type,result}` | métier | Entrées/sorties autorisées, refusées, en confirmation |
+| `access_refusals_total{type,reason}` | métier | Refus par motif (déjà présent, aucune place, paiement refusé…) |
+| `access_payments_total{outcome}` | métier | Paiements acceptés, refusés, indisponibles |
+| `access_payment_amount_euros_total` | métier | Montant total encaissé |
+| `access_vehicles_present` | métier | Véhicules actuellement dans le parking (lu en base) |
+| `access_outgoing_requests_total{service,outcome}` | intégration | Appels vers chaque service, par issue (2xx, 4xx, 5xx, error) |
+| `access_outgoing_request_duration_seconds{service}` | intégration | Durée des appels sortants |
+| `access_events_published_total{channel,event_type,outcome}` | intégration | Événements diffusés (RabbitMQ / webhook), succès ou échec |
+
+Les étiquettes ne contiennent jamais d'identifiant (véhicule, demande,
+correlation ID) : valeurs bornées, aucune donnée personnelle.
+
+**Visualiser avec Prometheus** ([`monitoring/prometheus.yml`](monitoring/prometheus.yml),
+Prometheus ≥ 3.0, ex. `brew install prometheus`) :
+
+```bash
+printf '%s' '<clé API Render>' > monitoring/access_api_key
+```
+
+```bash
+prometheus --config.file=monitoring/prometheus.yml --storage.tsdb.path=/tmp/prometheus-access
+```
+
+Puis http://localhost:9090 — requêtes utiles :
+
+- `sum by (result) (increase(access_decisions_total[1h]))` — décisions de la dernière heure
+- `sum by (reason) (increase(access_refusals_total[1h]))` — pourquoi on refuse
+- `sum by (service, outcome) (rate(access_outgoing_requests_total[5m]))` — santé des services appelés
+- `histogram_quantile(0.95, sum by (le, service) (rate(access_outgoing_request_duration_seconds_bucket[5m])))` — latence p95 par service
+- `access_vehicles_present` — occupation vue par Access
 
 ---
 
 ## 10. Sécurité
 
 - **Authentification** : clé API (`X-API-Key`) sur toutes les routes sauf
-  `/health` (`src/infrastructure/security/api_key_auth.py`). Jamais loggée.
+  `/health` (`src/infrastructure/security/api_key_auth.py`), comparée en
+  temps constant (`hmac.compare_digest`). Jamais loggée.
+- **Gestion des secrets** : aucun secret dans Git (`gitleaks` en CI) ; clé API
+  générée par Render, URL CloudAMQP et clé Payment saisies dans Render
+  (`sync: false`). **En production, Access refuse de démarrer** si `API_KEY`
+  vaut `change-me` ou fait moins de 16 caractères (`config.check_secrets`) ;
+  en local, simple avertissement.
+- **En-têtes de sécurité** : `X-Content-Type-Options: nosniff`,
+  `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`,
+  `Cache-Control: no-store` sur `/api/*`, HSTS derrière le proxy HTTPS.
 - **Validation stricte** : Pydantic, y compris le code véhicule (entier
   entre 0 et 2 147 483 647) dans le corps des demandes et dans le path param
   de `/access/vehicles/{vehicle_code}/known`, la taille de `photoBase64`

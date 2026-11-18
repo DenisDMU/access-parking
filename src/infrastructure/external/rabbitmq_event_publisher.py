@@ -50,6 +50,8 @@ from src.domain.value_objects.enums import EventType
 from src.infrastructure.db.repositories.sqlite_outbox_repository import (
     SqliteOutboxRepository,
 )
+from src.infrastructure.logging_config import get_correlation_id
+from src.infrastructure.metrics import EVENT_TYPE_LABEL, EVENTS_PUBLISHED
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +66,8 @@ def _serialize(event: AccessEvent) -> dict:
         "requestId": event.request_id,
         "payload": event.payload,
         "createdAt": event.created_at.isoformat(),
+        # Correlation ID de la requête qui a produit l'événement (jalon 12).
+        "correlationId": get_correlation_id(),
     }
 
 
@@ -91,10 +95,15 @@ class RabbitMQEventPublisher:
         self._access_repo.save_event(event)
         self._outbox_repo.record_publication(event.id)
 
+        event_type = EVENT_TYPE_LABEL.get(int(event.type), "other")
         try:
             self._send_to_rabbitmq(event)
+            EVENTS_PUBLISHED.labels(channel="rabbitmq", event_type=event_type, outcome="ok").inc()
         except AMQPError as exc:
             # Best-effort : un souci RabbitMQ ne bloque jamais la décision d'accès.
+            EVENTS_PUBLISHED.labels(
+                channel="rabbitmq", event_type=event_type, outcome="error"
+            ).inc()
             logger.warning("Échec de publication RabbitMQ pour l'événement %s: %s", event.id, exc)
 
     def _connection_params(self) -> pika.URLParameters:
@@ -116,7 +125,14 @@ class RabbitMQEventPublisher:
                 exchange=self._exchange_name,
                 routing_key=routing_key,
                 body=json.dumps(_serialize(event)).encode("utf-8"),
-                properties=pika.BasicProperties(content_type="application/json", delivery_mode=2),
+                properties=pika.BasicProperties(
+                    content_type="application/json",
+                    delivery_mode=2,
+                    # Propriété AMQP standard + en-tête explicite (jalon 12) :
+                    # le consommateur retrouve le correlation ID sans lire le corps.
+                    correlation_id=get_correlation_id(),
+                    headers={"X-Correlation-ID": get_correlation_id()},
+                ),
             )
         finally:
             connection.close()

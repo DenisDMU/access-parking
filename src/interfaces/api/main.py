@@ -25,12 +25,17 @@ from slowapi.middleware import SlowAPIMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from src import __version__
-from src.infrastructure.config import get_settings
+from src.infrastructure.config import check_secrets, get_settings, is_production
 from src.infrastructure.db.session import init_db
 from src.infrastructure.logging_config import configure_logging, get_correlation_id
+from src.infrastructure.metrics import register_presence_collector
 from src.infrastructure.security.api_key_auth import verify_api_key
 from src.interfaces.api import deps
-from src.interfaces.api.middleware import CORRELATION_HEADER, correlation_id_middleware
+from src.interfaces.api.middleware import (
+    CORRELATION_HEADER,
+    correlation_id_middleware,
+    security_headers_middleware,
+)
 from src.interfaces.api.rate_limit import limiter
 from src.interfaces.api.routers import access_router, events_router, health_router
 
@@ -42,7 +47,10 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.start_time = time.time()
+    for problem in check_secrets(settings, production=is_production()):
+        logger.warning("Configuration non sécurisée (acceptée hors production) : %s", problem)
     init_db(deps.get_engine())
+    register_presence_collector(deps.count_present_vehicles)
     logger.info(
         "Access %s (commit %s) démarré — SQLite initialisée, USE_MOCKS=%s",
         __version__,
@@ -90,6 +98,7 @@ app.add_middleware(
 
 # Correlation ID + log d'accès (voir middleware.py). Ajouté en dernier =
 # middleware le plus externe : même une réponse CORS ou 429 porte le cid.
+app.middleware("http")(security_headers_middleware)
 app.middleware("http")(correlation_id_middleware)
 
 

@@ -1,0 +1,35 @@
+# Prometheus — collecte des métriques d'Access (jalon 13).
+#
+#   echo -n "<clé API Access>" > monitoring/access_api_key   # fichier ignoré par Git
+#   prometheus --config.file=monitoring/prometheus.yml --storage.tsdb.path=/tmp/prometheus-access
+#   → http://localhost:9090
+#
+# /metrics exige l'en-tête X-API-Key : la clé est lue depuis un fichier,
+# jamais écrite dans cette configuration versionnée (Prometheus ≥ 3.0).
+global:
+  scrape_interval: 15s
+  scrape_timeout: 10s
+
+scrape_configs:
+  - job_name: access-render
+    scheme: https
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["access-api-a1u7.onrender.com"]
+        labels:
+          env: production
+    http_headers:
+      X-API-Key:
+        files: [access_api_key]
+
+  # Instance locale (uvicorn ... --port 8000), si elle tourne.
+  - job_name: access-local
+    scheme: http
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["localhost:8000"]
+        labels:
+          env: local
+    http_headers:
+      X-API-Key:
+        values: ["change-me"]

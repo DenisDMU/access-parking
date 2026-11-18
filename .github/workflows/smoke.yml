@@ -1,0 +1,38 @@
+# Vérification de l'instance DÉPLOYÉE (Render), en complément de la CI qui
+# teste le code. Lancé à la main (Actions → Smoke test → Run workflow), et
+# chaque jour pour détecter une régression ou un service tombé.
+#
+# Prérequis (une fois) : Settings → Secrets and variables → Actions →
+#   - secret  ACCESS_API_KEY  = clé API de l'instance Render
+#   - variable ACCESS_BASE_URL (optionnelle, défaut : URL Render ci-dessous)
+# Sans VEHICLE_CODE : aucun effet de bord (pas d'entrée/sortie réelle).
+name: Smoke test (instance déployée)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 7 * * 1-5" # 8 h/9 h heure de Paris, jours ouvrés
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Version attendue (src/__init__.py)
+        id: version
+        run: echo "value=$(python3 -c 'import re; print(re.search(r"\"(.+)\"", open("src/__init__.py").read()).group(1))')" >> "$GITHUB_OUTPUT"
+      - name: Smoke test
+        env:
+          BASE_URL: ${{ vars.ACCESS_BASE_URL || 'https://access-api-a1u7.onrender.com' }}
+          API_KEY: ${{ secrets.ACCESS_API_KEY }}
+          EXPECTED_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          if [ -z "$API_KEY" ]; then
+            echo "::warning::Secret ACCESS_API_KEY non configuré : smoke test ignoré (voir l'en-tête de ce workflow)"
+            exit 0
+          fi
+          ./scripts/smoke_test.sh

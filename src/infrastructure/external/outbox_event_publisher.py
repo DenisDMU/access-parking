@@ -24,6 +24,9 @@ from src.domain.ports.access_repository_port import AccessRepositoryPort
 from src.infrastructure.db.repositories.sqlite_outbox_repository import (
     SqliteOutboxRepository,
 )
+from src.infrastructure.external.outgoing_http import outgoing_client
+from src.infrastructure.logging_config import get_correlation_id
+from src.infrastructure.metrics import EVENT_TYPE_LABEL, EVENTS_PUBLISHED
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +38,8 @@ def _serialize(event: AccessEvent) -> dict:
         "requestId": event.request_id,
         "payload": event.payload,
         "createdAt": event.created_at.isoformat(),
+        # Correlation ID de la requête qui a produit l'événement (jalon 12).
+        "correlationId": get_correlation_id(),
     }
 
 
@@ -51,7 +56,7 @@ class OutboxEventPublisher:
         self._outbox_repo = outbox_repo
         self._subscriber_urls = subscriber_urls
         self._timeout_s = max(timeout_ms, 1) / 1000
-        self._http_client = http_client or httpx.Client()
+        self._http_client = http_client or outgoing_client("webhook", timeout=self._timeout_s)
 
     def publish(self, event: AccessEvent) -> None:
         self._access_repo.save_event(event)
@@ -61,10 +66,18 @@ class OutboxEventPublisher:
             return
 
         body = _serialize(event)
+        event_type = EVENT_TYPE_LABEL.get(int(event.type), "other")
         for url in self._subscriber_urls:
             try:
-                self._http_client.post(url, json=body, timeout=self._timeout_s)
+                response = self._http_client.post(url, json=body, timeout=self._timeout_s)
+                response.raise_for_status()
+                EVENTS_PUBLISHED.labels(
+                    channel="webhook", event_type=event_type, outcome="ok"
+                ).inc()
             except httpx.HTTPError as exc:
                 # Best-effort : un abonné indisponible n'empêche jamais la
                 # décision d'accès de repartir vers l'appelant.
+                EVENTS_PUBLISHED.labels(
+                    channel="webhook", event_type=event_type, outcome="error"
+                ).inc()
                 logger.warning("Échec de diffusion de l'événement vers %s: %s", url, exc)

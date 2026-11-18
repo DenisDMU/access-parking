@@ -51,6 +51,7 @@ import httpx
 
 from src.domain.value_objects.dto import PlaceType
 from src.domain.value_objects.enums import VehicleCategory
+from src.infrastructure.external.outgoing_http import outgoing_client
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +102,7 @@ class HttpPricingClient:
             "duration_min": _duration_minutes(entry_date, exit_date, is_reservation),
         }
         try:
-            with httpx.Client(timeout=self._timeout_s) as client:
+            with outgoing_client("pricing", timeout=self._timeout_s) as client:
                 response = client.post(f"{self._base_url}/quote", json=payload)
             response.raise_for_status()
         except httpx.HTTPError as exc:

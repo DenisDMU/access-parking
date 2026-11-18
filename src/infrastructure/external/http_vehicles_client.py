@@ -28,6 +28,7 @@ import httpx
 
 from src.domain.value_objects.dto import VehicleInfo, VehicleType
 from src.domain.value_objects.enums import VehicleCategory
+from src.infrastructure.external.outgoing_http import outgoing_client
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +48,9 @@ class HttpVehiclesClient:
 
     def get_vehicle_info(self, vehicle_code: int) -> VehicleInfo | None:
         try:
-            with httpx.Client(timeout=self._timeout_s, transport=self._transport) as client:
+            with outgoing_client(
+                "vehicles", timeout=self._timeout_s, transport=self._transport
+            ) as client:
                 response = client.get(f"{self._base_url}/api/vehicles/{vehicle_code}")
             if response.status_code != 200:
                 logger.warning(
