@@ -1,4 +1,5 @@
-"""Implémentation SQLite du `VehiclePresenceRepositoryPort`."""
+"""Implémentation SQL (SQLAlchemy) du `VehiclePresenceRepositoryPort` —
+SQLite en local et dans les tests, Postgres (Neon) en production."""
 
 from __future__ import annotations
 
@@ -12,7 +13,7 @@ from src.domain.value_objects.enums import PresenceStatus
 from src.infrastructure.db.models import VehiclePresenceModel
 
 
-class SqliteVehiclePresenceRepository:
+class SqlVehiclePresenceRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
 

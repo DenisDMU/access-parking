@@ -44,12 +44,10 @@ class Settings:
         )
     )
 
-    # Bascule GLOBALE (garde le comportement historique : tout mocké par
-    # défaut). Chaque service a en plus sa PROPRE bascule ci-dessous
-    # (BOOKING_USE_MOCK) qui, si elle est définie, prend le dessus sur
-    # USE_MOCKS — indispensable pour brancher les services de l'équipe un
-    # par un au fur et à mesure qu'ils sont prêts, sans attendre que les 5
-    # soient terminés (voir README section 5).
+    # Bascule mock/réel : ne concerne plus que Booking, seul service encore
+    # simulé (son contrat n'est pas confirmé). BOOKING_USE_MOCK, si elle est
+    # définie, prend le dessus sur USE_MOCKS (voir README section 5). Les
+    # autres services sont toujours appelés en réel.
     use_mocks: bool = field(default_factory=lambda: _bool_env("USE_MOCKS", True))
 
     vehicles_service_url: str = os.getenv("VEHICLES_SERVICE_URL", "http://localhost:8001")

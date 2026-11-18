@@ -38,8 +38,8 @@ comportement inattendu apparaît) :
     payload de l'événement `VEHICLE_EXITED` côté Access — actuellement
     seul `amount_eur` est utilisé. À étendre si la traçabilité doit
     remonter jusqu'à Access.
-  - Aucune authentification n'a été nécessaire lors des tests (endpoint
-    public) — à revoir si Pricing ajoute une clé API plus tard.
+  - Pas d'authentification côté Pricing au 2026-11-18 ; si elle est activée,
+    renseigner `PRICING_API_KEY` (envoyée dans `X-API-Key`).
 """
 
 from __future__ import annotations

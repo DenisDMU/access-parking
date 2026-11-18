@@ -4,6 +4,18 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [3.6.1] — 2026-11-18 — Nettoyage avant l'oral
+
+### Modifié
+- Repositories renommés `Sql…Repository` (au lieu de `Sqlite…`) : ils
+  fonctionnent avec SQLite en local et Postgres en production.
+- `ProcessEntryRequest` : attribution de la place et analyse de la photo
+  extraites en méthodes dédiées (plus aucune fonction signalée comme trop
+  complexe par l'analyse statique).
+- Commentaires et README remis à jour (authentification Parking/Pricing,
+  bascule mock limitée à Booking, procédure de déploiement avec Neon et
+  smoke test).
+
 ## [3.6.0] — 2026-11-18 — Données persistantes (Postgres)
 
 ### Ajouté

@@ -36,14 +36,14 @@ from src.domain.ports.vehicle_presence_repository_port import (
 from src.domain.ports.vehicles_service_port import VehiclesServicePort
 from src.infrastructure.ai.fake_ai_vision_adapter import FakeAIVisionAdapter
 from src.infrastructure.config import get_settings
-from src.infrastructure.db.repositories.sqlite_access_repository import (
-    SqliteAccessRepository,
+from src.infrastructure.db.repositories.sql_access_repository import (
+    SqlAccessRepository,
 )
-from src.infrastructure.db.repositories.sqlite_outbox_repository import (
-    SqliteOutboxRepository,
+from src.infrastructure.db.repositories.sql_outbox_repository import (
+    SqlOutboxRepository,
 )
-from src.infrastructure.db.repositories.sqlite_vehicle_presence_repository import (
-    SqliteVehiclePresenceRepository,
+from src.infrastructure.db.repositories.sql_vehicle_presence_repository import (
+    SqlVehiclePresenceRepository,
 )
 from src.infrastructure.db.session import make_engine, make_session_factory
 from src.infrastructure.external.http_booking_client import HttpBookingClient
@@ -80,7 +80,7 @@ def count_present_vehicles() -> int:
 
     session = _SessionFactory()
     try:
-        return SqliteVehiclePresenceRepository(session).count_present()
+        return SqlVehiclePresenceRepository(session).count_present()
     finally:
         session.close()
 
@@ -88,19 +88,19 @@ def count_present_vehicles() -> int:
 def get_access_repository(
     session: Session = Depends(get_db_session),
 ) -> AccessRepositoryPort:
-    return SqliteAccessRepository(session)
+    return SqlAccessRepository(session)
 
 
 def get_presence_repository(
     session: Session = Depends(get_db_session),
 ) -> VehiclePresenceRepositoryPort:
-    return SqliteVehiclePresenceRepository(session)
+    return SqlVehiclePresenceRepository(session)
 
 
 def get_outbox_repository(
     session: Session = Depends(get_db_session),
-) -> SqliteOutboxRepository:
-    return SqliteOutboxRepository(session)
+) -> SqlOutboxRepository:
+    return SqlOutboxRepository(session)
 
 
 # --- Services externes (bascule USE_MOCKS) ----------------------------------
@@ -157,7 +157,7 @@ def get_ai_vision_port() -> AIVisionPort:
 
 def get_event_publisher(
     access_repo: AccessRepositoryPort = Depends(get_access_repository),
-    outbox_repo: SqliteOutboxRepository = Depends(get_outbox_repository),
+    outbox_repo: SqlOutboxRepository = Depends(get_outbox_repository),
 ) -> EventPublisherPort:
     settings = get_settings()
     if settings.event_publisher == "rabbitmq":

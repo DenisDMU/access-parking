@@ -1,4 +1,5 @@
-"""Implémentation SQLite du `AccessRepositoryPort`."""
+"""Implémentation SQL (SQLAlchemy) de `AccessRepositoryPort` — SQLite en local et
+dans les tests, Postgres (Neon) en production."""
 
 from __future__ import annotations
 
@@ -26,7 +27,8 @@ from src.infrastructure.db.models import (
 
 
 def _ensure_utc(dt: datetime) -> datetime:
-    """SQLite ne conserve pas le fuseau horaire : les datetimes relues sont
+    """SQLite ne conserve pas le fuseau horaire (Postgres oui, `timestamptz`) :
+    en SQLite, les datetimes relues sont
     naïves alors qu'elles représentent toujours un instant UTC (les dates
     entrantes sont normalisées en UTC dès la validation Pydantic, cf.
     `AccessRequestIn`). On la réattache pour permettre des soustractions
@@ -70,7 +72,7 @@ def _event_to_entity(row: AccessEventModel) -> AccessEvent:
     )
 
 
-class SqliteAccessRepository:
+class SqlAccessRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
 

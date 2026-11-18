@@ -49,8 +49,8 @@ TODO restés ouverts (à confirmer avec l'équipe Parking si besoin) :
   - Mapping `VehicleType` → `category_name` : priorité identique à celle
     utilisée pour Pricing (handicap > 2 roues > électrique > XL > standard),
     voir `_map_category` ci-dessous.
-  - Aucune authentification n'a été nécessaire lors des tests (endpoint
-    public).
+  - Authentification : `X-API-Key` exigé depuis le 2026-11-18 (variable
+    `PARKING_API_KEY`).
 """
 
 from __future__ import annotations
