@@ -1,335 +1,431 @@
 <!doctype html>
-<html lang="fr">
+<html lang="fr" data-theme="latte">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)" />
-<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
+<meta name="theme-color" content="#eff1f5" id="themeColor" />
 <title>Access — Borne et supervision</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%230a84ff'/%3E%3Cstop offset='1' stop-color='%235e5ce6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='8' fill='url(%23g)'/%3E%3Ctext x='16' y='22.5' font-family='-apple-system,Helvetica,Arial' font-size='18' font-weight='700' fill='white' text-anchor='middle'%3EP%3C/text%3E%3C/svg%3E" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%238839ef'/%3E%3Cstop offset='1' stop-color='%231e66f5'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='9' fill='url(%23g)'/%3E%3Ctext x='16' y='22.5' font-family='Menlo,monospace' font-size='18' font-weight='700' fill='white' text-anchor='middle'%3EP%3C/text%3E%3C/svg%3E" />
+<link rel="preload" href="/static/fonts/MesloLGS-NF-Regular.woff2" as="font" type="font/woff2" crossorigin />
+<script>
+  /* Thème appliqué avant le premier rendu (pas de flash) : Latte par défaut. */
+  (function () {
+    try {
+      var t = localStorage.getItem("access.dashboard.theme");
+      if (t === "mocha" || t === "latte") document.documentElement.dataset.theme = t;
+    } catch (e) { /* stockage indisponible : Latte */ }
+  })();
+</script>
 <style>
-  /* Style inspiré du langage visuel d'Apple (verre dépoli, typographie
-     système, contrôle segmenté). Couleurs en tokens, clair/sombre suivant
-     le système. Aucune ressource externe : tout est dans ce fichier. */
+  /* ------------------------------------------------------------------------
+     Access — dashboard
+     Thème : Catppuccin (Latte en clair, Mocha en sombre), police MesloLGS NF
+     (embarquée, sous-ensemble latin), surfaces en verre dépoli.
+     Aucune ressource externe : tout est servi par Access lui-même.
+     ------------------------------------------------------------------------ */
+  @font-face {
+    font-family: "MesloLGS NF";
+    src: url("/static/fonts/MesloLGS-NF-Regular.woff2") format("woff2");
+    font-weight: 400; font-style: normal; font-display: swap;
+  }
+  @font-face {
+    font-family: "MesloLGS NF";
+    src: url("/static/fonts/MesloLGS-NF-Bold.woff2") format("woff2");
+    font-weight: 700; font-style: normal; font-display: swap;
+  }
+
+  /* --- Catppuccin Latte ----------------------------------------------------- */
+  :root, [data-theme="latte"] {
+    color-scheme: light;
+    --base: #eff1f5; --mantle: #e6e9ef; --crust: #dce0e8;
+    --text: #4c4f69; --subtext: #6c6f85; --overlay: #9ca0b0; --surface: #ccd0da;
+    --mauve: #8839ef; --pink: #ea76cb; --red: #d20f39; --peach: #fe640b;
+    --yellow: #df8e1d; --green: #40a02b; --teal: #179299; --sky: #04a5e5;
+    --blue: #1e66f5; --lavender: #7287fd;
+    --on-accent: #ffffff;
+    --glass-hi: rgba(255, 255, 255, 0.66);
+    --glass-lo: rgba(255, 255, 255, 0.36);
+    --glass-border: rgba(255, 255, 255, 0.72);
+    --glass-sheen: rgba(255, 255, 255, 0.95);
+    --glass-shadow: rgba(76, 79, 105, 0.26);
+    --field: rgba(204, 208, 218, 0.42);
+    --field-hover: rgba(204, 208, 218, 0.62);
+    --row-hover: rgba(255, 255, 255, 0.55);
+    --hairline: rgba(76, 79, 105, 0.10);
+    --segment: rgba(255, 255, 255, 0.92);
+    --blob-a: rgba(136, 57, 239, 0.30);
+    --blob-b: rgba(30, 102, 245, 0.26);
+    --blob-c: rgba(254, 100, 11, 0.20);
+    --blob-d: rgba(23, 146, 153, 0.24);
+    --blob-e: rgba(234, 118, 203, 0.24);
+    --badge-mix: 76%;
+  }
+  /* --- Catppuccin Mocha ----------------------------------------------------- */
+  [data-theme="mocha"] {
+    color-scheme: dark;
+    --base: #1e1e2e; --mantle: #181825; --crust: #11111b;
+    --text: #cdd6f4; --subtext: #a6adc8; --overlay: #6c7086; --surface: #313244;
+    --mauve: #cba6f7; --pink: #f5c2e7; --red: #f38ba8; --peach: #fab387;
+    --yellow: #f9e2af; --green: #a6e3a1; --teal: #94e2d5; --sky: #89dceb;
+    --blue: #89b4fa; --lavender: #b4befe;
+    --on-accent: #11111b;
+    --glass-hi: rgba(69, 71, 90, 0.52);
+    --glass-lo: rgba(30, 30, 46, 0.46);
+    --glass-border: rgba(205, 214, 244, 0.11);
+    --glass-sheen: rgba(255, 255, 255, 0.10);
+    --glass-shadow: rgba(0, 0, 0, 0.55);
+    --field: rgba(88, 91, 112, 0.34);
+    --field-hover: rgba(88, 91, 112, 0.52);
+    --row-hover: rgba(205, 214, 244, 0.07);
+    --hairline: rgba(205, 214, 244, 0.09);
+    --segment: rgba(88, 91, 112, 0.90);
+    --blob-a: rgba(203, 166, 247, 0.24);
+    --blob-b: rgba(137, 180, 250, 0.20);
+    --blob-c: rgba(250, 179, 135, 0.13);
+    --blob-d: rgba(148, 226, 213, 0.14);
+    --blob-e: rgba(245, 194, 231, 0.14);
+    --badge-mix: 100%;
+  }
   :root {
-    color-scheme: light dark;
-    --bg: #f2f2f7;
-    --text: #1d1d1f;
-    --muted: #6e6e73;
-    --hairline: rgba(0, 0, 0, 0.08);
-    --glass: rgba(255, 255, 255, 0.62);
-    --glass-strong: rgba(255, 255, 255, 0.82);
-    --glass-border: rgba(255, 255, 255, 0.75);
-    --glass-shadow: 0 1px 1px rgba(0, 0, 0, 0.04), 0 8px 32px rgba(31, 38, 135, 0.10);
-    --field: rgba(118, 118, 128, 0.12);
-    --segment-active: #ffffff;
-    --accent: #0071e3;
-    --accent-hover: #0077ed;
-    --exit: #5e5ce6;
-    --ok: #248a3d;      --ok-bg: rgba(52, 199, 89, 0.16);
-    --info: #0066cc;    --info-bg: rgba(0, 122, 255, 0.12);
-    --danger: #d70015;  --danger-bg: rgba(255, 59, 48, 0.13);
-    --warn: #b25000;    --warn-bg: rgba(255, 149, 0, 0.16);
-    --neutral: #6e6e73; --neutral-bg: rgba(120, 120, 128, 0.14);
-    --blob-1: rgba(0, 122, 255, 0.28);
-    --blob-2: rgba(175, 82, 222, 0.24);
-    --blob-3: rgba(48, 209, 88, 0.18);
-    --blob-4: rgba(255, 159, 10, 0.16);
-    --radius-lg: 22px;
-    --radius-md: 14px;
+    --font: "MesloLGS NF", "MesloLGS Nerd Font", "MesloLGM Nerd Font", "Meslo LG S", Menlo,
+      "DejaVu Sans Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
+    --r-xl: 26px; --r-lg: 20px; --r-md: 14px; --r-sm: 10px;
     --ease: cubic-bezier(0.25, 0.1, 0.25, 1);
+    --spring: cubic-bezier(0.34, 1.45, 0.64, 1);
+    --page: min(1180px, calc(100vw - 32px));
   }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #000000;
-      --text: #f5f5f7;
-      --muted: #98989d;
-      --hairline: rgba(255, 255, 255, 0.10);
-      --glass: rgba(44, 44, 46, 0.55);
-      --glass-strong: rgba(44, 44, 46, 0.80);
-      --glass-border: rgba(255, 255, 255, 0.12);
-      --glass-shadow: 0 1px 1px rgba(0, 0, 0, 0.3), 0 12px 40px rgba(0, 0, 0, 0.45);
-      --field: rgba(118, 118, 128, 0.24);
-      --segment-active: #636366;
-      --accent: #0a84ff;
-      --accent-hover: #409cff;
-      --exit: #5e5ce6;
-      --ok: #30d158;      --ok-bg: rgba(48, 209, 88, 0.18);
-      --info: #64d2ff;    --info-bg: rgba(10, 132, 255, 0.20);
-      --danger: #ff453a;  --danger-bg: rgba(255, 69, 58, 0.20);
-      --warn: #ff9f0a;    --warn-bg: rgba(255, 159, 10, 0.20);
-      --neutral: #98989d; --neutral-bg: rgba(120, 120, 128, 0.24);
-      --blob-1: rgba(10, 132, 255, 0.30);
-      --blob-2: rgba(191, 90, 242, 0.26);
-      --blob-3: rgba(48, 209, 88, 0.14);
-      --blob-4: rgba(255, 159, 10, 0.12);
-    }
-  }
+
   * { box-sizing: border-box; }
   html { -webkit-text-size-adjust: 100%; }
   body {
     margin: 0;
     min-height: 100vh;
-    background: var(--bg);
+    background: var(--base);
     color: var(--text);
-    font: 15px/1.47 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", Roboto, sans-serif;
-    letter-spacing: -0.01em;
+    font: 400 13.5px/1.6 var(--font);
     -webkit-font-smoothing: antialiased;
+    transition: background 0.4s var(--ease), color 0.4s var(--ease);
   }
-  /* Fond : halos de couleur flous, fixes — c'est ce que le verre « floute ». */
+  /* Halos de couleur (accents Catppuccin) : c'est ce que le verre floute. */
   body::before {
     content: "";
-    position: fixed;
-    inset: -10%;
-    z-index: -1;
+    position: fixed; inset: -18%; z-index: -1;
     background:
-      radial-gradient(38% 42% at 12% 18%, var(--blob-1), transparent 70%),
-      radial-gradient(34% 40% at 88% 8%, var(--blob-2), transparent 70%),
-      radial-gradient(40% 45% at 78% 88%, var(--blob-3), transparent 70%),
-      radial-gradient(32% 36% at 8% 92%, var(--blob-4), transparent 70%);
-    filter: blur(20px);
+      radial-gradient(34% 38% at 14% 20%, var(--blob-a), transparent 72%),
+      radial-gradient(30% 36% at 86% 12%, var(--blob-b), transparent 72%),
+      radial-gradient(34% 40% at 80% 84%, var(--blob-d), transparent 72%),
+      radial-gradient(28% 34% at 10% 88%, var(--blob-c), transparent 72%),
+      radial-gradient(22% 26% at 50% 50%, var(--blob-e), transparent 72%);
+    filter: blur(30px);
+    animation: drift 36s ease-in-out infinite alternate;
   }
-  code { font: 0.86em ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace; }
+  @keyframes drift {
+    from { transform: translate3d(-2%, -1%, 0) scale(1); }
+    to { transform: translate3d(2%, 2%, 0) scale(1.08); }
+  }
+  ::selection { background: color-mix(in srgb, var(--mauve) 30%, transparent); }
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code {
+    font: inherit; font-size: 0.92em;
+    padding: 1px 6px; border-radius: 6px;
+    background: var(--field);
+  }
+  svg.ico { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
-  /* --- Surfaces en verre ------------------------------------------------- */
-  .glass, header, .toolbar, .panel, .kpi, .event, .req-card, .req-list-item {
-    background: var(--glass);
-    -webkit-backdrop-filter: saturate(180%) blur(24px);
-    backdrop-filter: saturate(180%) blur(24px);
+  /* --- Verre ------------------------------------------------------------------ */
+  .glass {
+    background: linear-gradient(140deg, var(--glass-hi), var(--glass-lo));
+    -webkit-backdrop-filter: blur(28px) saturate(175%);
+    backdrop-filter: blur(28px) saturate(175%);
     border: 1px solid var(--glass-border);
-    box-shadow: var(--glass-shadow);
+    box-shadow:
+      inset 0 1px 0 var(--glass-sheen),
+      0 1px 2px rgba(0, 0, 0, 0.04),
+      0 18px 44px -18px var(--glass-shadow);
   }
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-    .glass, header, .toolbar, .panel, .kpi, .event, .req-card, .req-list-item { background: var(--glass-strong); }
+    .glass { background: var(--mantle); }
   }
 
-  /* --- En-tête : barre collante translucide + contrôle segmenté ---------- */
-  header {
-    position: sticky;
-    top: 0;
-    z-index: 10;
-    border-width: 0 0 1px;
-    border-color: var(--hairline);
-    box-shadow: none;
-    padding: 14px max(24px, calc((100vw - 1180px) / 2)) 12px;
+  /* --- Barre du haut ------------------------------------------------------------ */
+  .topbar {
+    position: sticky; top: 12px; z-index: 20;
+    width: var(--page); margin: 12px auto 0;
+    padding: 10px 12px 10px 14px;
+    border-radius: var(--r-xl);
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
   }
-  .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .brand { display: flex; align-items: center; gap: 11px; min-width: 0; }
   .logo {
-    width: 36px; height: 36px; flex: none;
-    border-radius: 10px;
+    width: 38px; height: 38px; flex: none; border-radius: 12px;
     display: grid; place-items: center;
-    font-weight: 700; font-size: 18px; color: #fff;
-    background: linear-gradient(135deg, #0a84ff, #5e5ce6);
-    box-shadow: 0 4px 14px rgba(10, 132, 255, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    font-weight: 700; font-size: 19px; color: #fff;
+    background: linear-gradient(135deg, #8839ef, #1e66f5);
+    box-shadow: 0 6px 16px -4px rgba(136, 57, 239, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.4);
   }
-  h1 { margin: 0; font-size: 21px; font-weight: 700; letter-spacing: -0.02em; }
-  .subtitle { color: var(--muted); font-size: 13px; }
-  #versionBadge:not(:empty) {
-    margin-left: auto;
-    font-size: 12px; font-weight: 600;
-    padding: 4px 10px; border-radius: 999px;
-    color: var(--muted); background: var(--neutral-bg);
-    white-space: nowrap;
-  }
+  h1 { margin: 0; font-size: 16px; font-weight: 700; line-height: 1.25; }
+  .tagline { color: var(--subtext); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .tabs {
-    display: inline-flex;
-    gap: 2px;
-    padding: 3px;
-    border-radius: 12px;
+    display: flex; gap: 2px; padding: 3px;
+    margin: 0 auto;
+    border-radius: 13px;
     background: var(--field);
-    max-width: 100%;
-    overflow-x: auto;
-    scrollbar-width: none;
+    max-width: 100%; overflow-x: auto; scrollbar-width: none;
   }
   .tabs::-webkit-scrollbar { display: none; }
   .tab-btn {
-    font: inherit; font-size: 14px; font-weight: 500;
-    border: none; border-radius: 9px;
-    background: transparent; color: var(--text);
-    padding: 6px 16px;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: background 0.25s var(--ease), box-shadow 0.25s var(--ease);
+    font: inherit; font-size: 13px;
+    border: none; border-radius: 10px;
+    background: transparent; color: var(--subtext);
+    padding: 7px 15px; cursor: pointer; white-space: nowrap;
+    transition: background 0.25s var(--ease), color 0.25s var(--ease), box-shadow 0.25s var(--ease);
   }
-  .tab-btn:hover { background: rgba(127, 127, 127, 0.10); }
+  .tab-btn:hover { color: var(--text); }
   .tab-btn.active {
-    background: var(--segment-active);
-    font-weight: 600;
-    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.12), 0 0 0 0.5px rgba(0, 0, 0, 0.04);
+    background: var(--segment); color: var(--text); font-weight: 700;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.06), 0 4px 12px -4px var(--glass-shadow);
   }
-  .tab-panel { display: none; }
-  .tab-panel.active { display: block; animation: rise 0.35s var(--ease); }
-  @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .top-actions { display: flex; align-items: center; gap: 8px; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 7px;
+    height: 32px; padding: 0 12px;
+    border-radius: 999px; background: var(--field);
+    color: var(--subtext); font-size: 12px; white-space: nowrap;
+  }
+  .dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--overlay); --c: var(--overlay); }
+  .dot.ok { --c: var(--green); }
+  .dot.ko { --c: var(--red); }
+  .dot.warn { --c: var(--yellow); }
+  .dot.ok, .dot.ko, .dot.warn { background: var(--c); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 22%, transparent), 0 0 10px var(--c); }
+  .icon-btn {
+    width: 32px; height: 32px; padding: 0; flex: none;
+    display: grid; place-items: center;
+    border: none; border-radius: 50%;
+    background: var(--field); color: var(--text); cursor: pointer;
+    transition: background 0.2s var(--ease), transform 0.3s var(--spring);
+  }
+  .icon-btn:hover { background: var(--field-hover); transform: rotate(18deg); }
+  [data-theme="latte"] .ico-sun, [data-theme="mocha"] .ico-moon { display: none; }
 
-  /* --- Barre d'outils (clé API, rafraîchissement) ----------------------- */
-  .toolbar {
-    display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
-    margin: 20px max(24px, calc((100vw - 1180px) / 2)) 0;
-    padding: 12px 16px;
-    border-radius: var(--radius-md);
+  /* --- Barre de connexion ----------------------------------------------------- */
+  .connect {
+    width: var(--page); margin: 14px auto 0;
+    padding: 10px 12px;
+    border-radius: var(--r-lg);
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   }
-  .toolbar label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; white-space: nowrap; }
-  input, select, button { font: inherit; }
+  .input-wrap { position: relative; display: flex; align-items: center; }
+  .input-wrap .ico { position: absolute; left: 11px; color: var(--subtext); pointer-events: none; }
+  .input-wrap input { padding-left: 34px; }
+  input, select, button { font: inherit; color: inherit; }
   input, select {
-    border: 1px solid transparent;
-    border-radius: 10px;
-    padding: 7px 12px;
-    background: var(--field);
-    color: var(--text);
+    height: 34px; padding: 0 12px;
+    border: 1px solid transparent; border-radius: var(--r-sm);
+    background: var(--field); outline: none;
+    transition: box-shadow 0.2s var(--ease), background 0.2s var(--ease), border-color 0.2s var(--ease);
+  }
+  input::placeholder { color: var(--overlay); }
+  input:hover, select:hover { background: var(--field-hover); }
+  input:focus, select:focus {
+    border-color: color-mix(in srgb, var(--blue) 55%, transparent);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--blue) 20%, transparent);
+  }
+  #apiKey { width: 250px; }
+  .muted { color: var(--subtext); font-size: 12px; }
+  .status { margin-left: auto; color: var(--subtext); font-size: 12px; text-align: right; }
+  .status.error { color: var(--red); }
+
+  /* --- Boutons ------------------------------------------------------------------ */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+    height: 34px; padding: 0 16px;
+    border: none; border-radius: 999px;
+    background: var(--blue); color: var(--on-accent);
+    font-weight: 700; cursor: pointer; white-space: nowrap;
+    transition: transform 0.2s var(--spring), filter 0.2s var(--ease), box-shadow 0.2s var(--ease);
+  }
+  .btn:hover { filter: brightness(1.08); }
+  .btn:active { transform: scale(0.96); }
+  .btn.ghost { background: var(--field); color: var(--text); font-weight: 400; }
+  .btn.ghost:hover { background: var(--field-hover); filter: none; }
+  :is(button, .row-click, a):focus-visible {
     outline: none;
-    transition: box-shadow 0.2s var(--ease), background 0.2s var(--ease);
-  }
-  input:focus, select:focus { box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.28); background: var(--glass-strong); }
-  input[type="password"], input[type="text"] { width: 220px; }
-  button {
-    border: none;
-    border-radius: 999px;
-    padding: 8px 18px;
-    background: var(--accent);
-    color: #fff;
-    font-weight: 600;
-    cursor: pointer;
-    transition: transform 0.15s var(--ease), background 0.2s var(--ease), box-shadow 0.2s var(--ease);
-  }
-  button:hover { background: var(--accent-hover); }
-  button:active { transform: scale(0.97); }
-  button:focus-visible { outline: none; box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.35); }
-  button.secondary { background: var(--field); color: var(--accent); }
-  button.secondary:hover { background: rgba(127, 127, 127, 0.22); }
-  .status { font-size: 12px; color: var(--muted); margin-left: auto; }
-  .status.error { color: var(--danger); }
-
-  main { padding: 20px max(24px, calc((100vw - 1180px) / 2)) 48px; }
-  h2 { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
-  .empty {
-    color: var(--muted);
-    text-align: center;
-    padding: 56px 16px;
-    border: 1px dashed var(--hairline);
-    border-radius: var(--radius-lg);
+    box-shadow: 0 0 0 3px var(--base), 0 0 0 5px color-mix(in srgb, var(--blue) 70%, transparent);
   }
 
-  /* --- Listes et cartes ------------------------------------------------- */
-  .events, .req-list { display: flex; flex-direction: column; gap: 8px; }
-  .event, .req-card { border-radius: var(--radius-md); padding: 12px 16px; }
-  .event-head, .req-head { display: flex; align-items: center; gap: 10px; cursor: pointer; }
-  .req-list-item {
+  /* --- Mise en page --------------------------------------------------------------- */
+  main { width: var(--page); margin: 18px auto 0; padding-bottom: 28px; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; animation: rise 0.4s var(--ease); }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .panel { border-radius: var(--r-xl); padding: 20px; min-width: 0; }
+  .panel-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+  h2 { margin: 0; font-size: 14.5px; font-weight: 700; }
+  .panel-head .muted { margin-left: auto; }
+  .kicker { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--subtext); }
+  .hint { color: var(--subtext); font-size: 12px; margin: 0; }
+  .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+  .field > span { color: var(--subtext); font-size: 12px; }
+  .stack > * + * { margin-top: 16px; }
+
+  /* --- Lignes, badges ---------------------------------------------------------------- */
+  .list { display: flex; flex-direction: column; gap: 2px; }
+  .row {
     display: flex; align-items: center; gap: 10px;
-    padding: 11px 16px;
-    border-radius: var(--radius-md);
-    cursor: pointer;
-    transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease);
+    padding: 9px 10px; border-radius: 12px;
+    transition: background 0.18s var(--ease);
   }
-  .req-list-item:hover, .event:hover { transform: translateY(-1px); box-shadow: var(--glass-shadow), 0 0 0 1px rgba(0, 122, 255, 0.25); }
+  .row-click { cursor: pointer; }
+  .row-click:hover { background: var(--row-hover); }
+  .row-main { flex: 1; min-width: 0; }
+  .row-title, .row-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row-sub { color: var(--subtext); font-size: 12px; }
+  .row-time { color: var(--subtext); font-size: 12px; white-space: nowrap; }
+  .chev { width: 7px; height: 7px; flex: none; margin: 0 4px; border: solid var(--overlay); border-width: 0 1.6px 1.6px 0; transform: rotate(45deg); transition: transform 0.25s var(--ease); }
+  .item.open .chev { transform: rotate(-135deg); }
+  .item + .item, .list > .row + .row { box-shadow: 0 -1px 0 var(--hairline); }
   .badge {
-    font-size: 11px; font-weight: 600;
-    letter-spacing: 0.02em;
-    padding: 3px 9px;
-    border-radius: 999px;
-    white-space: nowrap;
-    color: var(--neutral); background: var(--neutral-bg);
+    --c: var(--overlay);
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 22px; padding: 0 9px; flex: none;
+    border-radius: 999px; font-size: 11.5px; font-weight: 700; white-space: nowrap;
+    color: color-mix(in srgb, var(--c) var(--badge-mix), var(--text));
+    background: color-mix(in srgb, var(--c) 15%, transparent);
   }
-  .badge-entre, .badge-authorized { color: var(--ok); background: var(--ok-bg); }
-  .badge-sorti { color: var(--info); background: var(--info-bg); }
-  .badge-refuse, .badge-refused { color: var(--danger); background: var(--danger-bg); }
-  .badge-autre, .badge-pending { color: var(--warn); background: var(--warn-bg); }
-  .event-summary, .req-summary { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .event-time { color: var(--muted); font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
-  .event-toggle { color: var(--muted); font-size: 10px; }
-  pre {
-    margin: 12px 0 2px;
-    padding: 12px;
-    background: var(--field);
-    border-radius: 10px;
-    overflow-x: auto;
-    font: 12px/1.5 ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+  .list .badge { min-width: 96px; justify-content: center; }
+  .badge.dotted::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--c); }
+  .b-green { --c: var(--green); } .b-blue { --c: var(--blue); } .b-red { --c: var(--red); }
+  .b-peach { --c: var(--peach); } .b-mauve { --c: var(--mauve); } .b-neutral { --c: var(--subtext); }
+  pre.json {
     display: none;
+    margin: 2px 10px 10px; padding: 12px 14px;
+    border-radius: 12px; background: var(--field);
+    font: inherit; font-size: 12px; line-height: 1.55;
+    overflow-x: auto;
   }
-  .event.open pre, .req-card.open pre { display: block; }
-  .event.open .event-toggle::after, .req-card.open .event-toggle::after { content: "▲"; }
-  .event:not(.open) .event-toggle::after, .req-card:not(.open) .event-toggle::after { content: "▼"; }
-  .search-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
-  .search-hint { color: var(--muted); font-size: 13px; margin: -4px 0 16px; }
+  .item.open pre.json { display: block; }
+  .empty {
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+    padding: 34px 16px; text-align: center; color: var(--subtext);
+  }
+  .empty .ico { width: 26px; height: 26px; color: var(--overlay); }
 
-  /* --- Onglet Borne -------------------------------------------------------- */
-  .borne { display: grid; grid-template-columns: minmax(280px, 380px) minmax(0, 1fr); gap: 20px; align-items: start; }
-  .borne > * { min-width: 0; }
-  .panel { border-radius: var(--radius-lg); padding: 20px; }
-  .panel h2 { margin: 0 0 14px; }
-  .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
-  .field > span { color: var(--muted); font-size: 13px; }
+  /* --- Borne ------------------------------------------------------------------------ */
+  .borne { display: grid; grid-template-columns: minmax(300px, 400px) minmax(0, 1fr); gap: 18px; align-items: start; }
   #borneCode {
-    width: 100%;
-    padding: 14px;
-    font-size: 30px; font-weight: 600;
-    letter-spacing: 0.08em;
-    text-align: center;
-    border-radius: var(--radius-md);
-    font-variant-numeric: tabular-nums;
+    width: 100%; height: 64px;
+    font-size: 30px; font-weight: 700; letter-spacing: 0.12em; text-align: center;
+    border-radius: var(--r-md);
   }
-  .hint { color: var(--muted); font-size: 12.5px; margin: -6px 0 14px; }
-  .borne-actions { display: flex; gap: 10px; }
-  .borne-actions button { flex: 1; padding: 14px; font-size: 16px; border-radius: var(--radius-md); }
-  .borne-actions button:disabled { opacity: 0.5; cursor: wait; transform: none; }
-  #borneEntry { box-shadow: 0 6px 20px rgba(0, 113, 227, 0.30); }
-  .btn-exit { background: var(--exit); box-shadow: 0 6px 20px rgba(94, 92, 230, 0.30); }
-  .btn-exit:hover { background: #7d7aff; }
-  .gate { display: flex; align-items: center; gap: 14px; font-size: 24px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 14px; }
-  .gate-light {
-    width: 20px; height: 20px; flex: none; border-radius: 50%;
-    background: var(--neutral);
-    box-shadow: 0 0 0 4px var(--neutral-bg);
-    transition: background 0.3s var(--ease), box-shadow 0.3s var(--ease);
+  .chips { display: flex; gap: 2px; padding: 3px; border-radius: 12px; background: var(--field); }
+  .chip {
+    flex: 1; height: 30px; padding: 0 6px;
+    border: none; border-radius: 9px;
+    background: transparent; color: var(--subtext);
+    font-size: 12px; cursor: pointer; white-space: nowrap;
+    transition: background 0.2s var(--ease), color 0.2s var(--ease);
   }
-  .gate-ok .gate-light { background: var(--ok); box-shadow: 0 0 0 5px var(--ok-bg), 0 0 22px var(--ok); }
-  .gate-refused .gate-light { background: var(--danger); box-shadow: 0 0 0 5px var(--danger-bg), 0 0 22px var(--danger); }
-  .gate-pending .gate-light { background: var(--warn); box-shadow: 0 0 0 5px var(--warn-bg), 0 0 22px var(--warn); }
-  .gate-wait .gate-light { background: var(--accent); animation: pulse 1.2s var(--ease) infinite; }
-  @keyframes pulse { 50% { opacity: 0.35; transform: scale(0.85); } }
-  .facts { display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; margin: 0; }
-  .facts dt { color: var(--muted); }
-  .facts dd { margin: 0; overflow-wrap: anywhere; font-weight: 500; }
-  .link { color: var(--accent); cursor: pointer; text-decoration: none; }
+  .chip:hover { color: var(--text); }
+  .chip[aria-pressed="true"], .chip[aria-checked="true"] {
+    background: var(--segment); color: var(--text); font-weight: 700;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.06), 0 4px 10px -4px var(--glass-shadow);
+  }
+  .borne-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .borne-actions .btn { height: 50px; font-size: 15px; border-radius: var(--r-md); }
+  .btn-entry { box-shadow: 0 10px 24px -10px var(--blue); }
+  .btn-exit { background: var(--mauve); box-shadow: 0 10px 24px -10px var(--mauve); }
+  .btn:disabled { opacity: 0.55; cursor: wait; transform: none; filter: none; }
+  kbd {
+    font: inherit; font-size: 11px;
+    padding: 1px 6px; border-radius: 6px;
+    background: var(--field); box-shadow: inset 0 -1px 0 var(--hairline);
+  }
+
+  /* Résultat : barrière animée */
+  .result { --gate: var(--overlay); }
+  .result.gate-ok { --gate: var(--green); }
+  .result.gate-refused { --gate: var(--red); }
+  .result.gate-pending { --gate: var(--peach); }
+  .result.gate-wait { --gate: var(--blue); }
+  .gate { display: flex; align-items: center; gap: 18px; margin-bottom: 16px; }
+  .gate svg { width: 120px; height: 96px; flex: none; }
+  .gate-post { fill: var(--overlay); }
+  .gate-ground { fill: var(--surface); }
+  .gate-arm { transform-box: view-box; transform-origin: 21px 62px; transition: transform 0.8s var(--spring); }
+  .gate-arm rect.bar { fill: var(--gate); transition: fill 0.4s var(--ease); }
+  .gate-arm rect.stripe { fill: #fff; opacity: 0.75; }
+  .gate-lamp { fill: var(--gate); stroke: var(--glass-sheen); stroke-width: 2; transition: fill 0.4s var(--ease); filter: drop-shadow(0 0 6px var(--gate)); }
+  .gate-ok .gate-arm { transform: rotate(-48deg); }
+  .gate-wait .gate-arm { animation: armwait 1.3s ease-in-out infinite; }
+  .gate-wait .gate-lamp { animation: blink 1.3s ease-in-out infinite; }
+  @keyframes armwait { 50% { transform: rotate(-9deg); } }
+  @keyframes blink { 50% { opacity: 0.3; } }
+  .gate-title { font-size: 21px; font-weight: 700; line-height: 1.3; color: color-mix(in srgb, var(--gate) 55%, var(--text)); }
+  .result.gate-idle .gate-title { color: var(--text); }
+  .facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 2px 18px; margin: 0; }
+  .facts dt, .facts dd { padding: 7px 0; margin: 0; box-shadow: 0 -1px 0 var(--hairline); }
+  .facts dt { color: var(--subtext); }
+  .facts dd { overflow-wrap: anywhere; }
+  .link { color: var(--blue); cursor: pointer; }
   .link:hover { text-decoration: underline; }
-  .borne-history { margin-top: 20px; }
-  .borne-history h2 { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin: 0 0 10px; }
 
-  /* --- Onglet État du parking -------------------------------------------- */
-  .state-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 20px; }
-  .kpi { border-radius: var(--radius-lg); padding: 16px 18px; min-width: 0; }
-  .kpi-label { color: var(--muted); font-size: 13px; font-weight: 500; }
-  .kpi-value {
-    font-size: 34px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.15;
-    margin: 4px 0 2px;
-    font-variant-numeric: tabular-nums;
-    overflow-wrap: anywhere;
+  /* --- État du parking ------------------------------------------------------------- */
+  .kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; margin-bottom: 18px; }
+  .kpi { --c: var(--blue); border-radius: var(--r-lg); padding: 14px 16px; min-width: 0; position: relative; overflow: hidden; }
+  .kpi::after {
+    content: ""; position: absolute; right: -26px; top: -26px;
+    width: 86px; height: 86px; border-radius: 50%;
+    background: radial-gradient(circle, color-mix(in srgb, var(--c) 34%, transparent), transparent 70%);
   }
-  .kpi-sub { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
-  .state-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
-  .state-cols h2 { margin: 0 0 6px; }
-  .section-hint { color: var(--muted); font-size: 12.5px; margin: 0 0 12px; }
-  .ops-panel { margin-top: 20px; }
-  .ops { margin: 0; padding-left: 18px; }
-  .ops li { margin-bottom: 6px; }
-  .ops a { color: var(--accent); text-decoration: none; }
-  .dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; vertical-align: 0.1em; background: var(--neutral); }
-  .dot-ok { background: var(--ok); box-shadow: 0 0 0 4px var(--ok-bg), 0 0 14px var(--ok); }
-  .dot-ko { background: var(--danger); box-shadow: 0 0 0 4px var(--danger-bg), 0 0 14px var(--danger); }
+  .kpi-label { display: flex; align-items: center; gap: 7px; color: var(--subtext); font-size: 12px; }
+  .kpi-label .ico { color: var(--c); }
+  .kpi-value { font-size: 30px; font-weight: 700; line-height: 1.25; margin-top: 4px; overflow-wrap: anywhere; }
+  .kpi-sub { color: var(--subtext); font-size: 11.5px; overflow-wrap: anywhere; }
+  .cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+  .ops { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 22px; }
+  .ops li { padding-left: 16px; position: relative; color: var(--subtext); }
+  .ops li::before { content: ""; position: absolute; left: 0; top: 0.65em; width: 6px; height: 6px; border-radius: 50%; background: var(--mauve); }
+  .ops strong { color: var(--text); }
 
-  /* --- Petits écrans ------------------------------------------------------ */
-  @media (max-width: 900px) { .state-cols { grid-template-columns: minmax(0, 1fr); } }
+  /* --- Recherche ------------------------------------------------------------------- */
+  .search-bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .search-bar .input-wrap { flex: 1; min-width: 200px; }
+  .search-bar input { width: 100%; }
+
+  footer {
+    width: var(--page); margin: 0 auto; padding: 4px 6px 28px;
+    display: flex; gap: 6px 18px; flex-wrap: wrap;
+    color: var(--subtext); font-size: 11.5px;
+  }
+  footer span:first-child { margin-right: auto; }
+
+  /* --- Écrans étroits ---------------------------------------------------------------- */
+  @media (max-width: 1020px) {
+    .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .tabs { order: 3; width: 100%; margin: 0; }
+    .tab-btn { flex: 1; }
+    .top-actions { margin-left: auto; }
+  }
   @media (max-width: 760px) {
-    header { padding: 12px 16px 10px; }
-    .toolbar { margin: 16px 16px 0; }
-    main { padding: 16px 16px 40px; }
-    .borne { grid-template-columns: minmax(0, 1fr); }
-    .subtitle { display: none; }
-    .tabs { display: flex; }
-    .tab-btn { flex: 1 1 auto; padding: 6px 8px; font-size: 13px; }
-    .toolbar label:first-child { width: 100%; }
-    .toolbar label:first-child input { flex: 1; width: auto; min-width: 0; }
-    .search-bar input[type="text"] { flex: 1; width: auto; min-width: 0; }
-    .kpi-value { font-size: 28px; }
+    :root { --page: calc(100vw - 24px); }
+    .borne, .cols { grid-template-columns: minmax(0, 1fr); }
+    .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .ops { grid-template-columns: minmax(0, 1fr); }
+    .panel { padding: 16px; border-radius: var(--r-lg); }
+    .tagline, #svcText { display: none; }
+    .tab-btn { padding: 7px 5px; font-size: 12px; }
+    .btn-label { display: none; }
+    #refreshBtn { width: 34px; padding: 0; margin-left: auto; }
+    .connect .input-wrap { flex: 1 1 100%; }
+    #apiKey { width: 100%; }
+    .status { flex: 1 1 100%; margin: 0; text-align: left; }
+    .gate { gap: 12px; }
+    .gate svg { width: 90px; height: 72px; }
+    .gate-title { font-size: 17px; }
+    .row { flex-wrap: wrap; }
+    .row-main { flex: 1 1 60%; }
+    .kpi-value { font-size: 26px; }
   }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; }
@@ -337,354 +433,540 @@
 </style>
 </head>
 <body>
-<header>
+
+<header class="topbar glass">
   <div class="brand">
     <div class="logo" aria-hidden="true">P</div>
-    <div>
+    <div style="min-width:0">
       <h1>Access</h1>
-      <div class="subtitle">Borne d'entrée/sortie, état du parking, événements publiés et recherche de demandes</div>
+      <div class="tagline">contrôle d'accès du parking</div>
     </div>
-    <span id="versionBadge"></span>
   </div>
-  <div class="tabs">
-    <button class="tab-btn active" data-tab="borne">Borne</button>
-    <button class="tab-btn" data-tab="state">État du parking</button>
-    <button class="tab-btn" data-tab="journal">Journal</button>
-    <button class="tab-btn" data-tab="search">Recherche</button>
+
+  <nav class="tabs" role="tablist" aria-label="Sections">
+    <button class="tab-btn active" role="tab" aria-selected="true" data-tab="borne">Borne</button>
+    <button class="tab-btn" role="tab" aria-selected="false" data-tab="state">État du parking</button>
+    <button class="tab-btn" role="tab" aria-selected="false" data-tab="journal">Journal</button>
+    <button class="tab-btn" role="tab" aria-selected="false" data-tab="search">Recherche</button>
+  </nav>
+
+  <div class="top-actions">
+    <span class="pill" title="État du service (GET /health)">
+      <span class="dot" id="svcDot"></span><span id="svcText">service…</span><span id="versionBadge"></span>
+    </span>
+    <button class="icon-btn" id="themeBtn" type="button" aria-label="Changer de thème (Latte / Mocha)" title="Thème Latte / Mocha">
+      <svg class="ico ico-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z"/></svg>
+      <svg class="ico ico-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/></svg>
+    </button>
   </div>
 </header>
 
-<div class="toolbar">
-  <label>Clé API
-    <input id="apiKey" type="password" placeholder="X-API-Key" />
-  </label>
-  <label>Rafraîchissement
-    <select id="interval">
-      <option value="0">Manuel</option>
-      <option value="3000" selected>3 s</option>
-      <option value="5000">5 s</option>
-      <option value="10000">10 s</option>
-    </select>
-  </label>
-  <button id="refreshBtn" class="secondary">↻ Rafraîchir</button>
-  <span id="status" class="status">—</span>
-</div>
+<section class="connect glass" aria-label="Connexion à l'API">
+  <div class="input-wrap">
+    <svg class="ico" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+    <input id="apiKey" type="password" placeholder="Clé API (X-API-Key)" autocomplete="off" aria-label="Clé API" />
+  </div>
+  <span class="badge dotted b-peach" id="keyState">clé requise</span>
+  <select id="interval" aria-label="Rafraîchissement automatique" title="Rafraîchissement automatique">
+    <option value="0">Manuel</option>
+    <option value="3000" selected>Auto · 3 s</option>
+    <option value="5000">Auto · 5 s</option>
+    <option value="10000">Auto · 10 s</option>
+  </select>
+  <button id="refreshBtn" class="btn ghost" type="button" aria-label="Rafraîchir" title="Rafraîchir maintenant">
+    <svg class="ico" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.6-5.9"/><path d="M20 4v5h-5"/></svg><span class="btn-label">Rafraîchir</span>
+  </button>
+  <span id="status" class="status" role="status">—</span>
+</section>
 
 <main>
-  <section id="tab-borne" class="tab-panel active">
+  <!-- ======================= Borne ======================= -->
+  <section id="tab-borne" class="tab-panel active" role="tabpanel">
     <div class="borne">
-      <div class="panel">
-        <h2>Passage à la borne</h2>
-        <label class="field">
-          <span>Code véhicule (attribué par Vehicles)</span>
-          <input id="borneCode" type="text" inputmode="numeric" placeholder="1" autocomplete="off" />
-        </label>
-        <div class="hint">
-          La plaque est identifiée par Vehicles, qui renvoie un code : Access ne
-          voit jamais la plaque, seulement ce code et la donnée anonymisée associée.
+      <div class="panel glass stack">
+        <div>
+          <div class="kicker">Simulation</div>
+          <h2>Passage à la borne</h2>
         </div>
-        <label class="field">
-          <span>Heure de passage</span>
-          <select id="borneOffset">
-            <option value="0" selected>Maintenant</option>
-            <option value="60">Dans 1 h</option>
-            <option value="150">Dans 2 h 30</option>
-            <option value="1440">Dans 1 jour</option>
-          </select>
-        </label>
-        <div class="hint">
-          Pour une sortie juste après l'entrée, choisis « Dans 2 h 30 » : ça simule la
-          durée de stationnement (sinon la 1re heure gratuite donne 0 €, donc aucun paiement).
+        <div>
+          <label class="field">
+            <span>Code véhicule (attribué par Vehicles)</span>
+            <input id="borneCode" type="text" inputmode="numeric" placeholder="4242" autocomplete="off" />
+          </label>
+          <p class="hint">
+            Vehicles identifie la plaque et renvoie un code : Access ne voit jamais la plaque,
+            seulement ce code et la donnée anonymisée associée.
+          </p>
+        </div>
+        <div>
+          <div class="field">
+            <span id="offsetLabel">Heure de passage</span>
+            <div class="chips" id="borneOffset" role="radiogroup" aria-labelledby="offsetLabel">
+              <button class="chip" type="button" role="radio" aria-checked="true" data-value="0">Maintenant</button>
+              <button class="chip" type="button" role="radio" aria-checked="false" data-value="60">+1 h</button>
+              <button class="chip" type="button" role="radio" aria-checked="false" data-value="150">+2 h 30</button>
+              <button class="chip" type="button" role="radio" aria-checked="false" data-value="1440">+1 jour</button>
+            </div>
+          </div>
+          <p class="hint">
+            Pour une sortie juste après l'entrée, choisis « +2 h 30 » : ça simule la durée de
+            stationnement (sinon la 1re heure gratuite donne 0 €, donc aucun paiement).
+          </p>
         </div>
         <div class="borne-actions">
-          <button id="borneEntry">Entrée</button>
-          <button id="borneExit" class="btn-exit">Sortie</button>
+          <button id="borneEntry" class="btn btn-entry" type="button">Entrée</button>
+          <button id="borneExit" class="btn btn-exit" type="button">Sortie</button>
         </div>
+        <p class="hint"><kbd>Entrée ↵</kbd> dans le champ lance une entrée.</p>
       </div>
-      <div>
-        <div id="borneResult" class="panel">
-          <div class="gate"><span class="gate-light"></span>En attente d'un véhicule</div>
-          <div class="hint">Saisis un code véhicule puis « Entrée » ou « Sortie ». La décision d'Access s'affiche ici.</div>
-        </div>
-        <div class="borne-history">
-          <h2>Passages de cette session</h2>
-          <div id="borneHistory" class="req-list"></div>
+
+      <div class="stack">
+        <div id="borneResult" class="panel glass result gate-idle" aria-live="polite"></div>
+        <div class="panel glass">
+          <div class="panel-head">
+            <h2>Passages de cette session</h2>
+            <span class="muted">clique une ligne pour le détail</span>
+          </div>
+          <div id="borneHistory" class="list"></div>
         </div>
       </div>
     </div>
   </section>
 
-  <section id="tab-state" class="tab-panel">
-    <div class="state-grid">
-      <div class="kpi">
-        <div class="kpi-label">Service Access</div>
-        <div class="kpi-value" id="kpiService"><span class="dot"></span>—</div>
+  <!-- ======================= État du parking ======================= -->
+  <section id="tab-state" class="tab-panel" role="tabpanel">
+    <div class="kpis">
+      <div class="kpi glass" style="--c: var(--green)">
+        <div class="kpi-label"><svg class="ico" viewBox="0 0 24 24"><path d="M3 12h4l2.5-6 4 12 2.5-6h5"/></svg>Service Access</div>
+        <div class="kpi-value" id="kpiService">—</div>
         <div class="kpi-sub" id="kpiServiceSub">GET /health</div>
       </div>
-      <div class="kpi">
-        <div class="kpi-label">Véhicules présents</div>
+      <div class="kpi glass" style="--c: var(--blue)">
+        <div class="kpi-label"><svg class="ico" viewBox="0 0 24 24"><path d="M5 16v-3l1.8-4.5A2 2 0 0 1 8.7 7h6.6a2 2 0 0 1 1.9 1.5L19 13v3"/><path d="M4 16h16v2H4z"/><circle cx="8" cy="16" r="1"/><circle cx="16" cy="16" r="1"/></svg>Véhicules présents</div>
         <div class="kpi-value" id="kpiPresent">—</div>
-        <div class="kpi-sub">présence IN, pas encore sortis</div>
+        <div class="kpi-sub">entrés, pas encore sortis</div>
       </div>
-      <div class="kpi">
-        <div class="kpi-label">Autorisées</div>
+      <div class="kpi glass" style="--c: var(--green)">
+        <div class="kpi-label"><svg class="ico" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>Autorisées</div>
         <div class="kpi-value" id="kpiAuthorized">—</div>
         <div class="kpi-sub" id="kpiWindow">sur les dernières demandes</div>
       </div>
-      <div class="kpi">
-        <div class="kpi-label">Refusées</div>
+      <div class="kpi glass" style="--c: var(--red)">
+        <div class="kpi-label"><svg class="ico" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>Refusées</div>
         <div class="kpi-value" id="kpiRefused">—</div>
         <div class="kpi-sub">paiement, place, présence…</div>
       </div>
-      <div class="kpi">
-        <div class="kpi-label">Confirmation requise</div>
+      <div class="kpi glass" style="--c: var(--peach)">
+        <div class="kpi-label"><svg class="ico" viewBox="0 0 24 24"><path d="M12 8v5M12 16.5v.5"/><path d="M10.3 4.3 3.2 17a2 2 0 0 0 1.7 3h14.2a2 2 0 0 0 1.7-3L13.7 4.3a2 2 0 0 0-3.4 0Z"/></svg>À confirmer</div>
         <div class="kpi-value" id="kpiPending">—</div>
         <div class="kpi-sub">véhicule inconnu, PMR…</div>
       </div>
     </div>
-    <div class="state-cols">
-      <div>
-        <h2>Véhicules présents</h2>
-        <div class="section-hint"><code>GET /api/v1/access/presences</code> — identifiant pseudonymisé, heure d'entrée, place attribuée.</div>
-        <div id="presenceList" class="empty">Renseigne ta clé API ci-dessus.</div>
+
+    <div class="cols">
+      <div class="panel glass">
+        <div class="panel-head">
+          <h2>Véhicules présents</h2>
+          <code>GET /access/presences</code>
+        </div>
+        <div id="presenceList" class="list"></div>
       </div>
-      <div>
-        <h2>Dernières demandes et décisions</h2>
-        <div class="section-hint"><code>GET /api/v1/access/requests?limit=50</code> — clique une ligne pour le détail.</div>
-        <div id="recentList" class="empty">Renseigne ta clé API ci-dessus.</div>
+      <div class="panel glass">
+        <div class="panel-head">
+          <h2>Dernières demandes et décisions</h2>
+          <code>GET /access/requests</code>
+        </div>
+        <div id="recentList" class="list"></div>
       </div>
     </div>
-    <div class="panel ops-panel">
-      <h2>Opérations disponibles</h2>
+
+    <div class="panel glass" style="margin-top:18px">
+      <div class="panel-head"><h2>Opérations disponibles</h2></div>
       <ul class="ops">
         <li><strong>Entrée / sortie</strong> d'un véhicule par son code Vehicles : onglet <em>Borne</em> (<code>POST /api/v1/access/requests</code>).</li>
-        <li><strong>Consulter</strong> une demande, l'historique d'un véhicule, ou vérifier un code : onglet <em>Recherche</em>.</li>
+        <li><strong>Consulter</strong> une demande, l'historique d'un véhicule ou vérifier un code : onglet <em>Recherche</em>.</li>
         <li><strong>Suivre</strong> les événements publiés aux autres services (RabbitMQ / webhooks) : onglet <em>Journal</em>.</li>
-        <li><strong>Documentation</strong> interactive de l'API : <a href="/docs" target="_blank" rel="noopener">/docs</a> · santé : <a href="/health" target="_blank" rel="noopener">/health</a> · métriques Prometheus : <code>/metrics</code> (clé API).</li>
+        <li><strong>Documentation</strong> de l'API : <a href="/docs" target="_blank" rel="noopener">/docs</a> · santé : <a href="/health" target="_blank" rel="noopener">/health</a> · métriques Prometheus : <code>/metrics</code> (clé API).</li>
       </ul>
     </div>
   </section>
 
-  <section id="tab-journal" class="tab-panel">
-    <div id="content" class="empty">Renseigne ta clé API ci-dessus pour charger les événements.</div>
+  <!-- ======================= Journal ======================= -->
+  <section id="tab-journal" class="tab-panel" role="tabpanel">
+    <div class="panel glass">
+      <div class="panel-head">
+        <h2>Événements publiés</h2>
+        <div class="chips" id="journalFilter" role="group" aria-label="Filtrer par type">
+          <button class="chip" type="button" aria-pressed="true" data-filter="0">Tous</button>
+          <button class="chip" type="button" aria-pressed="false" data-filter="1">Entrées</button>
+          <button class="chip" type="button" aria-pressed="false" data-filter="2">Sorties</button>
+          <button class="chip" type="button" aria-pressed="false" data-filter="3">Refus</button>
+          <button class="chip" type="button" aria-pressed="false" data-filter="4">À confirmer</button>
+        </div>
+        <span class="muted" id="journalCount"></span>
+      </div>
+      <div id="content" class="list"></div>
+    </div>
   </section>
 
-  <section id="tab-search" class="tab-panel">
-    <div class="search-bar">
-      <select id="searchType">
-        <option value="requestId">ID de demande (requestId)</option>
-        <option value="vehicleId">ID véhicule (vehicleId)</option>
-        <option value="vehicleCode">Code véhicule (Vehicles)</option>
-      </select>
-      <input id="searchValue" type="text" placeholder="Ex : 301b7c98-3634-4842-8ff5-baf503c53302" />
-      <button id="searchBtn">Rechercher</button>
-      <span id="searchStatus" class="status">—</span>
+  <!-- ======================= Recherche ======================= -->
+  <section id="tab-search" class="tab-panel" role="tabpanel">
+    <div class="panel glass stack">
+      <div class="search-bar">
+        <select id="searchType" aria-label="Type de recherche">
+          <option value="requestId">ID de demande</option>
+          <option value="vehicleId">ID véhicule (pseudonymisé)</option>
+          <option value="vehicleCode">Code véhicule (Vehicles)</option>
+        </select>
+        <div class="input-wrap">
+          <svg class="ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg>
+          <input id="searchValue" type="text" placeholder="Ex : 301b7c98-3634-4842-8ff5-baf503c53302" autocomplete="off" aria-label="Valeur recherchée" />
+        </div>
+        <button id="searchBtn" class="btn" type="button">Rechercher</button>
+      </div>
+      <p class="hint">
+        Une recherche par code véhicule résout d'abord l'identifiant pseudonymisé auprès de Vehicles
+        (<code>/access/vehicles/{code}/known</code>), puis liste son historique : Access ne stocke que
+        l'identifiant pseudonymisé. <span id="searchStatus" class="status" role="status"></span>
+      </p>
+      <div id="searchResults" class="list"></div>
     </div>
-    <div class="search-hint">
-      Une recherche par code véhicule résout d'abord l'identifiant pseudonymisé
-      auprès de Vehicles (<code>/access/vehicles/{code}/known</code>), puis
-      liste son historique — Access ne stocke que l'identifiant pseudonymisé,
-      donc il n'existe pas de recherche directe "par code" sur les demandes.
-    </div>
-    <div id="searchResults" class="empty">Choisis un type de recherche et une valeur, puis "Rechercher".</div>
   </section>
 </main>
 
+<footer>
+  <span>Access · microservice de contrôle d'accès du parking</span>
+  <a href="/docs" target="_blank" rel="noopener">API /docs</a>
+  <a href="/health" target="_blank" rel="noopener">/health</a>
+  <span>thème Catppuccin · police Meslo</span>
+</footer>
+
 <script>
 (function () {
+  "use strict";
+
+  const $ = (id) => document.getElementById(id);
   const KEY_STORAGE = "access.dashboard.apiKey";
-  const apiKeyInput = document.getElementById("apiKey");
-  const intervalSelect = document.getElementById("interval");
-  const refreshBtn = document.getElementById("refreshBtn");
-  const statusEl = document.getElementById("status");
-  const content = document.getElementById("content");
+  const THEME_STORAGE = "access.dashboard.theme";
+  const THEME_COLOR = { latte: "#eff1f5", mocha: "#1e1e2e" };
 
-  const searchType = document.getElementById("searchType");
-  const searchValue = document.getElementById("searchValue");
-  const searchBtn = document.getElementById("searchBtn");
-  const searchStatusEl = document.getElementById("searchStatus");
-  const searchResults = document.getElementById("searchResults");
+  const apiKeyInput = $("apiKey");
+  const intervalSelect = $("interval");
+  const statusEl = $("status");
+  const keyState = $("keyState");
+  const content = $("content");
+  const searchType = $("searchType");
+  const searchValue = $("searchValue");
+  const searchStatusEl = $("searchStatus");
+  const searchResults = $("searchResults");
+  const presenceList = $("presenceList");
+  const recentList = $("recentList");
+  const borneCode = $("borneCode");
+  const borneEntry = $("borneEntry");
+  const borneExit = $("borneExit");
+  const borneResult = $("borneResult");
+  const borneHistory = $("borneHistory");
 
-  let timer = null;
-  // Ids des cartes actuellement dépliées par l'utilisateur — reconstruit à
-  // chaque re-rendu pour que l'auto-refresh ne referme pas ce qui est ouvert.
-  const expandedEventIds = new Set();
-
-  const EVENT_TYPE_META = {
-    1: { label: "Entrée", cls: "badge-entre" },
-    2: { label: "Sortie", cls: "badge-sorti" },
-    3: { label: "Refus", cls: "badge-refuse" },
-    4: { label: "À confirmer", cls: "badge-autre" },
-  };
   // Libellés lisibles ; les valeurs brutes de l'API restent visibles dans le détail JSON.
-  const REQUEST_TYPE_LABEL = { 1: "Entrée", 2: "Sortie" };
-  const STATUS_LABEL = { 1: "En cours", 2: "Traitée", 3: "Rejetée" };
+  const EVENT_META = {
+    1: { label: "Entrée", cls: "b-green", title: "Véhicule entré" },
+    2: { label: "Sortie", cls: "b-blue", title: "Véhicule sorti" },
+    3: { label: "Refus", cls: "b-red", title: "Accès refusé" },
+    4: { label: "À confirmer", cls: "b-peach", title: "Confirmation requise" },
+  };
   const RESULT_META = {
-    1: { label: "Autorisé", cls: "badge-authorized" },
-    2: { label: "Refusé", cls: "badge-refused" },
-    3: { label: "À confirmer", cls: "badge-pending" },
+    1: { label: "Autorisé", cls: "b-green" },
+    2: { label: "Refusé", cls: "b-red" },
+    3: { label: "À confirmer", cls: "b-peach" },
+  };
+  const TYPE_LABEL = { 1: "Entrée", 2: "Sortie" };
+  const STATUS_LABEL = { 1: "En cours", 2: "Traitée", 3: "Rejetée" };
+  const CATEGORY_LABEL = { 1: "2 roues", 2: "4 roues" };
+  const ICONS = {
+    key: '<rect x="5" y="11" width="14" height="9" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+    inbox: '<path d="M4 13 6.5 6h11L20 13v5H4z"/><path d="M4 13h4.5l1 2h5l1-2H20"/>',
+    car: '<path d="M5 16v-3l1.8-4.5A2 2 0 0 1 8.7 7h6.6a2 2 0 0 1 1.9 1.5L19 13v3"/><path d="M4 16h16v2H4z"/>',
+    search: '<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/>',
+    alert: '<path d="M12 8v5M12 16.5v.5"/><circle cx="12" cy="12" r="9"/>',
   };
 
-  // --- Tabs ------------------------------------------------------------
+  // --- Petits utilitaires DOM (jamais d'innerHTML avec des données de l'API) ---
+
+  function el(tag, cls, text) {
+    const node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text != null) node.textContent = text;
+    return node;
+  }
+
+  function icon(name) {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("class", "ico");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.innerHTML = ICONS[name] || ""; // constantes ci-dessus uniquement
+    return svg;
+  }
+
+  function badge(label, cls) {
+    return el("span", "badge " + (cls || "b-neutral"), label);
+  }
+
+  function setEmpty(container, text, iconName) {
+    const box = el("div", "empty");
+    box.appendChild(icon(iconName || "inbox"));
+    box.appendChild(el("div", null, text));
+    container.replaceChildren(box);
+  }
+
+  function row(opts) {
+    const node = el("div", "row" + (opts.onClick ? " row-click" : ""));
+    (opts.badges || []).forEach(function (b) { node.appendChild(badge(b.label, b.cls)); });
+    const main = el("div", "row-main");
+    main.appendChild(el("div", "row-title", opts.title));
+    if (opts.sub) main.appendChild(el("div", "row-sub", opts.sub));
+    node.appendChild(main);
+    if (opts.time) node.appendChild(el("span", "row-time", opts.time));
+    if (opts.tooltip) node.title = opts.tooltip;
+    if (opts.onClick) {
+      node.tabIndex = 0;
+      node.setAttribute("role", "button");
+      node.addEventListener("click", opts.onClick);
+      node.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); opts.onClick(); }
+      });
+    }
+    return node;
+  }
+
+  // Ligne dépliable : le détail JSON complet s'affiche dessous.
+  function expandable(opts, data, isOpen, onToggle) {
+    const item = el("div", "item" + (isOpen ? " open" : ""));
+    opts.onClick = function () {
+      item.classList.toggle("open");
+      if (onToggle) onToggle(item.classList.contains("open"));
+    };
+    const head = row(opts);
+    head.appendChild(el("span", "chev"));
+    item.appendChild(head);
+    item.appendChild(el("pre", "json", JSON.stringify(data, null, 2)));
+    return item;
+  }
+
+  // Le rafraîchissement automatique ne redessine une liste que si ses données
+  // ont changé : pas de clignotement, le focus clavier et la sélection restent.
+  const lastSignature = {};
+  function changed(name, data) {
+    const signature = JSON.stringify(data);
+    if (lastSignature[name] === signature) return false;
+    lastSignature[name] = signature;
+    return true;
+  }
+
+  function shortId(id) {
+    if (!id) return "véhicule inconnu";
+    return id.length > 14 ? id.slice(0, 8) + "…" : id;
+  }
+
+  function fmtEuro(value) {
+    return Number(value).toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
+  }
+
+  function fmtTime(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    const now = new Date();
+    if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString("fr-FR");
+    return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" }) + " " +
+      d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  }
+
+  function durationSince(iso) {
+    if (!iso) return "";
+    const minutes = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+    if (minutes < 60) return minutes + " min";
+    return Math.floor(minutes / 60) + " h " + String(minutes % 60).padStart(2, "0");
+  }
+
+  function placeLabel(placeType, placeId, reservation) {
+    let label = placeId || "place inconnue";
+    if (placeType) {
+      const bits = [CATEGORY_LABEL[placeType.category] || "catégorie " + placeType.category];
+      if (placeType.isXl) bits.push("XL");
+      if (placeType.isElectric) bits.push("électrique");
+      if (placeType.isHandicap) bits.push("PMR");
+      label = bits.join(" ");
+    }
+    if (reservation === true) label += " · réservation";
+    if (reservation === false) label += " · sans réservation";
+    return label;
+  }
+
+  // --- Thème --------------------------------------------------------------
+
+  $("themeBtn").addEventListener("click", function () {
+    const next = document.documentElement.dataset.theme === "mocha" ? "latte" : "mocha";
+    document.documentElement.dataset.theme = next;
+    $("themeColor").setAttribute("content", THEME_COLOR[next]);
+    try { localStorage.setItem(THEME_STORAGE, next); } catch (e) { /* non bloquant */ }
+  });
+  $("themeColor").setAttribute("content", THEME_COLOR[document.documentElement.dataset.theme] || THEME_COLOR.latte);
+
+  // --- Onglets ---------------------------------------------------------------
 
   function activateTab(name) {
-    document.querySelectorAll(".tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
-    document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
-    document.getElementById("tab-" + name).classList.add("active");
-  }
-
-  document.querySelectorAll(".tab-btn").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      activateTab(btn.dataset.tab);
+    document.querySelectorAll(".tab-btn").forEach(function (b) {
+      const active = b.dataset.tab === name;
+      b.classList.toggle("active", active);
+      b.setAttribute("aria-selected", String(active));
     });
+    document.querySelectorAll(".tab-panel").forEach(function (p) { p.classList.remove("active"); });
+    $("tab-" + name).classList.add("active");
+  }
+  document.querySelectorAll(".tab-btn").forEach(function (btn) {
+    btn.addEventListener("click", function () { activateTab(btn.dataset.tab); });
   });
 
-  // --- Clé API partagée entre les onglets --------------------------------
+  // --- Clé API et état de connexion -------------------------------------------
 
   function loadKey() {
-    try {
-      return localStorage.getItem(KEY_STORAGE) || "";
-    } catch (e) {
-      return "";
-    }
+    try { return localStorage.getItem(KEY_STORAGE) || ""; } catch (e) { return ""; }
   }
-
   function saveKey(value) {
-    try {
-      localStorage.setItem(KEY_STORAGE, value);
-    } catch (e) {
-      /* stockage indisponible (navigation privée...) — tant pis, pas bloquant */
-    }
+    try { localStorage.setItem(KEY_STORAGE, value); } catch (e) { /* navigation privée : non bloquant */ }
   }
+  function getKey() { return apiKeyInput.value.trim(); }
 
-  apiKeyInput.value = loadKey();
+  function setKeyState(state) {
+    const meta = {
+      missing: ["clé requise", "b-peach"],
+      ok: ["connecté", "b-green"],
+      invalid: ["clé invalide", "b-red"],
+      offline: ["hors ligne", "b-red"],
+    }[state];
+    keyState.textContent = meta[0];
+    keyState.className = "badge dotted " + meta[1];
+  }
 
   function setStatus(text, isError) {
     statusEl.textContent = text;
     statusEl.classList.toggle("error", Boolean(isError));
   }
 
-  function escapeHtml(str) {
-    const div = document.createElement("div");
-    div.textContent = str;
-    return div.innerHTML;
+  function needKey(container) {
+    setEmpty(container, "Renseigne ta clé API en haut de page pour charger les données.", "key");
   }
 
-  // --- Onglet Journal ----------------------------------------------------
+  apiKeyInput.value = loadKey();
 
-  function summarizeEvent(evenement) {
+  // --- Santé du service (sans clé) ---------------------------------------------
+
+  async function refreshHealth() {
+    try {
+      const res = await fetch("/health");
+      const h = await res.json();
+      const ok = res.ok && h.status === "ok";
+      $("svcDot").className = "dot " + (ok ? "ok" : "warn");
+      $("svcText").textContent = ok ? "en service ·" : (h.status || "dégradé") + " ·";
+      $("versionBadge").textContent = "v" + h.version;
+      $("kpiService").textContent = ok ? "OK" : String(h.status || "?");
+      $("kpiServiceSub").textContent =
+        "v" + h.version + " · commit " + String(h.commit || "").slice(0, 7) + " · base " + h.database;
+    } catch (err) {
+      $("svcDot").className = "dot ko";
+      $("svcText").textContent = "injoignable";
+      $("versionBadge").textContent = "";
+      $("kpiService").textContent = "KO";
+      $("kpiServiceSub").textContent = "Access ne répond pas";
+    }
+  }
+
+  // --- Journal (événements publiés) -----------------------------------------------
+
+  let journalEvents = [];
+  let journalFilter = 0;
+  // Ids dépliés par l'utilisateur : conservés d'un rafraîchissement à l'autre.
+  const expandedEventIds = new Set();
+
+  function eventRow(evenement) {
+    const meta = EVENT_META[evenement.type] || EVENT_META[4];
     const p = evenement.payload || {};
-    const bits = [];
-    if (p.vehicleId) bits.push(p.vehicleId);
-    if (p.placeId) bits.push("place " + p.placeId);
-    if (p.amount) bits.push(p.amount + " €");
-    if (p.paymentId) bits.push("payé (paiement " + p.paymentId.slice(0, 8) + "…)");
-    if (p.reason) bits.push(p.reason);
-    return bits.join(" · ") || "(sans détail)";
+    const sub = [];
+    if (evenement.type === 1) sub.push(placeLabel(p.placeType, p.placeId, p.reservation));
+    if (evenement.type === 2) {
+      if (p.amount != null) sub.push(fmtEuro(p.amount));
+      sub.push(p.paymentId ? "paiement " + shortId(p.paymentId) : "sans paiement");
+    }
+    sub.push(shortId(p.vehicleId));
+    return expandable(
+      {
+        badges: [{ label: meta.label, cls: meta.cls }],
+        title: p.reason || meta.title,
+        sub: sub.join(" · "),
+        time: fmtTime(evenement.createdAt),
+      },
+      evenement,
+      expandedEventIds.has(evenement.id),
+      function (open) {
+        if (open) expandedEventIds.add(evenement.id);
+        else expandedEventIds.delete(evenement.id);
+      }
+    );
   }
 
-  function renderJournal(events) {
-    if (!events.length) {
-      content.className = "empty";
-      content.textContent = "Aucun événement pour l'instant.";
+  function renderJournal() {
+    if (!changed("journal", [journalFilter, journalEvents])) return;
+    const shown = journalFilter ? journalEvents.filter((e) => e.type === journalFilter) : journalEvents;
+    $("journalCount").textContent = shown.length + " / " + journalEvents.length + " événement(s)";
+    if (!shown.length) {
+      setEmpty(content, journalEvents.length ? "Aucun événement de ce type." : "Aucun événement pour l'instant : fais passer un véhicule à la borne.");
       return;
     }
-    content.className = "events";
-    content.innerHTML = "";
-    events.forEach(function (evenement) {
-      const meta = EVENT_TYPE_META[evenement.type] || EVENT_TYPE_META[4];
-      const row = document.createElement("div");
-      row.className = "event" + (expandedEventIds.has(evenement.id) ? " open" : "");
-
-      const head = document.createElement("div");
-      head.className = "event-head";
-      head.innerHTML =
-        '<span class="badge ' + meta.cls + '">' + meta.label + "</span>" +
-        '<span class="event-summary">' + escapeHtml(summarizeEvent(evenement)) + "</span>" +
-        '<span class="event-time">' + new Date(evenement.createdAt).toLocaleString("fr-FR") + "</span>" +
-        '<span class="event-toggle"></span>';
-      head.addEventListener("click", function () {
-        row.classList.toggle("open");
-        if (row.classList.contains("open")) {
-          expandedEventIds.add(evenement.id);
-        } else {
-          expandedEventIds.delete(evenement.id);
-        }
-      });
-
-      const pre = document.createElement("pre");
-      pre.textContent = JSON.stringify(evenement, null, 2);
-
-      row.appendChild(head);
-      row.appendChild(pre);
-      content.appendChild(row);
-    });
+    content.replaceChildren.apply(content, shown.map(eventRow));
   }
+
+  $("journalFilter").addEventListener("click", function (e) {
+    const chip = e.target.closest(".chip");
+    if (!chip) return;
+    journalFilter = Number(chip.dataset.filter);
+    this.querySelectorAll(".chip").forEach(function (c) { c.setAttribute("aria-pressed", String(c === chip)); });
+    renderJournal();
+  });
 
   async function refreshJournal() {
-    const key = apiKeyInput.value.trim();
+    const key = getKey();
     if (!key) {
-      setStatus("En attente d'une clé API…");
-      return;
+      setKeyState("missing");
+      setStatus("En attente d'une clé API");
+      needKey(content);
+      lastSignature.journal = null;
+      $("journalCount").textContent = "";
+      return false;
     }
     saveKey(key);
-    setStatus("Chargement…");
     try {
-      const response = await fetch("/api/v1/access/events?limit=200", {
-        headers: { "X-API-Key": key },
-      });
+      const response = await fetch("/api/v1/access/events?limit=200", { headers: { "X-API-Key": key } });
       if (response.status === 401) {
+        setKeyState("invalid");
         setStatus("Clé API invalide (401)", true);
-        return;
+        return false;
       }
       if (!response.ok) {
         setStatus("Erreur serveur (" + response.status + ")", true);
-        return;
+        return false;
       }
-      const events = await response.json();
-      renderJournal(events);
-      setStatus(events.length + " événement(s) — dernière mise à jour " + new Date().toLocaleTimeString("fr-FR"));
+      journalEvents = await response.json();
+      renderJournal();
+      setKeyState("ok");
+      setStatus("Mis à jour à " + new Date().toLocaleTimeString("fr-FR"));
+      return true;
     } catch (err) {
+      setKeyState("offline");
       setStatus("Impossible de contacter Access (" + err.message + ")", true);
+      return false;
     }
   }
 
-  function scheduleAutoRefresh() {
-    if (timer) clearInterval(timer);
-    const ms = Number(intervalSelect.value);
-    if (ms > 0) {
-      timer = setInterval(refreshAll, ms);
-    }
-  }
-
-  refreshBtn.addEventListener("click", function () { refreshAll(); });
-  intervalSelect.addEventListener("change", scheduleAutoRefresh);
-  apiKeyInput.addEventListener("change", function () { refreshAll(); });
-
-  // --- Onglet État du parking ------------------------------------------------
-
-  const presenceList = document.getElementById("presenceList");
-  const recentList = document.getElementById("recentList");
-  const versionBadge = document.getElementById("versionBadge");
-  const CATEGORY_LABEL = { 1: "2 roues", 2: "4 roues" };
-
-  function placeLabel(present) {
-    const t = present.placeType;
-    if (!t) return present.placeId || "place inconnue";
-    const bits = [CATEGORY_LABEL[t.category] || "catégorie " + t.category];
-    if (t.isXl) bits.push("XL");
-    if (t.isElectric) bits.push("électrique");
-    if (t.isHandicap) bits.push("PMR");
-    return bits.join(" ") + (present.reservation ? " · réservation" : " · sans réservation");
-  }
-
-  function durationSince(isoDate) {
-    if (!isoDate) return "";
-    const minutes = Math.max(0, Math.round((Date.now() - new Date(isoDate).getTime()) / 60000));
-    if (minutes < 60) return minutes + " min";
-    const h = Math.floor(minutes / 60);
-    return h + " h " + String(minutes % 60).padStart(2, "0");
-  }
+  // --- État du parking ---------------------------------------------------------------
 
   function openRequest(requestId) {
     searchType.value = "requestId";
@@ -693,94 +975,93 @@
     runSearch();
   }
 
-  async function refreshHealth() {
-    try {
-      const res = await fetch("/health");
-      const h = await res.json();
-      const ok = res.ok && h.status === "ok";
-      document.getElementById("kpiService").innerHTML =
-        '<span class="dot ' + (ok ? "dot-ok" : "dot-ko") + '"></span>' + escapeHtml(h.status || "?");
-      document.getElementById("kpiServiceSub").textContent =
-        "v" + h.version + " · commit " + String(h.commit || "").slice(0, 7) + " · base " + h.database;
-      versionBadge.textContent = "v" + h.version;
-    } catch (err) {
-      document.getElementById("kpiService").innerHTML = '<span class="dot dot-ko"></span>injoignable';
-    }
+  // Forme commune aux éléments de liste et au détail d'une demande.
+  function normalizeRequest(r) {
+    const auth = r.authorization || {};
+    return {
+      requestId: r.requestId,
+      vehicleId: r.vehicleId,
+      type: r.type,
+      status: r.status,
+      date: r.date,
+      result: r.result != null ? r.result : auth.result,
+      reason: r.reason != null ? r.reason : auth.reason,
+      paymentAmount: r.paymentAmount != null ? r.paymentAmount : auth.paymentAmount,
+    };
+  }
+
+  function requestRowOptions(raw, time) {
+    const r = normalizeRequest(raw);
+    const result = RESULT_META[r.result];
+    const sub = [TYPE_LABEL[r.type] || "Demande", shortId(r.vehicleId)];
+    if (r.paymentAmount != null) sub.push(fmtEuro(r.paymentAmount));
+    return {
+      badges: [result || { label: STATUS_LABEL[r.status] || "—", cls: "b-neutral" }],
+      title: r.reason || (result ? result.label : "Demande " + (STATUS_LABEL[r.status] || "")),
+      sub: sub.join(" · "),
+      time: time || fmtTime(r.date),
+      tooltip: "Voir le détail de la demande",
+    };
   }
 
   function renderPresences(items) {
-    document.getElementById("kpiPresent").textContent = items.length;
+    // La minute courante fait partie de la signature : les durées « depuis … » restent à jour.
+    if (!changed("presences", [items, Math.floor(Date.now() / 60000)])) return;
+    $("kpiPresent").textContent = items.length;
     if (!items.length) {
-      presenceList.className = "empty";
-      presenceList.textContent = "Aucun véhicule dans le parking.";
+      setEmpty(presenceList, "Aucun véhicule dans le parking.", "car");
       return;
     }
-    presenceList.className = "req-list";
-    presenceList.innerHTML = "";
-    items.forEach(function (v) {
-      const row = document.createElement("div");
-      row.className = "req-list-item";
-      row.innerHTML =
-        '<span class="badge badge-entre">Présent</span>' +
-        '<span class="req-summary">' + escapeHtml(placeLabel(v)) + " · " + escapeHtml(v.vehicleId) + "</span>" +
-        '<span class="event-time">' +
-          (v.enteredAt ? new Date(v.enteredAt).toLocaleString("fr-FR") + " · " + durationSince(v.enteredAt) : "") +
-        "</span>";
-      if (v.entryRequestId) {
-        row.title = "Voir la demande d'entrée";
-        row.addEventListener("click", function () { openRequest(v.entryRequestId); });
-      }
-      presenceList.appendChild(row);
-    });
+    presenceList.replaceChildren.apply(presenceList, items.map(function (v) {
+      return row({
+        badges: [{ label: "Présent", cls: "b-blue" }],
+        title: placeLabel(v.placeType, v.placeId, v.reservation),
+        sub: shortId(v.vehicleId) + (v.enteredAt ? " · depuis " + durationSince(v.enteredAt) : ""),
+        time: fmtTime(v.enteredAt),
+        tooltip: v.entryRequestId ? "Voir la demande d'entrée" : null,
+        onClick: v.entryRequestId ? function () { openRequest(v.entryRequestId); } : null,
+      });
+    }));
   }
 
   function renderRecent(items) {
+    if (!changed("recent", items)) return;
     const count = { 1: 0, 2: 0, 3: 0 };
-    items.forEach(function (r) { if (r.result) count[r.result] += 1; });
-    document.getElementById("kpiAuthorized").textContent = count[1];
-    document.getElementById("kpiRefused").textContent = count[2];
-    document.getElementById("kpiPending").textContent = count[3];
-    document.getElementById("kpiWindow").textContent = "sur les " + items.length + " dernières demandes";
+    items.forEach(function (r) { if (count[r.result] != null) count[r.result] += 1; });
+    $("kpiAuthorized").textContent = count[1];
+    $("kpiRefused").textContent = count[2];
+    $("kpiPending").textContent = count[3];
+    $("kpiWindow").textContent = "sur les " + items.length + " dernières demandes";
     if (!items.length) {
-      recentList.className = "empty";
-      recentList.textContent = "Aucune demande pour l'instant : fais passer un véhicule à la borne.";
+      setEmpty(recentList, "Aucune demande pour l'instant : fais passer un véhicule à la borne.");
       return;
     }
-    recentList.className = "req-list";
-    recentList.innerHTML = "";
-    items.forEach(function (r) {
-      const meta = RESULT_META[r.result] || null;
-      const row = document.createElement("div");
-      row.className = "req-list-item";
-      row.innerHTML =
-        '<span class="badge">' + (REQUEST_TYPE_LABEL[r.type] || r.type) + "</span>" +
-        (meta ? '<span class="badge ' + meta.cls + '">' + meta.label + "</span>" : "") +
-        '<span class="req-summary">' +
-          escapeHtml(r.reason || "") +
-          (r.paymentAmount != null ? " · " + r.paymentAmount.toFixed(2) + " €" : "") +
-          " · " + escapeHtml(r.vehicleId || "(véhicule inconnu)") +
-        "</span>" +
-        '<span class="event-time">' + new Date(r.date).toLocaleString("fr-FR") + "</span>";
-      row.title = "Cliquer pour voir le détail complet";
-      row.addEventListener("click", function () { openRequest(r.requestId); });
-      recentList.appendChild(row);
-    });
+    recentList.replaceChildren.apply(recentList, items.map(function (r) {
+      const opts = requestRowOptions(r);
+      opts.onClick = function () { openRequest(r.requestId); };
+      return row(opts);
+    }));
   }
 
   async function refreshState() {
     refreshHealth();
-    const key = apiKeyInput.value.trim();
-    if (!key) return;
+    const key = getKey();
+    if (!key) {
+      needKey(presenceList);
+      needKey(recentList);
+      lastSignature.presences = lastSignature.recent = null;
+      return;
+    }
     const headers = { "X-API-Key": key };
     try {
-      const [resP, resR] = await Promise.all([
+      const responses = await Promise.all([
         fetch("/api/v1/access/presences", { headers }),
         fetch("/api/v1/access/requests?limit=50", { headers }),
       ]);
-      if (resP.ok) renderPresences(await resP.json());
-      if (resR.ok) renderRecent(await resR.json());
+      if (responses[0].ok) renderPresences(await responses[0].json());
+      if (responses[1].ok) renderRecent(await responses[1].json());
     } catch (err) {
-      /* l'erreur réseau est déjà signalée dans la barre d'état par le journal */
+      /* l'erreur réseau est déjà signalée dans la barre de connexion */
     }
   }
 
@@ -789,201 +1070,150 @@
     refreshState();
   }
 
-  // --- Onglet Recherche ---------------------------------------------------
+  let timer = null;
+  function scheduleAutoRefresh() {
+    if (timer) clearInterval(timer);
+    const ms = Number(intervalSelect.value);
+    // Pas de requêtes inutiles quand l'onglet du navigateur est en arrière-plan.
+    if (ms > 0) timer = setInterval(function () { if (!document.hidden) refreshAll(); }, ms);
+  }
+
+  $("refreshBtn").addEventListener("click", refreshAll);
+  intervalSelect.addEventListener("change", scheduleAutoRefresh);
+  apiKeyInput.addEventListener("change", refreshAll);
+  document.addEventListener("visibilitychange", function () { if (!document.hidden) refreshAll(); });
+
+  // --- Recherche ---------------------------------------------------------------------
 
   function setSearchStatus(text, isError) {
     searchStatusEl.textContent = text;
     searchStatusEl.classList.toggle("error", Boolean(isError));
   }
 
-  function renderSearchEmpty(message) {
-    searchResults.className = "empty";
-    searchResults.textContent = message || "Aucun résultat.";
+  function renderSearchDetail(detail) {
+    searchResults.replaceChildren(expandable(requestRowOptions(detail), detail, true));
   }
 
-  function requestCard(reqOut, openByDefault) {
-    const row = document.createElement("div");
-    row.className = "req-card" + (openByDefault ? " open" : "");
-
-    const auth = reqOut.authorization;
-    const resultMeta = auth ? (RESULT_META[auth.result] || RESULT_META[3]) : null;
-
-    const head = document.createElement("div");
-    head.className = "req-head";
-    head.innerHTML =
-      '<span class="badge">' + (REQUEST_TYPE_LABEL[reqOut.type] || reqOut.type) + "</span>" +
-      (resultMeta ? '<span class="badge ' + resultMeta.cls + '">' + resultMeta.label + "</span>" : "") +
-      '<span class="req-summary">' +
-        escapeHtml(reqOut.requestId) + " · " + escapeHtml(reqOut.vehicleId || "(inconnu)") +
-      "</span>" +
-      '<span class="event-time">' + (reqOut.date ? new Date(reqOut.date).toLocaleString("fr-FR") : "") + "</span>" +
-      '<span class="event-toggle"></span>';
-    head.addEventListener("click", function () {
-      row.classList.toggle("open");
-    });
-
-    const pre = document.createElement("pre");
-    pre.textContent = JSON.stringify(reqOut, null, 2);
-
-    row.appendChild(head);
-    row.appendChild(pre);
-    return row;
-  }
-
-  function renderSearchDetail(reqOut) {
-    searchResults.className = "req-list";
-    searchResults.innerHTML = "";
-    searchResults.appendChild(requestCard(reqOut, true));
-  }
-
-  function renderSearchList(items, headerNote) {
+  function renderSearchList(items, emptyText) {
     if (!items.length) {
-      renderSearchEmpty("Aucune demande trouvée" + (headerNote ? " pour " + headerNote : "") + ".");
+      setEmpty(searchResults, emptyText || "Aucune demande trouvée.", "search");
       return;
     }
-    searchResults.className = "req-list";
-    searchResults.innerHTML = "";
-    items.forEach(function (item) {
-      const row = document.createElement("div");
-      row.className = "req-list-item";
-      row.innerHTML =
-        '<span class="badge">' + (REQUEST_TYPE_LABEL[item.type] || item.type) + "</span>" +
-        (RESULT_META[item.result]
-          ? '<span class="badge ' + RESULT_META[item.result].cls + '">' + RESULT_META[item.result].label + "</span>"
-          : '<span class="badge badge-autre">' + (STATUS_LABEL[item.status] || item.status) + "</span>") +
-        '<span class="req-summary">' +
-          escapeHtml(item.requestId) + " · " + escapeHtml(item.vehicleId || "(inconnu)") +
-          (item.reason ? " · " + escapeHtml(item.reason) : "") +
-        "</span>" +
-        '<span class="event-time">' + new Date(item.date).toLocaleString("fr-FR") + "</span>";
-      row.title = "Cliquer pour voir le détail complet";
-      row.addEventListener("click", function () {
-        searchType.value = "requestId";
-        searchValue.value = item.requestId;
-        runSearch();
-      });
-      searchResults.appendChild(row);
-    });
+    searchResults.replaceChildren.apply(searchResults, items.map(function (item) {
+      const opts = requestRowOptions(item);
+      opts.onClick = function () { openRequest(item.requestId); };
+      return row(opts);
+    }));
   }
 
   async function runSearch() {
-    const key = apiKeyInput.value.trim();
-    if (!key) {
-      setSearchStatus("Renseigne d'abord ta clé API ci-dessus.", true);
-      return;
-    }
+    const key = getKey();
+    if (!key) { setSearchStatus("Renseigne d'abord ta clé API.", true); needKey(searchResults); return; }
     const type = searchType.value;
     const value = searchValue.value.trim();
-    if (!value) {
-      setSearchStatus("Renseigne une valeur à rechercher.", true);
-      return;
-    }
+    if (!value) { setSearchStatus("Renseigne une valeur à rechercher.", true); return; }
 
     setSearchStatus("Recherche…");
     const headers = { "X-API-Key": key };
-
     try {
       if (type === "requestId") {
-        const res = await fetch(`/api/v1/access/requests/${encodeURIComponent(value)}`, { headers });
+        const res = await fetch("/api/v1/access/requests/" + encodeURIComponent(value), { headers });
         if (res.status === 401) { setSearchStatus("Clé API invalide (401)", true); return; }
-        if (res.status === 404) { renderSearchEmpty("Aucune demande avec cet id."); setSearchStatus("Introuvable (404)"); return; }
-        if (!res.ok) { renderSearchEmpty(""); setSearchStatus("Erreur " + res.status, true); return; }
+        if (res.status === 404) { setEmpty(searchResults, "Aucune demande avec cet identifiant.", "search"); setSearchStatus("Introuvable (404)"); return; }
+        if (!res.ok) { setSearchStatus("Erreur " + res.status, true); return; }
         renderSearchDetail(await res.json());
         setSearchStatus("1 résultat");
       } else if (type === "vehicleId") {
-        const res = await fetch(`/api/v1/access/requests?vehicleId=${encodeURIComponent(value)}`, { headers });
+        const res = await fetch("/api/v1/access/requests?vehicleId=" + encodeURIComponent(value), { headers });
         if (res.status === 401) { setSearchStatus("Clé API invalide (401)", true); return; }
-        if (!res.ok) { renderSearchEmpty(""); setSearchStatus("Erreur " + res.status, true); return; }
+        if (!res.ok) { setSearchStatus("Erreur " + res.status, true); return; }
         const list = await res.json();
-        renderSearchList(list);
+        renderSearchList(list, "Aucune demande pour ce véhicule.");
         setSearchStatus(list.length + " résultat(s)");
       } else {
-        const res = await fetch(`/api/v1/access/vehicles/${encodeURIComponent(value)}/known`, { headers });
+        const res = await fetch("/api/v1/access/vehicles/" + encodeURIComponent(value) + "/known", { headers });
         if (res.status === 401) { setSearchStatus("Clé API invalide (401)", true); return; }
-        if (res.status === 422) { renderSearchEmpty("Code véhicule invalide (entier attendu)."); setSearchStatus("Format invalide (422)", true); return; }
-        if (!res.ok) { renderSearchEmpty(""); setSearchStatus("Erreur " + res.status, true); return; }
+        if (res.status === 422) { setEmpty(searchResults, "Code véhicule invalide : un entier est attendu.", "alert"); setSearchStatus("Format invalide (422)", true); return; }
+        if (!res.ok) { setSearchStatus("Erreur " + res.status, true); return; }
         const known = await res.json();
-        if (!known.known) {
-          renderSearchEmpty("Code véhicule inconnu de Vehicles.");
-          setSearchStatus("Inconnue");
-          return;
-        }
-        const res2 = await fetch(`/api/v1/access/requests?vehicleId=${encodeURIComponent(known.vehicleId)}`, { headers });
+        if (!known.known) { setEmpty(searchResults, "Code véhicule inconnu de Vehicles.", "search"); setSearchStatus("Inconnu"); return; }
+        const res2 = await fetch("/api/v1/access/requests?vehicleId=" + encodeURIComponent(known.vehicleId), { headers });
         const list2 = res2.ok ? await res2.json() : [];
-        renderSearchList(list2, "vehicleId " + known.vehicleId);
-        setSearchStatus("Code connu → vehicleId " + known.vehicleId + " — " + list2.length + " demande(s)");
+        renderSearchList(list2, "Code connu de Vehicles, mais aucune demande pour ce véhicule.");
+        setSearchStatus("Code connu → " + shortId(known.vehicleId) + " · " + list2.length + " demande(s)");
       }
     } catch (err) {
       setSearchStatus("Erreur réseau (" + err.message + ")", true);
     }
   }
 
-  searchBtn.addEventListener("click", runSearch);
-  searchValue.addEventListener("keydown", function (e) {
-    if (e.key === "Enter") runSearch();
-  });
+  $("searchBtn").addEventListener("click", runSearch);
+  searchValue.addEventListener("keydown", function (e) { if (e.key === "Enter") runSearch(); });
+  setEmpty(searchResults, "Choisis un type de recherche et une valeur, puis « Rechercher ».", "search");
 
-  // --- Onglet Borne --------------------------------------------------------
+  // --- Borne -------------------------------------------------------------------------
 
   const CODE_REGEX = /^\d+$/;
-  // Source de détection envoyée à Access : lecture de plaque à l'entrée,
-  // borne de paiement à la sortie.
+  // Source de détection envoyée à Access : lecture de plaque à l'entrée, borne de paiement à la sortie.
   const SOURCE_BY_TYPE = { 1: 3, 2: 2 };
   const SOURCE_LABEL = { 1: "caméra", 2: "borne", 3: "lecture de plaque (LPR)", 4: "application mobile" };
   const GATE_META = {
-    1: { cls: "gate-ok", text: "Barrière ouverte" },
-    2: { cls: "gate-refused", text: "Barrière fermée" },
-    3: { cls: "gate-pending", text: "Intervention d'un agent requise" },
+    1: { state: "ok", text: "Barrière ouverte" },
+    2: { state: "refused", text: "Barrière fermée" },
+    3: { state: "pending", text: "Intervention d'un agent requise" },
   };
+  const GATE_KICKER = { idle: "Borne", wait: "Traitement", ok: "Accès autorisé", refused: "Accès refusé", pending: "À confirmer" };
+  const BARRIER_SVG =
+    '<svg viewBox="0 0 120 96" aria-hidden="true">' +
+    '<rect class="gate-ground" x="4" y="90" width="112" height="3" rx="1.5"/>' +
+    '<rect class="gate-post" x="14" y="52" width="14" height="38" rx="4"/>' +
+    '<g class="gate-arm"><rect class="bar" x="17" y="57" width="86" height="10" rx="5"/>' +
+    '<rect class="stripe" x="40" y="57" width="8" height="10"/><rect class="stripe" x="60" y="57" width="8" height="10"/>' +
+    '<rect class="stripe" x="80" y="57" width="8" height="10"/></g>' +
+    '<circle class="gate-lamp" cx="21" cy="62" r="6"/></svg>';
 
-  const borneCode = document.getElementById("borneCode");
-  const borneOffset = document.getElementById("borneOffset");
-  const borneEntry = document.getElementById("borneEntry");
-  const borneExit = document.getElementById("borneExit");
-  const borneResult = document.getElementById("borneResult");
-  const borneHistory = document.getElementById("borneHistory");
+  let offsetMinutes = 0;
+  $("borneOffset").addEventListener("click", function (e) {
+    const chip = e.target.closest(".chip");
+    if (!chip) return;
+    offsetMinutes = Number(chip.dataset.value);
+    this.querySelectorAll(".chip").forEach(function (c) { c.setAttribute("aria-checked", String(c === chip)); });
+  });
 
-  function renderGate(gateCls, title, facts, hint) {
-    borneResult.innerHTML = "";
-    const gate = document.createElement("div");
-    gate.className = "gate " + gateCls;
-    gate.innerHTML = '<span class="gate-light"></span>';
-    gate.appendChild(document.createTextNode(title));
+  let gateTitleEl = null;
+  function renderGate(state, title, facts, hint) {
+    borneResult.className = "panel glass result gate-" + state;
+    borneResult.replaceChildren();
+    const gate = el("div", "gate");
+    gate.innerHTML = BARRIER_SVG; // constante, aucune donnée de l'API
+    const text = el("div");
+    text.appendChild(el("div", "kicker", GATE_KICKER[state] || ""));
+    gateTitleEl = el("div", "gate-title", title);
+    text.appendChild(gateTitleEl);
+    gate.appendChild(text);
     borneResult.appendChild(gate);
     if (facts && facts.length) {
-      const dl = document.createElement("dl");
-      dl.className = "facts";
-      facts.forEach(function ([label, value]) {
-        const dt = document.createElement("dt");
-        dt.textContent = label;
-        const dd = document.createElement("dd");
-        if (value instanceof Node) dd.appendChild(value);
-        else dd.textContent = value;
-        dl.appendChild(dt);
+      const dl = el("dl", "facts");
+      facts.forEach(function (fact) {
+        dl.appendChild(el("dt", null, fact[0]));
+        const dd = el("dd");
+        if (fact[1] instanceof Node) dd.appendChild(fact[1]);
+        else dd.textContent = fact[1];
         dl.appendChild(dd);
       });
       borneResult.appendChild(dl);
     }
     if (hint) {
-      const h = document.createElement("div");
-      h.className = "hint";
-      h.style.marginTop = "12px";
-      h.textContent = hint;
-      borneResult.appendChild(h);
+      const p = el("p", "hint", hint);
+      p.style.marginTop = "12px";
+      borneResult.appendChild(p);
     }
   }
 
   function requestLink(requestId) {
-    const a = document.createElement("span");
-    a.className = "link";
-    a.textContent = requestId;
+    const a = el("span", "link", requestId);
     a.title = "Voir le détail dans l'onglet Recherche";
-    a.addEventListener("click", function () {
-      searchType.value = "requestId";
-      searchValue.value = requestId;
-      activateTab("search");
-      runSearch();
-    });
+    a.addEventListener("click", function () { openRequest(requestId); });
     return a;
   }
 
@@ -994,7 +1224,7 @@
       const res = await fetch("/api/v1/access/events?limit=20", { headers });
       if (!res.ok) return null;
       const events = await res.json();
-      const exitEvent = events.find((e) => e.requestId === requestId && e.type === 2);
+      const exitEvent = events.find(function (e) { return e.requestId === requestId && e.type === 2; });
       return exitEvent && exitEvent.payload ? exitEvent.payload.paymentId || null : null;
     } catch (e) {
       return null;
@@ -1002,58 +1232,46 @@
   }
 
   function addHistory(type, body, elapsedS) {
-    const auth = body.authorization;
-    const resultMeta = auth ? (RESULT_META[auth.result] || RESULT_META[3]) : null;
-    const row = document.createElement("div");
-    row.className = "req-list-item";
     // Jamais la plaque, même côté navigateur : uniquement l'identifiant pseudonymisé.
-    row.innerHTML =
-      '<span class="badge">' + (REQUEST_TYPE_LABEL[type] || type) + "</span>" +
-      (resultMeta ? '<span class="badge ' + resultMeta.cls + '">' + resultMeta.label + "</span>" : "") +
-      '<span class="req-summary">' +
-        escapeHtml(body.vehicleId || "(véhicule inconnu)") +
-        (auth && auth.reason ? " · " + escapeHtml(auth.reason) : "") +
-        (auth && auth.paymentAmount != null ? " · " + auth.paymentAmount.toFixed(2) + " €" : "") +
-      "</span>" +
-      '<span class="event-time">' + new Date().toLocaleTimeString("fr-FR") + " · " + elapsedS + " s</span>";
-    row.title = "Cliquer pour voir le détail complet";
-    row.addEventListener("click", function () {
-      searchType.value = "requestId";
-      searchValue.value = body.requestId;
-      activateTab("search");
-      runSearch();
-    });
-    borneHistory.prepend(row);
+    const opts = requestRowOptions(
+      { requestId: body.requestId, vehicleId: body.vehicleId, type: type, authorization: body.authorization },
+      new Date().toLocaleTimeString("fr-FR") + " · " + elapsedS + " s"
+    );
+    opts.onClick = function () { openRequest(body.requestId); };
+    if (borneHistory.querySelector(".empty")) borneHistory.replaceChildren();
+    borneHistory.prepend(row(opts));
     while (borneHistory.children.length > 10) borneHistory.lastChild.remove();
   }
 
   async function sendPassage(type) {
-    const key = apiKeyInput.value.trim();
+    const key = getKey();
     if (!key) {
-      renderGate("gate-refused", "Clé API manquante", null, "Renseigne ta clé API dans la barre en haut de page.");
+      renderGate("refused", "Clé API manquante", null, "Renseigne ta clé API dans la barre en haut de page.");
+      apiKeyInput.focus();
       return;
     }
     const code = borneCode.value.trim();
     if (!CODE_REGEX.test(code)) {
-      renderGate("gate-refused", "Code véhicule invalide", null, "Entier attendu (ex. 1), tel que renvoyé par Vehicles.");
+      renderGate("refused", "Code véhicule invalide", null, "Un entier est attendu (ex. 4242), tel que renvoyé par Vehicles.");
+      borneCode.focus();
       return;
     }
     saveKey(key);
 
     const isExit = type === 2;
-    const date = new Date(Date.now() + Number(borneOffset.value) * 60000);
+    const verb = isExit ? "Sortie" : "Entrée";
+    const date = new Date(Date.now() + offsetMinutes * 60000);
     const source = SOURCE_BY_TYPE[type];
     const steps = isExit
       ? "Identification (Vehicles), calcul du prix (Pricing), puis paiement (Payment). Le paiement prend environ 15 à 30 s."
       : "Identification (Vehicles), réservation (Booking), puis attribution d'une place (Parking).";
     const started = Date.now();
-    const elapsed = () => Math.round((Date.now() - started) / 1000);
+    const elapsed = function () { return Math.round((Date.now() - started) / 1000); };
 
     borneEntry.disabled = borneExit.disabled = true;
-    renderGate("gate-wait", (isExit ? "Sortie" : "Entrée") + " en cours… 0 s", null, steps);
+    renderGate("wait", verb + " en cours… 0 s", null, steps);
     const ticker = setInterval(function () {
-      const title = borneResult.querySelector(".gate");
-      if (title) title.lastChild.textContent = (isExit ? "Sortie" : "Entrée") + " en cours… " + elapsed() + " s";
+      if (gateTitleEl) gateTitleEl.textContent = verb + " en cours… " + elapsed() + " s";
     }, 1000);
 
     const headers = { "X-API-Key": key, "Content-Type": "application/json" };
@@ -1064,15 +1282,18 @@
         body: JSON.stringify({ vehicleCode: Number(code), type, date: date.toISOString(), source }),
       });
       if (res.status === 401) {
-        renderGate("gate-refused", "Clé API invalide (401)", null, "Vérifie la clé saisie en haut de page.");
+        setKeyState("invalid");
+        renderGate("refused", "Clé API invalide (401)", null, "Vérifie la clé saisie en haut de page.");
         return;
       }
       if (res.status === 429) {
-        renderGate("gate-refused", "Trop de passages (429)", null, "Limite de débit atteinte : attends une minute avant de réessayer.");
+        renderGate("refused", "Trop de passages (429)", null, "Limite de débit atteinte : attends une minute avant de réessayer.");
         return;
       }
       if (!res.ok) {
-        renderGate("gate-refused", "Erreur " + res.status, null, "La demande n'a pas pu être traitée par Access.");
+        const cid = res.headers.get("X-Correlation-ID");
+        renderGate("refused", "Erreur " + res.status, null,
+          "La demande n'a pas pu être traitée par Access." + (cid ? " Correlation ID : " + cid : ""));
         return;
       }
       const body = await res.json();
@@ -1081,20 +1302,20 @@
       const facts = [
         ["Motif", auth.reason || "—"],
         ["Véhicule", body.vehicleId || "inconnu de Vehicles"],
-        ["Passage", (isExit ? "sortie" : "entrée") + " · " + date.toLocaleString("fr-FR") + " · " + SOURCE_LABEL[source]],
+        ["Passage", verb.toLowerCase() + " · " + date.toLocaleString("fr-FR") + " · " + SOURCE_LABEL[source]],
       ];
-      if (auth.paymentAmount != null) facts.push(["Montant", auth.paymentAmount.toFixed(2) + " €"]);
+      if (auth.paymentAmount != null) facts.push(["Montant", fmtEuro(auth.paymentAmount)]);
       if (isExit && auth.result === 1) {
         const paymentId = await findPaymentId(body.requestId, headers);
         facts.push(["Paiement", paymentId ? "accepté · " + paymentId : auth.paymentAmount ? "accepté" : "aucun (0 €)"]);
       }
       facts.push(["Demande", requestLink(body.requestId)]);
-      facts.push(["Temps de traitement", elapsed() + " s"]);
-      renderGate(gate.cls, gate.text, facts);
+      facts.push(["Traitement", elapsed() + " s"]);
+      renderGate(gate.state, gate.text, facts);
       addHistory(type, body, elapsed());
       refreshAll();
     } catch (err) {
-      renderGate("gate-refused", "Access injoignable", null, err.message);
+      renderGate("refused", "Access injoignable", null, err.message);
     } finally {
       clearInterval(ticker);
       borneEntry.disabled = borneExit.disabled = false;
@@ -1103,10 +1324,13 @@
 
   borneEntry.addEventListener("click", function () { sendPassage(1); });
   borneExit.addEventListener("click", function () { sendPassage(2); });
-  borneCode.addEventListener("keydown", function (e) {
-    if (e.key === "Enter") sendPassage(1);
-  });
+  borneCode.addEventListener("keydown", function (e) { if (e.key === "Enter") sendPassage(1); });
 
+  // --- Démarrage ---------------------------------------------------------------------
+
+  renderGate("idle", "En attente d'un véhicule", null,
+    "Saisis un code véhicule puis « Entrée » ou « Sortie ». La décision d'Access s'affiche ici.");
+  setEmpty(borneHistory, "Aucun passage pour l'instant.", "car");
   refreshAll();
   scheduleAutoRefresh();
 })();

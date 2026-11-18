@@ -4,6 +4,16 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [3.3.0] — 2026-11-18 — Refonte du dashboard
+
+### Modifié
+- Dashboard redessiné : thème Catppuccin (Latte par défaut, Mocha au choix),
+  police MesloLGS NF embarquée, surfaces en verre dépoli, mise en page mobile.
+- Borne : barrière animée selon la décision, heure de passage en un clic.
+- Journal : filtre par type d'événement ; libellés en français partout.
+- Rafraîchissement automatique : listes redessinées seulement si les données
+  changent, en pause quand l'onglet est en arrière-plan.
+
 ## [3.2.0] — 2026-11-18 — Traçabilité, observabilité, sécurité (jalons 10 à 15)
 
 ### Ajouté
