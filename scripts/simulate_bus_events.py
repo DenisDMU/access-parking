@@ -173,7 +173,9 @@ def main() -> int:
             if not args.dry_run:
                 try:
                     publish(amqp_url, routing_key, event)
-                except pika.exceptions.AMQPError as exc:
+                except (pika.exceptions.AMQPError, OSError) as exc:
+                    # OSError : coupure réseau, DNS indisponible… on réessaie
+                    # au cycle suivant au lieu d'arrêter la simulation.
                     print(f"[✗] échec de publication ({exc!r}), nouvel essai au prochain cycle")
                     time.sleep(args.interval)
                     continue
