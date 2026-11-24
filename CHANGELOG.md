@@ -4,6 +4,22 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.9.0] — 2026-11-24 — Routes Vehicles retrouvées automatiquement
+
+### Ajouté
+- Découverte automatique des routes Vehicles : si la création ou la
+  consultation répond 404 (route renommée), Access lit le Swagger de
+  Vehicles (`/v3/api-docs`), y retrouve la route POST qui reçoit
+  `licensePlate` et la route GET dont la réponse contient `pseudoId` (jamais
+  celle qui renvoie la plaque), réessaie aussitôt et garde ces routes pour
+  les passages suivants. Avertissement dans les logs avec les routes
+  trouvées ; au plus une lecture du Swagger par minute.
+
+### Corrigé
+- 5ᵉ renommage Vehicles : `/api/vehicles/...` → `/api/vehicle/...`
+  (singulier). La borne renvoyait de nouveau « Un agent va arriver » à
+  chaque entrée. Nouvelles routes par défaut.
+
 ## [4.8.1] — 2026-11-24 — 4ᵉ contrat Vehicles
 
 ### Corrigé
