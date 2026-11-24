@@ -28,6 +28,7 @@ os.environ["PAYMENT_API_KEY"] = ""
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 os.environ["EVENT_SUBSCRIBERS_URLS"] = ""
 os.environ["CORS_ALLOWED_ORIGINS"] = "http://localhost:3000"
+os.environ["WARM_UP_SERVICES"] = "false"  # aucun appel réseau pendant les tests
 os.environ.pop("RENDER_GIT_COMMIT", None)
 
 import uuid

@@ -25,6 +25,9 @@ router = APIRouter(tags=["Health"])
     },
 )
 def health(request: Request, engine=Depends(deps.get_engine)) -> HealthOut:
+    # Le dashboard interroge /health en continu : tant qu'il est ouvert, les
+    # services de l'équipe restent éveillés (au plus un réveil toutes les 4 min).
+    deps.wake_services()
     db_ok = check_connection(engine)
     start_time = getattr(request.app.state, "start_time", time.time())
     return HealthOut(

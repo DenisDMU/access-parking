@@ -37,7 +37,7 @@ from decimal import ROUND_HALF_UP, Decimal
 import httpx
 
 from src.domain.value_objects.dto import PaymentResult
-from src.infrastructure.external.outgoing_http import outgoing_client
+from src.infrastructure.external.outgoing_http import COLD_START_TIMEOUT_S, outgoing_client
 from src.infrastructure.metrics import PAYMENT_AMOUNT_EUROS, PAYMENTS
 
 logger = logging.getLogger(__name__)
@@ -55,7 +55,7 @@ class HttpPaymentClient:
         self,
         base_url: str,
         api_key: str = "",
-        timeout_s: float = 20.0,
+        timeout_s: float = COLD_START_TIMEOUT_S,
         poll_interval_s: float = 2.0,
         poll_timeout_s: float = 40.0,
         transport: httpx.BaseTransport | None = None,

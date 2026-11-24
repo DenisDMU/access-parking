@@ -55,6 +55,14 @@ class _TracedTransport(httpx.BaseTransport):
         self._inner.close()
 
 
+# Délai d'attente des cinq services de l'équipe. Ils sont sur l'offre gratuite
+# de Render : endormis après 15 min sans trafic, 30 à 60 s pour se réveiller.
+# Avec 20 s, le premier passage après une pause était refusé (« Service
+# Parking indisponible », « Un agent arrive »…) alors que rien n'était en
+# panne. Access les réveille aussi d'avance (voir `warm_up.py`).
+COLD_START_TIMEOUT_S = 45.0
+
+
 def outgoing_client(
     service: str,
     *,

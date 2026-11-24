@@ -53,6 +53,7 @@ from src.infrastructure.external.http_vehicles_client import HttpVehiclesClient
 from src.infrastructure.external.mock_booking_client import MockBookingClient
 from src.infrastructure.external.outbox_event_publisher import OutboxEventPublisher
 from src.infrastructure.external.rabbitmq_event_publisher import RabbitMQEventPublisher
+from src.infrastructure.external.warm_up import warm_up_services
 
 _settings = get_settings()
 _engine = make_engine(_settings.database_url)
@@ -69,6 +70,25 @@ def get_db_session() -> Generator[Session, None, None]:
         yield session
     finally:
         session.close()
+
+
+def wake_services() -> bool:
+    """Réveille les cinq services de l'équipe s'ils risquent de dormir (offre
+    gratuite de Render). Rend la main tout de suite ; au plus une fois toutes
+    les quatre minutes ; désactivable par `WARM_UP_SERVICES=false`."""
+
+    settings = get_settings()
+    if not settings.warm_up_services:
+        return False
+    services = {
+        "vehicles": settings.vehicles_service_url,
+        "parking": settings.parking_service_url,
+        "pricing": settings.pricing_service_url,
+        "payment": settings.payment_service_url,
+    }
+    if not settings.booking_use_mock:
+        services["booking"] = settings.booking_service_url
+    return warm_up_services(services)
 
 
 # --- Repositories -----------------------------------------------------------

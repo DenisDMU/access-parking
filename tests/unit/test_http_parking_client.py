@@ -362,3 +362,67 @@ def test_comparaison_des_categories_insensible_a_la_casse():
 def test_liste_vide_ne_bloque_pas_l_entree():
     fake = _FakeParking(categories=[])
     assert _parking(fake).request_place(VehicleType(category=FOUR)) is not None
+
+
+# --- Catégorie pleine : « complet », pas « indisponible » (24/11) -------------------
+
+
+def _full_parking(hold_status, available):
+    calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(f"{request.method} {request.url.path}")
+        if request.url.path == "/parking/categories":
+            return httpx.Response(
+                200, json={"categories": [{"category_name": "XL", "label": "XL"}]}
+            )
+        if request.url.path == "/parking/hold":
+            return httpx.Response(hold_status, json={"detail": "Aucune place disponible"})
+        if request.url.path == "/parking/availability/XL/walkin":
+            if available is None:
+                return httpx.Response(500)
+            return httpx.Response(
+                200,
+                json={
+                    "category_name": "XL",
+                    "label": "XL",
+                    "commercial_type": "walkin",
+                    "is_available": available,
+                    "spot_available": 3 if available else 0,
+                },
+            )
+        return httpx.Response(404)
+
+    client = HttpParkingClient(
+        "http://parking.test",
+        transport=httpx.MockTransport(handler),
+        categories_cache=_CategoriesCache(),
+    )
+    return client, calls
+
+
+@pytest.mark.parametrize("status", [400, 409, 422])
+def test_hold_refuse_categorie_pleine_donne_aucune_place(status):
+    client, calls = _full_parking(status, available=False)
+    assert client.request_place(VehicleType(category=FOUR, is_xl=True)) is None
+    assert "GET /parking/availability/XL/walkin" in calls
+
+
+def test_hold_refuse_mais_places_libres_reste_une_panne():
+    client, _ = _full_parking(409, available=True)
+    with pytest.raises(ParkingUnavailableError):
+        client.request_place(VehicleType(category=FOUR, is_xl=True))
+
+
+def test_hold_refuse_et_disponibilite_illisible_reste_une_panne():
+    client, _ = _full_parking(409, available=None)
+    with pytest.raises(ParkingUnavailableError):
+        client.request_place(VehicleType(category=FOUR, is_xl=True))
+
+
+@pytest.mark.parametrize("status", [401, 403, 429, 500, 503])
+def test_cle_refusee_debit_ou_5xx_jamais_lus_comme_complet(status):
+    client, calls = _full_parking(status, available=False)
+    with pytest.raises(ParkingUnavailableError):
+        client.request_place(VehicleType(category=FOUR, is_xl=True))
+    assert "GET /parking/availability/XL/walkin" not in calls
