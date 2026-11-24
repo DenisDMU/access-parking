@@ -117,15 +117,30 @@ def test_refus_sans_informations_de_ticket(client):
 # --- Page ----------------------------------------------------------------------
 
 
-def test_borne_redirige_vers_la_page_en_gardant_le_mode(client):
-    response = client.get("/borne?mode=sortie", follow_redirects=False)
-    assert response.status_code == 307
-    assert response.headers["location"] == "/static/borne.html?mode=sortie"
-    assert client.get("/borne", follow_redirects=False).headers["location"] == "/static/borne.html"
+def test_borne_servie_directement_sur_borne(client):
+    """L'adresse reste `/borne` (pas de `.html`), mode compris."""
+
+    for url in ("/borne", "/borne?mode=sortie"):
+        response = client.get(url, follow_redirects=False)
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/html")
+        assert 'id="screen-plate"' in response.text
+
+
+def test_ancienne_adresse_redirigee_vers_borne_en_gardant_le_mode(client):
+    response = client.get("/static/borne.html?mode=entree", follow_redirects=False)
+    assert response.status_code == 301
+    assert response.headers["location"] == "/borne?mode=entree"
+    assert client.get("/static/borne.html", follow_redirects=False).headers["location"] == "/borne"
+
+
+def test_les_autres_fichiers_statiques_restent_servis(client):
+    assert client.get("/static/dashboard.html").status_code == 200
+    assert client.get("/static/fonts/MesloLGS-NF-Bold.woff2").status_code == 200
 
 
 def test_page_borne_autonome_et_sans_donnees_d_exploitation(client):
-    response = client.get("/static/borne.html")
+    response = client.get("/borne")
     assert response.status_code == 200
     html = response.text
     for screen in ("screen-home", "screen-plate", "screen-wait", "screen-result", "screen-config"):

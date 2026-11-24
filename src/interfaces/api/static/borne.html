@@ -347,6 +347,9 @@
   var KEY_STORAGE = "access.borne.key";
   var MODE_STORAGE = "access.borne.mode";
   function load(name) { try { return localStorage.getItem(name) || ""; } catch (e) { return ""; } }
+  function forget(name) { try { localStorage.removeItem(name); } catch (e) { /* non bloquant */ } }
+  // Vrai si Access accepte les passages sans clé (borne publique, BORNE_PUBLIC).
+  var publicAccess = false;
   function save(name, value) { try { localStorage.setItem(name, value); } catch (e) { /* non bloquant */ } }
 
   var params = new URLSearchParams(location.search);
@@ -384,7 +387,8 @@
     clearTimers();
     resetPlate();
     updatePill();
-    if (!borneKey()) { show("off"); return; }
+    // Sans clé, la borne passe par la route publique (si Access l'autorise).
+    if (!borneKey() && !publicAccess) { show("off"); return; }
     var m = fixedMode();
     if (m) { startPlate(m); return; }
     direction = null;
@@ -528,6 +532,45 @@
     show("wait");
   }
 
+  // Deux chemins, même résultat affiché :
+  // - borne configurée avec sa clé : POST /api/v1/access/requests ;
+  // - sinon : route publique POST /api/v1/borne/passages (sans clé, date
+  //   imposée par le serveur, réponse sans identifiant du véhicule).
+  function send(plate, dir) {
+    var key = borneKey();
+    if (key) {
+      return fetch("/api/v1/access/requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-API-Key": key },
+        body: JSON.stringify({ licensePlate: plate, type: dir, date: new Date().toISOString(), source: 2 }),
+      }).then(function (res) {
+        if (res.status === 401 && publicAccess) {
+          // Clé périmée (changée dans Render) : on l'oublie et on passe par la route publique.
+          forget(KEY_STORAGE);
+          return send(plate, dir);
+        }
+        return res;
+      });
+    }
+    return fetch("/api/v1/borne/passages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ licensePlate: plate, type: dir }),
+    });
+  }
+
+  // Réponse de l'une ou l'autre route → forme unique lue par `resultFor`.
+  function normalize(data) {
+    if (!data.authorization) return data;
+    var auth = data.authorization;
+    return {
+      result: auth.result, reason: auth.reason, paymentAmount: auth.paymentAmount,
+      vehicleIdentified: Boolean(data.vehicleId),
+      placeType: data.placeType, placeLabel: data.placeLabel, reservation: data.reservation,
+      enteredAt: data.enteredAt, durationMinutes: data.durationMinutes,
+    };
+  }
+
   function submit() {
     if (!isValid() || !direction) return;
     var plate = formatted();
@@ -535,27 +578,16 @@
     // La plaque quitte l'écran dès l'envoi : elle n'est ni gardée ni réaffichée.
     resetPlate();
     showWait(dir);
-    var body = {
-      licensePlate: plate,
-      type: dir,
-      date: new Date().toISOString(),
-      source: 2, // 2 = TERMINAL (borne)
-    };
-    plate = null;
-    fetch("/api/v1/access/requests", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-API-Key": borneKey() },
-      body: JSON.stringify(body),
-    }).then(function (res) {
-      body = null;
-      if (res.status === 401) { showOutOfService(); return null; }
+    send(plate, dir).then(function (res) {
+      if (res.status === 401 || res.status === 403) { showOutOfService(); return null; }
       if (res.status === 429) { showResult(busyResult()); return null; }
       if (res.status === 422) { showResult(invalidPlateResult(dir)); return null; }
       if (!res.ok) { showResult(unavailableResult(dir)); return null; }
-      return res.json().then(function (data) { showResult(resultFor(dir, data)); });
+      return res.json().then(function (data) { showResult(resultFor(dir, normalize(data))); });
     }).catch(function () {
       showResult(unavailableResult(dir));
     });
+    plate = null;
   }
 
   // --- Messages au client -----------------------------------------------------------
@@ -598,7 +630,7 @@
   var RETRYABLE = /réessayez|indisponible|non confirmée/i;
 
   function resultFor(dir, data) {
-    var auth = data.authorization || {};
+    var auth = data; // forme normalisée (voir `normalize`)
     var reason = auth.reason || "";
     if (auth.result === 1 && dir === 1) {
       // Libellé de Parking s'il est fourni (Parking 1.5.0), sinon libellé local.
@@ -620,7 +652,7 @@
       };
     }
     if (auth.result === 3) {
-      if (!data.vehicleId) {
+      if (!data.vehicleIdentified) {
         return { kind: "wait", title: "Un agent arrive", lead: "Nous n'avons pas pu identifier votre véhicule. Restez à la borne, un agent vous rejoint.", delay: 20 };
       }
       return { kind: "wait", title: "Un agent arrive", lead: "Cette place demande une vérification (justificatif PMR). Restez à la borne, un agent vous rejoint.", delay: 20 };
@@ -740,12 +772,21 @@
   $("cfgClose").addEventListener("click", goHome);
 
   // --- Démarrage --------------------------------------------------------------------
-  if (params.has("config")) {
-    history.replaceState(null, "", location.pathname + (urlMode ? "?mode=" + params.get("mode") : ""));
-    openConfig();
-  } else {
-    goHome();
+  // On demande d'abord à Access si la borne publique est ouverte : le lien
+  // /borne marche alors pour tout le monde, sans réglage.
+  function start() {
+    if (params.has("config")) {
+      history.replaceState(null, "", location.pathname + (urlMode ? "?mode=" + params.get("mode") : ""));
+      openConfig();
+    } else {
+      goHome();
+    }
   }
+  fetch("/api/v1/borne/status")
+    .then(function (res) { return res.ok ? res.json() : { publicAccess: false }; })
+    .then(function (status) { publicAccess = Boolean(status.publicAccess); })
+    .catch(function () { publicAccess = false; })
+    .then(start);
 })();
 </script>
 </body>

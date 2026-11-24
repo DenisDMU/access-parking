@@ -99,6 +99,12 @@ class Settings:
 
     rate_limit_access_requests: str = os.getenv("RATE_LIMIT_ACCESS_REQUESTS", "20/minute")
 
+    # Borne publique : le lien /borne marche pour tout le monde, sans clé, via
+    # une route limitée au passage d'un véhicule (date imposée par le serveur,
+    # débit limité par adresse). false = la borne exige sa clé (BORNE_API_KEY).
+    borne_public: bool = field(default_factory=lambda: _bool_env("BORNE_PUBLIC", True))
+    rate_limit_borne: str = os.getenv("RATE_LIMIT_BORNE", "10/minute")
+
 
 _settings: Settings | None = None
 

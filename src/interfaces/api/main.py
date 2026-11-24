@@ -16,7 +16,7 @@ from fastapi import Depends, FastAPI, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from prometheus_fastapi_instrumentator import Instrumentator
 from slowapi import _rate_limit_exceeded_handler
@@ -37,7 +37,12 @@ from src.interfaces.api.middleware import (
     security_headers_middleware,
 )
 from src.interfaces.api.rate_limit import limiter
-from src.interfaces.api.routers import access_router, events_router, health_router
+from src.interfaces.api.routers import (
+    access_router,
+    borne_router,
+    events_router,
+    health_router,
+)
 
 configure_logging()
 logger = logging.getLogger(__name__)
@@ -153,22 +158,35 @@ Instrumentator(excluded_handlers=["/health", "/metrics", "/static.*"]).instrumen
 app.include_router(access_router.passage_router, prefix="/api/v1")
 app.include_router(access_router.router, prefix="/api/v1")
 app.include_router(events_router.router, prefix="/api/v1")
+app.include_router(borne_router.router, prefix="/api/v1")
 
 # Journal de bord (dashboard) — servi par Access lui-même, sans port
 # supplémentaire : simple page statique appelant GET /api/v1/access/events
 # en same-origin (pas de souci CORS). Clé API saisie côté navigateur.
 _STATIC_DIR = Path(__file__).parent / "static"
+
+
+@app.get("/borne", include_in_schema=False)
+async def borne() -> FileResponse:
+    """Borne client (écran public), servie directement sur `/borne` : l'adresse
+    affichée reste courte. `?mode=entree|sortie` fixe son emplacement."""
+
+    return FileResponse(_STATIC_DIR / "borne.html", media_type="text/html")
+
+
+@app.get("/static/borne.html", include_in_schema=False)
+async def borne_old_url(request: Request) -> RedirectResponse:
+    """Ancienne adresse (4.1.0 à 4.4.0) : redirigée vers `/borne`, paramètres
+    conservés, pour les bornes déjà ouvertes avec ce lien. Déclarée avant le
+    montage de `/static` pour passer en premier."""
+
+    query = f"?{request.url.query}" if request.url.query else ""
+    return RedirectResponse(url=f"/borne{query}", status_code=301)
+
+
 app.mount("/static", StaticFiles(directory=_STATIC_DIR), name="static")
 
 
 @app.get("/", include_in_schema=False)
 async def root() -> RedirectResponse:
     return RedirectResponse(url="/static/dashboard.html")
-
-
-@app.get("/borne", include_in_schema=False)
-async def borne(request: Request) -> RedirectResponse:
-    """Borne client (écran public). `?mode=entree|sortie` fixe son emplacement."""
-
-    query = f"?{request.url.query}" if request.url.query else ""
-    return RedirectResponse(url=f"/static/borne.html{query}")
