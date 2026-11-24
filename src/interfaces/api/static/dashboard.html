@@ -457,6 +457,7 @@
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button class="tab-btn active" role="tab" aria-selected="true" data-tab="borne">Borne</button>
     <button class="tab-btn" role="tab" aria-selected="false" data-tab="state">État du parking</button>
+    <button class="tab-btn" role="tab" aria-selected="false" data-tab="plan3d">Plan 3D</button>
     <button class="tab-btn" role="tab" aria-selected="false" data-tab="journal">Journal</button>
     <button class="tab-btn" role="tab" aria-selected="false" data-tab="search">Recherche</button>
   </nav>
@@ -634,6 +635,19 @@
         <li><strong>Suivre</strong> les événements publiés aux autres services (RabbitMQ / webhooks) : onglet <em>Journal</em>.</li>
         <li><strong>Documentation</strong> de l'API : <a href="/docs" target="_blank" rel="noopener">/docs</a> · santé : <a href="/health" target="_blank" rel="noopener">/health</a> · métriques Prometheus : <code>/metrics</code> (clé API).</li>
       </ul>
+    </div>
+  </section>
+
+  <!-- ======================= Plan 3D ======================= -->
+  <section id="tab-plan3d" class="tab-panel" role="tabpanel">
+    <div class="panel glass">
+      <div class="panel-head">
+        <h2>Plan 3D du parking</h2>
+        <code>GET /access/parking</code>
+        <span class="muted">Une zone par catégorie, un véhicule par place prise : ils entrent et sortent quand l'occupation change.</span>
+      </div>
+      <p class="notice" id="plan3dNotice" role="status" hidden></p>
+      <div id="plan3d"></div>
     </div>
   </section>
 
@@ -860,6 +874,7 @@
   $("themeBtn").addEventListener("click", function () {
     const next = document.documentElement.dataset.theme === "mocha" ? "latte" : "mocha";
     document.documentElement.dataset.theme = next;
+    if (plan3d) plan3d.setTheme(next); // jour en thème clair, nuit en thème sombre
     $("themeColor").setAttribute("content", THEME_COLOR[next]);
     try { localStorage.setItem(THEME_STORAGE, next); } catch (e) { /* non bloquant */ }
   });
@@ -875,6 +890,52 @@
     });
     document.querySelectorAll(".tab-panel").forEach(function (p) { p.classList.remove("active"); });
     $("tab-" + name).classList.add("active");
+    if (name === "plan3d") openPlan3d();
+    else if (plan3d) plan3d.setActive(false); // pas de rendu 3D hors de son onglet
+  }
+
+  // --- Plan 3D (three.js, chargé à la première ouverture de l'onglet) ---------
+  // Mêmes données que l'onglet « État du parking » : l'occupation vue par
+  // Parking et les présences d'Access. Sans clé ou si Parking ne répond pas,
+  // le plan passe en démonstration et le dit.
+  let plan3d = null;
+  let plan3dLoading = false;
+  let lastOverview = null;
+  let lastPresences = [];
+  function plan3dVisible() {
+    return $("tab-plan3d").classList.contains("active") && !document.hidden;
+  }
+  function plan3dInput() {
+    let reason = "en attente des données de Parking";
+    if (!getKey()) reason = "saisissez la clé API pour voir l'occupation réelle";
+    else if (lastOverview && !lastOverview.available) reason = "Parking ne répond pas";
+    return { overview: getKey() ? lastOverview : null, presences: lastPresences, reason: reason };
+  }
+  function pushPlan3d() {
+    if (plan3d) plan3d.update(plan3dInput());
+  }
+  function openPlan3d() {
+    if (plan3d) { plan3d.setActive(plan3dVisible()); refreshState(true); return; }
+    if (plan3dLoading) return;
+    plan3dLoading = true;
+    const notice = $("plan3dNotice");
+    import("/static/parking3d.js?v=4.11.0").then(function (mod) {
+      plan3d = mod.createParking3D($("plan3d"), {
+        onVehicleClick: function (presence) {
+          if (presence && presence.entryRequestId) openRequest(presence.entryRequestId);
+        },
+      });
+      if (!plan3d) return;
+      window.accessPlan3d = plan3d; // pour le débogage depuis la console
+      plan3d.update(plan3dInput());
+      plan3d.setActive(plan3dVisible());
+      refreshState(true);
+    }).catch(function () {
+      plan3dLoading = false;
+      notice.hidden = false;
+      notice.style.setProperty("--c", "var(--red)");
+      notice.textContent = "Le plan 3D n'a pas pu être chargé. Rechargez la page.";
+    });
   }
   document.querySelectorAll(".tab-btn").forEach(function (btn) {
     btn.addEventListener("click", function () { activateTab(btn.dataset.tab); });
@@ -1157,11 +1218,17 @@
   // redemandée que toutes les 30 s (ou sur « Rafraîchir »), pas à chaque tick.
   let lastParkingFetch = 0;
   async function refreshParking(headers, force) {
-    if (!force && Date.now() - lastParkingFetch < 30000) return;
+    // Plan 3D ouvert : toutes les 10 s, pour voir les véhicules entrer et sortir.
+    const every = plan3d && plan3dVisible() ? 10000 : 30000;
+    if (!force && Date.now() - lastParkingFetch < every) return;
     lastParkingFetch = Date.now();
     try {
       const res = await fetch("/api/v1/access/parking", { headers });
-      if (res.ok) renderParking(await res.json());
+      if (res.ok) {
+        lastOverview = await res.json();
+        pushPlan3d();
+        renderParking(lastOverview);
+      }
     } catch (err) {
       /* signalé dans la barre de connexion */
     }
@@ -1175,6 +1242,9 @@
       needKey(recentList);
       needKey(parkingList);
       lastSignature.presences = lastSignature.recent = lastSignature.parking = null;
+      lastOverview = null;
+      lastPresences = [];
+      pushPlan3d();
       return;
     }
     const headers = { "X-API-Key": key };
@@ -1184,7 +1254,11 @@
         fetch("/api/v1/access/presences", { headers }),
         fetch("/api/v1/access/requests?limit=50", { headers }),
       ]);
-      if (responses[0].ok) renderPresences(await responses[0].json());
+      if (responses[0].ok) {
+        lastPresences = await responses[0].json();
+        pushPlan3d();
+        renderPresences(lastPresences);
+      }
       if (responses[1].ok) renderRecent(await responses[1].json());
     } catch (err) {
       /* l'erreur réseau est déjà signalée dans la barre de connexion */
@@ -1207,7 +1281,10 @@
   $("refreshBtn").addEventListener("click", function () { refreshAll(true); });
   intervalSelect.addEventListener("change", scheduleAutoRefresh);
   apiKeyInput.addEventListener("change", refreshAll);
-  document.addEventListener("visibilitychange", function () { if (!document.hidden) refreshAll(); });
+  document.addEventListener("visibilitychange", function () {
+    if (plan3d) plan3d.setActive(plan3dVisible());
+    if (!document.hidden) refreshAll();
+  });
 
   // --- Recherche ---------------------------------------------------------------------
 

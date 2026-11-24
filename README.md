@@ -20,7 +20,7 @@
 | | |
 |---|---|
 | **Rôle** | Décide si un véhicule peut entrer/sortir du parking et coordonne les échanges avec Vehicles, Booking, Parking, Pricing, Payment (aucune donnée métier des autres services). |
-| **Version actuelle** | `4.10.2` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
+| **Version actuelle** | `4.11.0` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
 | **Dernière mise à jour** | 24 novembre 2026 (plaques de tous pays ; Parking 1.5.0 : catégories et occupation ; borne client ; Vehicles par plaque) |
 | **URL du service déployé** | https://access-api-a1u7.onrender.com |
 | **Documentation Swagger/OpenAPI** | https://access-api-a1u7.onrender.com/docs (ReDoc : `/redoc`, spec brute : `/openapi.json`) |
@@ -69,11 +69,11 @@
 | **API** | ✅ REST documentée (`/docs`), entrées/sorties validées, erreurs normalisées, `/health` | [section 11](#11-endpoints) |
 | **Intégration** | ✅ Les 5 services réels (Vehicles, Booking, Parking, Pricing, Payment, en REST) ; événements publiés sur RabbitMQ (bus d'équipe) | [section 5](#5-brancher-un-vrai-microservice-à-la-place-dun-mock), [section 6](#6-publication-dévénements--webhook-ou-rabbitmq) |
 | **UI** | ✅ Borne client `/borne` (entrée/sortie, clavier à l'écran, ticket, clair/sombre, mobile) et dashboard servi par Access : borne d'entrée/sortie, état du parking (présences, occupation vue par Parking, décisions, santé), journal d'événements, recherche | [section 12](#12-borne-et-journal-de-bord-dashboard) |
-| **Qualité** | ✅ 367 tests (unitaires + intégration), entrées invalides et cas limites couverts, `ruff` (lint + format), script de vérification reproductible | [section 9](#9-tests-et-qualité) |
+| **Qualité** | ✅ 371 tests (unitaires + intégration), entrées invalides et cas limites couverts, `ruff` (lint + format), script de vérification reproductible | [section 9](#9-tests-et-qualité) |
 | **Observabilité** | ✅ Correlation ID propagé à tous les services et événements, logs par décision, `/metrics` Prometheus (techniques + métier + intégration), config Prometheus fournie, `/health` avec version et commit | [section 9](#métriques-prometheus) |
 | **CI/CD et déploiement** | ✅ GitHub Actions (lint → tests → bandit → pip-audit → gitleaks), déploiement Render après CI verte, smoke test de l'instance déployée (version vérifiée), CHANGELOG, Dependabot | [section 9](#intégration-continue-cicd), [section 14](#14-déploiement-sur-render) |
 | **Sécurité** | ✅ Clé API (comparaison en temps constant) sur toutes les routes sauf `/health`, clé borne limitée au passage d'un véhicule, refus de démarrer en production avec une clé faible, validation stricte, erreurs sans stack trace, en-têtes de sécurité, CORS restreint, rate limiting, secrets hors Git, plaque jamais stockée/publiée/renvoyée/loggée (test dédié) | [section 10](#10-sécurité) |
-| **Version** | `4.10.2` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
+| **Version** | `4.11.0` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
 | **Dernière mise à jour** | 24 novembre 2026 | |
 
 ### Suivi des jalons
@@ -503,7 +503,7 @@ ACCESS_TEST_DATABASE_URL=<url Postgres> pytest tests/integration   # idem contre
 pytest -v            # détail de chaque cas
 ```
 
-Couverture (367 tests) :
+Couverture (371 tests) :
 
 - **Unitaires** — matrice complète de la règle de compatibilité
   véhicule/place, règle de présence, règle d'accessibilité ; chaque use case
@@ -546,7 +546,7 @@ précédente, `needs:` dans le workflow) et doivent **tous** passer — si une
 | Job | Outil | Ce qu'il vérifie |
 |---|---|---|
 | Lint | `ruff` | Erreurs, imports, bugs probables, règles de sécurité, **formatage homogène** (config : `ruff.toml`) |
-| Tests | `pytest` | Les 367 tests unitaires + intégration, sans aucun secret |
+| Tests | `pytest` | Les 371 tests unitaires + intégration, sans aucun secret |
 | Sécurité du code | `bandit` | Analyse statique (SAST) : injections, appels dangereux, secrets en dur… |
 | Dépendances | `pip-audit` | Vulnérabilités connues (CVE) dans `requirements.txt` |
 | Secrets | `gitleaks` | Aucun secret (clé API, URL CloudAMQP…) dans tout l'historique git |
@@ -843,7 +843,7 @@ aucun souci CORS). Accessible sur http://localhost:8000/ (redirige
 automatiquement) ou http://localhost:8000/static/dashboard.html.
 
 Renseignez votre `X-API-Key` dans le champ prévu (stockée uniquement dans le
-`localStorage` de votre navigateur). Quatre onglets :
+`localStorage` de votre navigateur). Cinq onglets :
 
 - **Borne** (par défaut) : simule une borne d'entrée/sortie. On saisit la
   plaque lue par la borne, on choisit l'heure
@@ -867,6 +867,28 @@ Renseignez votre `X-API-Key` dans le champ prévu (stockée uniquement dans le
   Parking ne répond pas (redemandé toutes les 30 s seulement, Parking étant
   sur l'offre gratuite de Render). Rappel des opérations disponibles (borne,
   recherche, journal, `/docs`, `/metrics`). Rafraîchi automatiquement.
+- **Plan 3D** : le parking en trois dimensions (three.js), construit à
+  partir de l'occupation renvoyée par Parking (`GET /access/parking`). Une
+  zone par catégorie (PMR, recharge électrique, deux-roues, standard, grand
+  gabarit), une place dessinée par place réelle, **un véhicule par place
+  prise**, du bon type : citadine, berline, SUV, électrique, utilitaire,
+  camping-car, moto, scooter. Quand l'occupation change, les véhicules
+  **entrent par la barrière et vont se garer**, ou reculent et sortent ; une
+  place mise de côté (hold de 30 s) clignote en ambre ; chaque place a son
+  capteur (vert libre, rouge prise). Décor complet : portique « ENTRÉE /
+  SORTIE », barrières levantes, bornes Access, guérite, bornes de recharge,
+  panneaux PMR, lampadaires, arbres, route avec circulation. **Jour en
+  thème clair, nuit en thème sombre** (lampadaires, phares). Caméra libre
+  (glisser pour tourner, molette pour zoomer, Maj ou clic droit pour
+  déplacer, flèches du clavier), rotation automatique, plein écran, clic
+  sur une zone de la légende pour zoomer. Au survol : type de véhicule,
+  zone, et pour un véhicule entré par Access son identifiant pseudonymisé
+  et son heure d'entrée ; un clic ouvre sa demande. Sans clé, ou si Parking
+  ne répond pas, le plan passe en **démonstration** et l'affiche. Au-delà
+  de 260 places, une place affichée en représente plusieurs (indiqué).
+  Occupation redemandée toutes les 10 s tant que l'onglet est ouvert, rendu
+  3D arrêté dès qu'on le quitte. Aucune plaque : le plan ne connaît que des
+  compteurs et des identifiants pseudonymisés.
 - **Journal** : la liste des événements se rafraîchit automatiquement
   (intervalle configurable), avec un badge coloré par type d'événement et le
   détail JSON dépliable.
@@ -882,13 +904,19 @@ police **MesloLGS NF** embarquée (`static/fonts/`, sous-ensemble latin de
 barrière animée (levée, fermée, en attente), le journal se filtre par type
 d'événement, les listes ne se redessinent que si les données changent, et le
 rafraîchissement se met en pause quand l'onglet du navigateur est en
-arrière-plan. Aucune ressource externe ; animations désactivées avec
+arrière-plan. Aucune ressource externe : three.js (0.160.0, licence MIT)
+est une copie figée servie par Access (`static/vendor/`, empreinte
+SHA-256 contrôlée par les tests), jamais un CDN, puisque la page détient
+la clé d'exploitation ; animations désactivées avec
 `prefers-reduced-motion`.
 
 Testé dans Chrome (clair, sombre, mobile 390 px) : entrée puis sortie payée
 de bout en bout avec Pricing et Payment réels. L'onglet « État du parking »
 a été vérifié en local (bureau et mobile 375 px, sans défilement
-horizontal).
+horizontal). L'onglet « Plan 3D » a été vérifié dans le navigateur (bureau
+1280 px et mobile 375 px, jour et nuit) : construction du parking, entrée
+d'un véhicule par la barrière, sortie, place mise de côté, survol et clic
+sur un véhicule, passage des données de démonstration aux données réelles.
 
 ### Borne client (écran public)
 
