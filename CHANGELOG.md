@@ -4,6 +4,24 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.8.0] — 2026-11-24 — Pays de la plaque
+
+### Ajouté
+- `country` (facultatif) sur `POST /access/requests`, `POST /borne/passages`
+  et `POST /access/vehicles/known` : FR, IT, ES, DE, BE, CH, GB, NL, LU, PT,
+  XX (autre). Une plaque non française est envoyée à Vehicles sous la forme
+  `<ISO>:<plaque>` : une italienne `AB 123 CD` n'est plus jamais confondue
+  avec la française `AB-123-CD`. Les plaques françaises gardent leur forme.
+- Format vérifié selon le pays (France SIV/FNI, Italie, Espagne, Allemagne,
+  Belgique, Suisse, Royaume-Uni ; générique ailleurs) ; 422 sans recopier
+  la plaque.
+- Borne : « Changer de pays » sous la plaque (France par défaut), bandeau
+  de la plaque à la lettre du pays, exemple adapté, format vérifié avant
+  l'envoi ; à l'entrée comme à la sortie.
+
+### Compatibilité
+- Sans `country`, comportement inchangé (plaque traitée comme française).
+
 ## [4.7.0] — 2026-11-24 — Type de véhicule à la borne
 
 ### Ajouté

@@ -150,6 +150,23 @@
   .plate-text .caret { display: inline-block; width: 4px; height: .9em; background: var(--blue); margin-left: 2px; vertical-align: -0.08em; animation: blink 1s steps(1) infinite; }
   @keyframes blink { 50% { opacity: 0; } }
   .plate-band.right { justify-content: center; padding: 0; }
+  .country-row { display: flex; justify-content: center; margin-top: -8px; }
+  .country-btn {
+    display: inline-flex; align-items: center; gap: 10px; border: 0; border-radius: 99px;
+    padding: 8px 16px 8px 8px; background: var(--card); box-shadow: var(--shadow); font-size: 16px;
+  }
+  .country-code {
+    min-width: 36px; height: 30px; padding: 0 6px; border-radius: 8px; background: var(--plate-band); color: #fff;
+    display: grid; place-items: center; font: 700 15px/1 Arial, sans-serif;
+  }
+  .country-btn u { text-decoration: none; color: var(--blue); font-weight: 700; }
+  .countries { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+  .country-card {
+    display: flex; align-items: center; gap: 14px; border: 2px solid transparent; border-radius: 18px;
+    padding: 16px; background: var(--card); box-shadow: var(--shadow); font-size: 19px; font-weight: 700; text-align: left;
+  }
+  .country-card[aria-pressed="true"] { border-color: var(--blue); }
+  .country-card .country-code { min-width: 46px; height: 36px; font-size: 17px; }
   .plate-hint { text-align: center; color: var(--muted); font-size: 16px; min-height: 1.45em; }
   .plate-hint.error { color: var(--red); font-weight: 700; }
 
@@ -232,6 +249,8 @@
     .choice { min-height: 150px; padding: 22px; font-size: 24px; }
     .choice svg { width: 52px; height: 52px; }
     .types { grid-template-columns: 1fr 1fr; gap: 10px; }
+    .countries { grid-template-columns: 1fr 1fr; gap: 8px; }
+    .country-card { padding: 12px; font-size: 16px; gap: 10px; }
     .type-card { min-height: 140px; padding: 14px 10px; border-radius: 18px; }
     .type-icon { width: 54px; height: 54px; border-radius: 16px; }
     .type-icon svg { width: 34px; height: 34px; }
@@ -315,11 +334,30 @@
       <div class="plate-text" id="plateText"></div>
       <div class="plate-band right" aria-hidden="true"></div>
     </div>
+    <div class="country-row">
+      <button class="country-btn" type="button" id="countryBtn">
+        <span class="country-code" id="countryBtnCode">F</span>
+        <span id="countryBtnName">Plaque française</span>
+        <u>Changer de pays</u>
+      </button>
+    </div>
     <p class="plate-hint" id="plateHint">Plaque française ou étrangère.</p>
     <div class="keyboard" id="keyboard" aria-label="Clavier"></div>
     <div class="actions">
       <button class="btn ghost" type="button" id="cancelBtn">Annuler</button>
       <button class="btn primary" type="button" id="submitBtn" disabled>Valider</button>
+    </div>
+  </section>
+
+  <!-- Pays de la plaque -->
+  <section class="screen" id="screen-country" aria-labelledby="countryTitle">
+    <div class="center">
+      <h1 id="countryTitle">Pays de la plaque</h1>
+      <p class="lead">Certaines plaques étrangères ressemblent aux plaques françaises : choisissez le pays indiqué sur la vôtre.</p>
+    </div>
+    <div class="countries" id="countries"></div>
+    <div class="actions">
+      <button class="btn ghost" type="button" id="countryBack">Retour</button>
     </div>
   </section>
 
@@ -410,7 +448,7 @@
   function fixedMode() { var m = load(MODE_STORAGE); return m === "1" || m === "2" ? Number(m) : null; }
 
   var $ = function (id) { return document.getElementById(id); };
-  var screens = ["home", "type", "plate", "wait", "result", "off", "config"];
+  var screens = ["home", "type", "plate", "country", "wait", "result", "off", "config"];
   var current = "";
   function show(name) {
     current = name;
@@ -490,6 +528,7 @@
   $("typeChange").addEventListener("click", function () { show("type"); });
 
   function startPlate(dir) {
+    setCountry(COUNTRIES[0]); // France par défaut à chaque nouveau passage
     if (dir === 1) {
       // Entrée : d'abord le type de véhicule, puis la plaque.
       direction = 1;
@@ -524,19 +563,36 @@
     btn.addEventListener("click", function () { startPlate(Number(btn.dataset.go)); });
   });
 
-  // --- Saisie de la plaque (toutes plaques : SIV, ancien format, étrangères) ----------
+  // --- Saisie de la plaque, avec son pays -------------------------------------------
   // Toutes les touches restent actives : lettres, chiffres et espace (séparateur
-  // facultatif, retiré par Access). Une plaque française SIV est mise en forme
-  // AB-123-CD et marquée « F » ; les autres s'affichent telles que saisies.
+  // facultatif, retiré par Access). Le pays (France par défaut) est envoyé à
+  // Access : une plaque italienne AB 123 CD n'est jamais confondue avec la
+  // plaque française AB-123-CD. Mêmes formats que l'API (src/interfaces/api/plates.py).
   var buffer = "";
   var MAX_CHARS = 10;      // lettres et chiffres, séparateurs non compris
   var MAX_RAW = 14;        // avec les séparateurs
   var ROWS = ["1234567890", "AZERTYUIOP", "QSDFGHJKLM", "WXCVBN"];
   var SIV = /^([A-Z]{2})(\d{3})([A-Z]{2})$/;
+  var COUNTRIES = [
+    { code: "FR", sign: "F", name: "France", adj: "Plaque française", example: "AB-123-CD",
+      format: /^(?:[A-Z]{2}\d{3}[A-Z]{2}|\d{1,4}[A-Z]{1,3}(?:\d{2}|2A|2B|97\d))$/ },
+    { code: "IT", sign: "I", name: "Italie", adj: "Plaque italienne", example: "AB 123 CD", format: /^[A-Z]{2}\d{3}[A-Z]{2}$/ },
+    { code: "ES", sign: "E", name: "Espagne", adj: "Plaque espagnole", example: "1234 BCD", format: /^\d{4}[A-Z]{3}$/ },
+    { code: "DE", sign: "D", name: "Allemagne", adj: "Plaque allemande", example: "B MW 1234", format: /^[A-Z]{2,5}\d{1,4}[EH]?$/ },
+    { code: "BE", sign: "B", name: "Belgique", adj: "Plaque belge", example: "1-ABC-234", format: /^\d[A-Z]{3}\d{3}$/ },
+    { code: "CH", sign: "CH", name: "Suisse", adj: "Plaque suisse", example: "ZH 123456", format: /^[A-Z]{2}\d{1,6}$/ },
+    { code: "GB", sign: "UK", name: "Royaume-Uni", adj: "Plaque britannique", example: "AB51 ABC", format: /^[A-Z]{2}\d{2}[A-Z]{3}$/ },
+    { code: "NL", sign: "NL", name: "Pays-Bas", adj: "Plaque néerlandaise", example: "AB-12-CD", format: null },
+    { code: "LU", sign: "L", name: "Luxembourg", adj: "Plaque luxembourgeoise", example: "AB 1234", format: null },
+    { code: "PT", sign: "P", name: "Portugal", adj: "Plaque portugaise", example: "AA-00-AA", format: null },
+    { code: "XX", sign: "?", name: "Autre pays", adj: "Plaque d'un autre pays", example: "PLAQUE", format: null },
+  ];
+  var country = COUNTRIES[0];
 
   function compact() { return buffer.replace(/[\s-]+/g, ""); }
-  function isSiv() { return SIV.test(compact()); }
-  function isValid() { var n = compact().length; return n >= 2 && n <= MAX_CHARS; }
+  function lengthOk() { var n = compact().length; return n >= 2 && n <= MAX_CHARS; }
+  function formatOk() { return !country.format || country.format.test(compact()); }
+  function isValid() { return lengthOk() && formatOk(); }
   function accepts(ch) {
     if (ch === " ") {
       // Séparateur : jamais en premier ni deux fois de suite.
@@ -546,15 +602,45 @@
   }
   function formatted() {
     var m = compact().match(SIV);
-    return m ? m[1] + "-" + m[2] + "-" + m[3] : buffer.trim();
+    if (m && country.code === "FR") return m[1] + "-" + m[2] + "-" + m[3];
+    if (m && country.code === "IT") return m[1] + " " + m[2] + " " + m[3];
+    return buffer.trim();
   }
+
+  function setCountry(c) {
+    country = c;
+    $("plateCountry").textContent = c.code === "XX" ? "" : c.sign;
+    $("countryBtnCode").textContent = c.sign;
+    $("countryBtnName").textContent = c.adj;
+    renderPlate();
+  }
+
+  (function buildCountries() {
+    var box = $("countries");
+    COUNTRIES.forEach(function (c) {
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "country-card"; b.dataset.country = c.code;
+      var code = document.createElement("span"); code.className = "country-code"; code.textContent = c.sign;
+      var name = document.createElement("span"); name.textContent = c.name;
+      b.append(code, name);
+      b.addEventListener("click", function () { setCountry(c); show("plate"); });
+      box.appendChild(b);
+    });
+  })();
+  $("countryBtn").addEventListener("click", function () {
+    document.querySelectorAll(".country-card").forEach(function (b) {
+      b.setAttribute("aria-pressed", String(b.dataset.country === country.code));
+    });
+    show("country");
+  });
+  $("countryBack").addEventListener("click", function () { show("plate"); });
 
   function renderPlate() {
     var text = $("plateText");
     text.replaceChildren();
     if (!buffer) {
       var ph = document.createElement("span");
-      ph.className = "ph"; ph.textContent = "AB-123-CD";
+      ph.className = "ph"; ph.textContent = country.example;
       text.appendChild(ph);
     } else {
       text.appendChild(document.createTextNode(formatted()));
@@ -563,15 +649,15 @@
       var caret = document.createElement("span"); caret.className = "caret"; text.appendChild(caret);
     }
     text.classList.toggle("long", formatted().length > 9);
-    $("plateCountry").textContent = isSiv() ? "F" : "";
     $("plateBox").setAttribute("aria-label", buffer ? "Plaque saisie : " + formatted().split("").join(" ") : "Aucune plaque saisie");
     $("submitBtn").disabled = !isValid();
     document.querySelectorAll(".key[data-ch]").forEach(function (k) { k.disabled = !accepts(k.dataset.ch); });
     $("eraseKey").disabled = buffer.length === 0;
     var hint = $("plateHint");
-    hint.classList.remove("error");
-    hint.textContent = !buffer ? "Plaque française ou étrangère : lettres et chiffres, espaces facultatifs."
-      : isSiv() ? "Plaque française reconnue. Vérifiez-la, puis « Valider »."
+    var wrongFormat = lengthOk() && !formatOk();
+    hint.classList.toggle("error", wrongFormat && compact().length >= 6);
+    hint.textContent = !buffer ? country.adj + " (exemple : " + country.example + "). Autre pays : « Changer de pays »."
+      : wrongFormat ? "Ce n'est pas le format d'une " + country.adj.toLowerCase() + " : vérifiez la plaque ou changez de pays."
       : isValid() ? "Vérifiez votre plaque, puis « Valider »."
       : "Continuez la saisie (2 caractères au moins).";
     if (fixedMode()) $("cancelBtn").hidden = buffer.length === 0;
@@ -608,6 +694,7 @@
 
   document.addEventListener("keydown", function (e) {
     if (current === "type" && e.key === "Escape") { goHome(); return; }
+    if (current === "country" && e.key === "Escape") { show("plate"); return; }
     if (current !== "plate" || e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.key === "Backspace") { erase(); e.preventDefault(); return; }
     if (e.key === "Enter") { if (isValid()) submit(); e.preventDefault(); return; }
@@ -657,7 +744,7 @@
       return fetch("/api/v1/access/requests", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-API-Key": key },
-        body: JSON.stringify({ licensePlate: plate, type: dir, date: new Date().toISOString(), source: 2, vehicleType: dir === 1 ? vehicleType : null }),
+        body: JSON.stringify({ licensePlate: plate, type: dir, date: new Date().toISOString(), source: 2, vehicleType: dir === 1 ? vehicleType : null, country: country.code }),
       }).then(function (res) {
         if (res.status === 401 && publicAccess) {
           // Clé périmée (changée dans Render) : on l'oublie et on passe par la route publique.
@@ -670,7 +757,7 @@
     return fetch("/api/v1/borne/passages", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ licensePlate: plate, type: dir, vehicleType: dir === 1 ? vehicleType : null }),
+      body: JSON.stringify({ licensePlate: plate, type: dir, vehicleType: dir === 1 ? vehicleType : null, country: country.code }),
     });
   }
 
@@ -793,7 +880,7 @@
     return { kind: "ko", title: "Passage refusé", lead: "Un agent peut vous aider.", retry: dir, delay: 15 };
   }
   function invalidPlateResult(dir) {
-    return { kind: "ko", title: "Plaque non reconnue", lead: "Saisissez uniquement les lettres et les chiffres de la plaque (2 à 10).", retry: dir, delay: 15 };
+    return { kind: "ko", title: "Plaque non reconnue", lead: "Vérifiez la plaque et son pays (« Changer de pays » sous la plaque).", retry: dir, delay: 15 };
   }
   function unavailableResult(dir) {
     return { kind: "ko", title: "Service momentanément indisponible", lead: "Veuillez réessayer dans un instant, ou appelez un agent.", retry: dir, delay: 20 };
@@ -826,8 +913,8 @@
       again.type = "button"; again.className = "btn primary"; again.textContent = "Réessayer";
       again.addEventListener("click", function () {
         clearTimers();
-        // Entrée : on garde le type déjà choisi, retour direct à la plaque.
-        if (r.retry === 1 && vehicleType) showPlate(1); else startPlate(r.retry);
+        // On garde le type et le pays déjà choisis : retour direct à la plaque.
+        if (r.retry === 2 || vehicleType) showPlate(r.retry); else startPlate(r.retry);
       });
       actions.appendChild(again);
     }

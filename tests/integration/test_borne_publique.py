@@ -136,3 +136,27 @@ def test_type_ignore_a_la_sortie(client):
     client.post(URL, json=_passage("AA-111-AA", 1))
     exit_ = client.post(URL, json=_passage("AA-111-AA", 2, vehicleType="XL"))
     assert exit_.json()["result"] == 1
+
+
+# --- Pays de la plaque (4.8.0) -----------------------------------------------------
+
+
+def test_plaque_italienne_et_francaise_identiques_sont_deux_vehicules(client):
+    fr = client.post(URL, json=_passage("ZZ-931-ZZ", 1, country="FR")).json()
+    it = client.post(URL, json=_passage("ZZ 931 ZZ", 1, country="IT")).json()
+    assert fr["result"] == 1
+    assert it["result"] == 1  # pas « déjà présent » : c'est un autre véhicule
+    assert client.vehicles.created == ["ZZ-931-ZZ", "IT:ZZ931ZZ"]
+    # Chacun sort avec son pays.
+    assert client.post(URL, json=_passage("ZZ931ZZ", 2, country="IT")).json()["result"] == 1
+    assert client.post(URL, json=_passage("ZZ-931-ZZ", 2, country="FR")).json()["result"] == 1
+
+
+def test_format_incoherent_avec_le_pays(client):
+    response = client.post(URL, json=_passage("B-MW 1234", 1, country="FR"))
+    assert response.status_code == 422
+    assert "BMW1234" not in response.text and "B-MW 1234" not in response.text
+
+
+def test_pays_inconnu(client):
+    assert client.post(URL, json=_passage("AB-123-CD", 1, country="US")).status_code == 422

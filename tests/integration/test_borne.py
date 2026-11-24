@@ -147,6 +147,7 @@ def test_page_borne_autonome_et_sans_donnees_d_exploitation(client):
         "screen-home",
         "screen-type",
         "screen-plate",
+        "screen-country",
         "screen-wait",
         "screen-result",
         "screen-config",
@@ -224,3 +225,10 @@ def test_ecran_type_de_vehicule_en_francais(client):
         assert f'code: "{code}", name: "{label}"' in html
     # Jamais de libellé technique de Parking à l'écran.
     assert "data.placeLabel ||" not in html
+
+
+def test_choix_du_pays_sur_la_borne(client):
+    html = client.get("/borne").text
+    for code, name in [("FR", "France"), ("IT", "Italie"), ("ES", "Espagne"), ("XX", "Autre pays")]:
+        assert f'code: "{code}"' in html and f'name: "{name}"' in html
+    assert "country: country.code" in html  # envoyé avec chaque passage
