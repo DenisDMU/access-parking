@@ -82,17 +82,26 @@ class FakeVehiclesPort:
         self.available = available
         self.calls: list[str] = []
         self.created: list[str] = []
+        self.declared: list[VehicleType | None] = []
 
     def get_vehicle_info(self, plate: str) -> VehicleInfo | None:
         self.calls.append(plate)
         return self.registry.get(plate) if self.available else None
 
-    def identify_vehicle(self, plate: str) -> VehicleInfo | None:
+    def identify_vehicle(
+        self, plate: str, declared: VehicleType | None = None
+    ) -> VehicleInfo | None:
+        self.declared.append(declared)
         info = self.get_vehicle_info(plate)
         if info is None and self.available:
+            # Comme le vrai Vehicles : le type déclaré ne sert qu'à la
+            # création, et PMR n'est jamais enregistré sur déclaration.
+            base = declared or VehicleType(category=VehicleCategory.FOUR_WHEELER)
             info = VehicleInfo(
                 vehicle_id=f"v_created_{len(self.created) + 1}",
-                vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER),
+                vehicle_type=VehicleType(
+                    category=base.category, is_xl=base.is_xl, is_electric=base.is_electric
+                ),
             )
             self.registry[plate] = info
             self.created.append(plate)

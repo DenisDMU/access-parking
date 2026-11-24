@@ -114,3 +114,25 @@ def test_adresse_client_derriere_le_proxy():
     # peuvent être inventées par le client.
     assert client_ip(_Req({"x-forwarded-for": "1.2.3.4, 203.0.113.7"})) == "203.0.113.7"
     assert client_ip(_Req({"x-forwarded-for": "203.0.113.7"})) == "203.0.113.7"
+
+
+def test_type_de_vehicule_a_l_entree(client):
+    body = client.post(URL, json=_passage("ZZ-999-ZZ", 1, vehicleType="ELECTRIC")).json()
+    assert body["result"] == 1
+    assert body["placeType"]["isElectric"] is True
+
+
+def test_pmr_declare_demande_un_agent(client):
+    body = client.post(URL, json=_passage("ZZ-998-ZZ", 1, vehicleType="HANDICAPPED")).json()
+    assert body["result"] == 3 and body["vehicleIdentified"] is True
+
+
+def test_type_de_vehicule_invalide(client):
+    response = client.post(URL, json=_passage("AA-111-AA", 1, vehicleType="TANK"))
+    assert response.status_code == 422
+
+
+def test_type_ignore_a_la_sortie(client):
+    client.post(URL, json=_passage("AA-111-AA", 1))
+    exit_ = client.post(URL, json=_passage("AA-111-AA", 2, vehicleType="XL"))
+    assert exit_.json()["result"] == 1

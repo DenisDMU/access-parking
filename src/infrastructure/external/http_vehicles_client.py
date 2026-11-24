@@ -95,13 +95,15 @@ class HttpVehiclesClient:
         # Contrat 3 : pas de consultation par plaque sans `identify`.
         return self._identify_then_get(plate)
 
-    def identify_vehicle(self, plate: str) -> VehicleInfo | None:
+    def identify_vehicle(
+        self, plate: str, declared: VehicleType | None = None
+    ) -> VehicleInfo | None:
         if not self._lookup_by_plate:
-            return self._identify_then_get(plate)
+            return self._identify_then_get(plate, declared)
         result = self._get(plate=plate)
         if not isinstance(result, _NotFound):
             return result
-        if self._identify(plate) is None:
+        if self._identify(plate, declared) is None:
             return None
         logger.info("Véhicule inconnu enregistré auprès de Vehicles")
         created = self._get(plate=plate)
@@ -117,8 +119,10 @@ class HttpVehiclesClient:
             transport=self._transport,
         )
 
-    def _identify_then_get(self, plate: str) -> VehicleInfo | None:
-        vehicle_id = self._identify(plate)
+    def _identify_then_get(
+        self, plate: str, declared: VehicleType | None = None
+    ) -> VehicleInfo | None:
+        vehicle_id = self._identify(plate, declared)
         if vehicle_id is None:
             return None
         result = self._get(vehicle_id=vehicle_id)
@@ -127,14 +131,24 @@ class HttpVehiclesClient:
             return None
         return result
 
-    def _identify(self, plate: str) -> str | None:
-        """Plaque → pseudoId (création si inconnue). `None` si échec."""
+    def _identify(self, plate: str, declared: VehicleType | None = None) -> str | None:
+        """Plaque → pseudoId (création si inconnue). `None` si échec.
 
+        Le type déclaré à la borne n'est utilisé par Vehicles qu'à la création
+        (vérifié : un véhicule connu n'est jamais modifié). `isDisabled` n'est
+        jamais envoyé : PMR n'est pas enregistré sur simple déclaration.
+        """
+
+        body: dict = {"licensePlate": plate}
+        if declared is not None:
+            body.update(
+                isElectric=declared.is_electric,
+                isXl=declared.is_xl,
+                isTwoWheels=declared.category is VehicleCategory.TWO_WHEELER,
+            )
         try:
             with self._client() as client:
-                response = client.post(
-                    f"{self._base_url}{self._identify_path}", json={"licensePlate": plate}
-                )
+                response = client.post(f"{self._base_url}{self._identify_path}", json=body)
             if response.status_code == 404:
                 # `identify` ne renvoie jamais 404 : la route a changé chez Vehicles.
                 logger.error(

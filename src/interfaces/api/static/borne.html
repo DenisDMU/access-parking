@@ -101,6 +101,33 @@
   .choice.out svg { color: var(--blue); }
   .choice small { font-size: 17px; font-weight: 400; color: var(--muted); }
 
+  /* Type de véhicule (entrée) */
+  .types { display: grid; grid-template-columns: repeat(auto-fit, minmax(176px, 1fr)); gap: 14px; }
+  .type-card {
+    border: 2px solid transparent; border-radius: 22px; padding: 22px 16px; min-height: 178px;
+    background: var(--card); box-shadow: var(--shadow); text-align: center;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+    transition: transform .12s ease, border-color .12s ease;
+  }
+  .type-card:active { transform: scale(.98); }
+  .type-card:hover { border-color: color-mix(in srgb, var(--blue) 40%, transparent); }
+  .type-icon {
+    width: 72px; height: 72px; border-radius: 20px; display: grid; place-items: center;
+    background: color-mix(in srgb, var(--tc) 14%, transparent); color: var(--tc);
+  }
+  .type-icon svg { width: 44px; height: 44px; }
+  .type-name { font-size: 21px; font-weight: 700; }
+  .type-sub { font-size: 15px; color: var(--muted); line-height: 1.3; }
+  .type-chip {
+    display: flex; align-items: center; gap: 10px; margin: -6px auto 0; padding: 6px 8px 6px 12px;
+    border-radius: 99px; background: var(--card); box-shadow: var(--shadow); width: fit-content;
+  }
+  .type-chip[hidden] { display: none; }
+  .type-chip .type-icon { width: 34px; height: 34px; border-radius: 10px; }
+  .type-chip .type-icon svg { width: 22px; height: 22px; }
+  .type-chip strong { font-size: 17px; }
+  .type-chip button { border: 0; border-radius: 99px; padding: 8px 14px; background: var(--bg-2); font-size: 15px; font-weight: 700; }
+
   /* Plaque d'immatriculation */
   .plate {
     display: flex; align-items: stretch; margin: 0 auto; width: min(100%, 560px); height: 116px;
@@ -204,6 +231,12 @@
     .choices { grid-template-columns: 1fr; }
     .choice { min-height: 150px; padding: 22px; font-size: 24px; }
     .choice svg { width: 52px; height: 52px; }
+    .types { grid-template-columns: 1fr 1fr; gap: 10px; }
+    .type-card { min-height: 140px; padding: 14px 10px; border-radius: 18px; }
+    .type-icon { width: 54px; height: 54px; border-radius: 16px; }
+    .type-icon svg { width: 34px; height: 34px; }
+    .type-name { font-size: 17px; }
+    .type-sub { font-size: 13px; }
     .plate { height: 88px; }
     .plate-band { width: 46px; font-size: 20px; }
     .plate-band svg { width: 26px; height: 26px; }
@@ -251,11 +284,28 @@
     </div>
   </section>
 
+  <!-- Type de véhicule (entrée seulement) -->
+  <section class="screen" id="screen-type" aria-labelledby="typeTitle">
+    <div class="center">
+      <h1 id="typeTitle">Votre véhicule</h1>
+      <p class="lead">Choisissez le type de véhicule pour obtenir une place adaptée.</p>
+    </div>
+    <div class="types" id="types" role="list"></div>
+    <div class="actions">
+      <button class="btn ghost" type="button" id="typeCancel">Annuler</button>
+    </div>
+  </section>
+
   <!-- Saisie de la plaque -->
   <section class="screen" id="screen-plate" aria-labelledby="plateTitle">
     <div class="center">
       <h1 id="plateTitle">Votre plaque</h1>
       <p class="lead" id="plateLead">Saisissez la plaque d'immatriculation de votre véhicule.</p>
+    </div>
+    <div class="type-chip" id="typeChip" hidden>
+      <span class="type-icon" id="typeChipIcon" aria-hidden="true"></span>
+      <strong id="typeChipName"></strong>
+      <button type="button" id="typeChange">Modifier</button>
     </div>
     <div class="plate" role="textbox" aria-live="polite" aria-label="Plaque saisie" id="plateBox">
       <div class="plate-band" aria-hidden="true">
@@ -360,7 +410,7 @@
   function fixedMode() { var m = load(MODE_STORAGE); return m === "1" || m === "2" ? Number(m) : null; }
 
   var $ = function (id) { return document.getElementById(id); };
-  var screens = ["home", "plate", "wait", "result", "off", "config"];
+  var screens = ["home", "type", "plate", "wait", "result", "off", "config"];
   var current = "";
   function show(name) {
     current = name;
@@ -395,12 +445,76 @@
     show("home");
   }
 
+  // --- Type de véhicule (entrée seulement) ------------------------------------------
+  // Mêmes codes que l'API (et que Parking/Booking) ; libellés pour le client.
+  var VEHICLE_TYPES = [
+    { code: "STANDARD", name: "Voiture", sub: "Citadine, berline, SUV", color: "var(--blue)",
+      icon: '<path d="M3 15v-3l2.2-5.2A2 2 0 0 1 7 5.5h10a2 2 0 0 1 1.8 1.3L21 12v3"/><path d="M3 15h18v2H3z"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/><path d="M5 11.5h14"/>' },
+    { code: "ELECTRIC", name: "Électrique", sub: "Place avec borne de recharge", color: "var(--green)",
+      icon: '<path d="M13 2 4.5 13.5H11L10 22l8.5-11.5H12z"/>' },
+    { code: "XL", name: "Grand gabarit", sub: "Utilitaire, fourgon, camping-car", color: "var(--peach)",
+      icon: '<path d="M2 16.5V7a1 1 0 0 1 1-1h11v10.5"/><path d="M14 9.5h4l4 4v3h-8"/><circle cx="6.5" cy="17.5" r="1.8"/><circle cx="17.5" cy="17.5" r="1.8"/>' },
+    { code: "HANDICAPPED", name: "Mobilité réduite", sub: "Place PMR (carte mobilité inclusion)", color: "var(--blue)",
+      icon: '<circle cx="10" cy="3.8" r="1.8"/><path d="M10 7v6h6l2.5 5.5"/><path d="M10 10h5"/><path d="M7.5 10.8a5.2 5.2 0 1 0 6.9 6.9"/>' },
+    { code: "TWO_WHEELS", name: "Deux-roues", sub: "Moto, scooter", color: "var(--yellow)",
+      icon: '<circle cx="5.5" cy="16.5" r="3"/><circle cx="18.5" cy="16.5" r="3"/><path d="M5.5 16.5 9 10h5l4.5 6.5"/><path d="M14 10l-1.5-3H15"/><path d="M9 10 7.2 7H5"/>' },
+  ];
+  var vehicleType = null; // code choisi pour l'entrée en cours
+
+  function svgIcon(paths) {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + paths + "</svg>";
+  }
+
+  (function buildTypes() {
+    var box = $("types");
+    VEHICLE_TYPES.forEach(function (t) {
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "type-card"; b.setAttribute("role", "listitem");
+      b.dataset.type = t.code;
+      b.style.setProperty("--tc", t.color);
+      b.innerHTML = '<span class="type-icon">' + svgIcon(t.icon) + "</span>"; // constantes ci-dessus
+      var name = document.createElement("span"); name.className = "type-name"; name.textContent = t.name;
+      var sub = document.createElement("span"); sub.className = "type-sub"; sub.textContent = t.sub;
+      b.append(name, sub);
+      b.addEventListener("click", function () { vehicleType = t.code; showPlate(1); });
+      box.appendChild(b);
+    });
+  })();
+
+  function typeInfo(code) {
+    for (var i = 0; i < VEHICLE_TYPES.length; i++) if (VEHICLE_TYPES[i].code === code) return VEHICLE_TYPES[i];
+    return null;
+  }
+
+  $("typeCancel").addEventListener("click", goHome);
+  $("typeChange").addEventListener("click", function () { show("type"); });
+
   function startPlate(dir) {
+    if (dir === 1) {
+      // Entrée : d'abord le type de véhicule, puis la plaque.
+      direction = 1;
+      vehicleType = null;
+      resetPlate();
+      $("typeCancel").hidden = fixedMode() === 1;
+      show("type");
+      return;
+    }
+    showPlate(dir);
+  }
+
+  function showPlate(dir) {
     direction = dir;
     resetPlate();
-    $("plateTitle").textContent = dir === 1 ? "Bienvenue" : "Bonne route !";
+    var chosen = dir === 1 ? typeInfo(vehicleType) : null;
+    $("typeChip").hidden = !chosen;
+    if (chosen) {
+      $("typeChipIcon").style.setProperty("--tc", chosen.color);
+      $("typeChipIcon").innerHTML = svgIcon(chosen.icon); // constantes VEHICLE_TYPES
+      $("typeChipName").textContent = chosen.name;
+    }
+    $("plateTitle").textContent = dir === 1 ? "Votre plaque" : "Bonne route !";
     $("plateLead").textContent = dir === 1
-      ? "Saisissez votre plaque pour entrer dans le parking."
+      ? "Saisissez la plaque de votre véhicule pour entrer."
       : "Saisissez votre plaque pour régler et sortir.";
     $("cancelBtn").hidden = !!fixedMode() && buffer.length === 0;
     show("plate");
@@ -493,6 +607,7 @@
   })();
 
   document.addEventListener("keydown", function (e) {
+    if (current === "type" && e.key === "Escape") { goHome(); return; }
     if (current !== "plate" || e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.key === "Backspace") { erase(); e.preventDefault(); return; }
     if (e.key === "Enter") { if (isValid()) submit(); e.preventDefault(); return; }
@@ -542,7 +657,7 @@
       return fetch("/api/v1/access/requests", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-API-Key": key },
-        body: JSON.stringify({ licensePlate: plate, type: dir, date: new Date().toISOString(), source: 2 }),
+        body: JSON.stringify({ licensePlate: plate, type: dir, date: new Date().toISOString(), source: 2, vehicleType: dir === 1 ? vehicleType : null }),
       }).then(function (res) {
         if (res.status === 401 && publicAccess) {
           // Clé périmée (changée dans Render) : on l'oublie et on passe par la route publique.
@@ -555,7 +670,7 @@
     return fetch("/api/v1/borne/passages", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ licensePlate: plate, type: dir }),
+      body: JSON.stringify({ licensePlate: plate, type: dir, vehicleType: dir === 1 ? vehicleType : null }),
     });
   }
 
@@ -597,13 +712,15 @@
     wait: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>',
   };
 
+  // Libellés de place pour le client, toujours en français (les libellés
+  // techniques de Parking, comme « HANDICAPPED », ne sont jamais affichés).
   function placeLabel(pt) {
-    if (!pt) return "Standard";
+    if (!pt) return "Place standard";
     if (pt.isHandicap) return "Place PMR";
-    if (pt.category === 1) return "Deux-roues";
-    if (pt.isElectric) return "Place avec recharge électrique";
-    if (pt.isXl) return "Grand gabarit (XL)";
-    return "Standard";
+    if (pt.category === 1) return "Place deux-roues";
+    if (pt.isElectric) return "Place avec recharge";
+    if (pt.isXl) return "Place grand gabarit";
+    return "Place standard";
   }
   function fmtTime(iso) {
     return new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
@@ -634,7 +751,7 @@
     var reason = auth.reason || "";
     if (auth.result === 1 && dir === 1) {
       // Libellé de Parking s'il est fourni (Parking 1.5.0), sinon libellé local.
-      var rows = [["Place", data.placeLabel || placeLabel(data.placeType)], ["Heure d'entrée", fmtTime(Date.now())]];
+      var rows = [["Place", placeLabel(data.placeType)], ["Heure d'entrée", fmtTime(Date.now())]];
       if (data.reservation) rows.splice(1, 0, ["Réservation", "Reconnue"]);
       return { kind: "ok", title: "La barrière s'ouvre", lead: "Bienvenue ! Bon stationnement.", rows: rows, delay: 12 };
     }
@@ -707,7 +824,11 @@
     if (r.retry) {
       var again = document.createElement("button");
       again.type = "button"; again.className = "btn primary"; again.textContent = "Réessayer";
-      again.addEventListener("click", function () { clearTimers(); startPlate(r.retry); });
+      again.addEventListener("click", function () {
+        clearTimers();
+        // Entrée : on garde le type déjà choisi, retour direct à la plaque.
+        if (r.retry === 1 && vehicleType) showPlate(1); else startPlate(r.retry);
+      });
       actions.appendChild(again);
     }
     var done = document.createElement("button");
