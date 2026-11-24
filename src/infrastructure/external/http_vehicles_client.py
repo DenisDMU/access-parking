@@ -1,31 +1,38 @@
 """Client HTTP réel vers le service **Vehicles** de l'équipe.
 
-Implémente `VehiclesServicePort`. Contrat vérifié le 2026-11-24 (après
-midi) par des appels réels contre https://parking-vehicles.onrender.com
+Implémente `VehiclesServicePort`. Contrat vérifié le 2026-11-24 (fin
+d'après-midi) par des appels réels contre https://parking-vehicles.onrender.com
 (swagger `/v3/api-docs`) :
 
-  GET  /api/getvehicles/{plate}
-    → 200 { pseudoId (uuid), electric, disabled, xl, twoWheels }
-    → 404 si la plaque est inconnue
-  POST /api/identify  { licensePlate, isElectric, isDisabled, isXl, isTwoWheels }
+  POST /api/identify  { licensePlate }
     → 200 "pseudoId" (uuid) ; retrouve le véhicule ou le crée (même uuid
-      pour une plaque déjà connue)
+      pour une plaque déjà connue, casse et espaces ignorés). Un véhicule
+      connu n'est PAS réécrit (ses caractéristiques sont conservées).
+  GET  /api/getvehicles/{vehicleId}
+    → 200 { pseudoId, electric, disabled, xl, twoWheels } ; 404 si inconnu
 
-Vehicles a renommé ses routes deux fois le 24/11 (`/api/vehicles/{plate}`
-et `/api/vehicles/identify` le matin) : elles sont réglables
-(`VEHICLES_LOOKUP_PATH`, `VEHICLES_IDENTIFY_PATH`). Un 404 sur `identify`
-ne peut venir que d'une route renommée (la création ne renvoie jamais 404) :
-il est loggé en ERREUR, avec la route appelée, pour être repéré tout de suite.
+Parcours (mode « par identifiant », par défaut) : plaque → `identify` →
+pseudoId → `getvehicles/{pseudoId}` → caractéristiques.
 
-- `get_vehicle_info` ne fait que consulter (sortie, vérification).
-- `identify_vehicle` (entrée) consulte d'abord, et n'appelle `identify` que
-  sur un vrai 404 : un véhicule connu n'est jamais réécrit, et une panne de
-  Vehicles n'entraîne jamais une création. Le véhicule créé l'est sans
-  caractéristique (4 roues standard), Access ne les connaissant pas.
+⚠️ Vehicles a changé son contrat trois fois le 24/11 :
+  1. `GET /api/vehicles/{plate}` + `POST /api/vehicles/identify` (matin) ;
+  2. `GET /api/getvehicles/{plate}` + `POST /api/identify` (après-midi) ;
+  3. `GET /api/getvehicles/{vehicleId}` + `POST /api/identify` (soir).
+Les routes sont donc réglables sans toucher au code (`VEHICLES_LOOKUP_PATH`,
+`VEHICLES_IDENTIFY_PATH`). Si la route de consultation contient `{plate}`,
+le client repasse en mode « par plaque » (contrats 1 et 2 : consultation
+d'abord, `identify` seulement sur un vrai 404).
+
+Conséquence du contrat 3 : Vehicles n'offre plus de consultation par plaque
+sans création. À la sortie (ou pour la vérification), une plaque jamais vue
+est donc enregistrée par Vehicles ; pour Access, rien ne change (refus
+« véhicule non présent »).
+
+- Un 404 sur `identify` ne peut venir que d'une route renommée : il est
+  loggé en ERREUR, avec la route appelée, pour être repéré tout de suite.
 - `pseudoId` devient le `vehicle_id` pseudonymisé qui circule dans tout le
-  reste du système (présence, événements, audit). La plaque, elle, ne sort
-  jamais de ce client : elle n'apparaît dans aucun log (seul le type
-  d'erreur est loggé, jamais l'URL appelée).
+  reste du système. La plaque ne sort jamais de ce client : elle n'apparaît
+  dans aucun log (seul le type d'erreur est loggé, jamais l'URL appelée).
 - `disabled` alimente à la fois le type de véhicule (`is_handicap`) et le
   justificatif PMR : Vehicles n'expose pas de justificatif distinct (voir
   README section 16).
@@ -47,10 +54,12 @@ from src.infrastructure.external.outgoing_http import outgoing_client
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_LOOKUP_PATH = "/api/getvehicles/{vehicleId}"
+DEFAULT_IDENTIFY_PATH = "/api/identify"
+
 
 class _NotFound:
-    """Marqueur : Vehicles a répondu 404 (plaque inconnue), à distinguer
-    d'une panne (`None`)."""
+    """Marqueur : Vehicles a répondu 404 (inconnu), à distinguer d'une panne (`None`)."""
 
 
 _NOT_FOUND = _NotFound()
@@ -65,12 +74,14 @@ class HttpVehiclesClient:
         timeout_s: float = 20.0,
         transport: httpx.BaseTransport | None = None,
         api_key: str = "",
-        lookup_path: str = "/api/getvehicles/{plate}",
-        identify_path: str = "/api/identify",
+        lookup_path: str = DEFAULT_LOOKUP_PATH,
+        identify_path: str = DEFAULT_IDENTIFY_PATH,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._lookup_path = lookup_path
         self._identify_path = identify_path
+        # `{plate}` dans la route de consultation : ancien contrat (par plaque).
+        self._lookup_by_plate = "{plate}" in lookup_path
         self._timeout_s = timeout_s
         # Envoyé seulement si VEHICLES_API_KEY est renseignée (authentification
         # pas encore activée côté Vehicles au 2026-11-24).
@@ -78,18 +89,25 @@ class HttpVehiclesClient:
         self._transport = transport  # injecté par les tests (httpx.MockTransport)
 
     def get_vehicle_info(self, plate: str) -> VehicleInfo | None:
-        result = self._lookup(plate)
-        return None if isinstance(result, _NotFound) else result
+        if self._lookup_by_plate:
+            result = self._get(plate=plate)
+            return None if isinstance(result, _NotFound) else result
+        # Contrat 3 : pas de consultation par plaque sans `identify`.
+        return self._identify_then_get(plate)
 
     def identify_vehicle(self, plate: str) -> VehicleInfo | None:
-        result = self._lookup(plate)
+        if not self._lookup_by_plate:
+            return self._identify_then_get(plate)
+        result = self._get(plate=plate)
         if not isinstance(result, _NotFound):
             return result
-        if not self._create(plate):
+        if self._identify(plate) is None:
             return None
         logger.info("Véhicule inconnu enregistré auprès de Vehicles")
-        created = self._lookup(plate)
+        created = self._get(plate=plate)
         return None if isinstance(created, _NotFound) else created
+
+    # --- appels HTTP -------------------------------------------------------------
 
     def _client(self) -> httpx.Client:
         return outgoing_client(
@@ -99,10 +117,53 @@ class HttpVehiclesClient:
             transport=self._transport,
         )
 
-    def _lookup(self, plate: str) -> VehicleInfo | _NotFound | None:
+    def _identify_then_get(self, plate: str) -> VehicleInfo | None:
+        vehicle_id = self._identify(plate)
+        if vehicle_id is None:
+            return None
+        result = self._get(vehicle_id=vehicle_id)
+        if isinstance(result, _NotFound):
+            logger.warning("Vehicles : véhicule introuvable juste après son identification")
+            return None
+        return result
+
+    def _identify(self, plate: str) -> str | None:
+        """Plaque → pseudoId (création si inconnue). `None` si échec."""
+
         try:
             with self._client() as client:
-                path = self._lookup_path.replace("{plate}", quote(plate, safe=""))
+                response = client.post(
+                    f"{self._base_url}{self._identify_path}", json={"licensePlate": plate}
+                )
+            if response.status_code == 404:
+                # `identify` ne renvoie jamais 404 : la route a changé chez Vehicles.
+                logger.error(
+                    "Vehicles : route d'identification introuvable (POST %s → 404). "
+                    "Contrat changé ? Vérifier son Swagger et VEHICLES_IDENTIFY_PATH",
+                    self._identify_path,
+                )
+                return None
+            if response.status_code != 200:
+                logger.warning(
+                    "Vehicles n'a pas identifié le véhicule (HTTP %s)", response.status_code
+                )
+                return None
+            vehicle_id = response.json()
+            if not isinstance(vehicle_id, str) or not vehicle_id:
+                raise ValueError("identifiant attendu")
+            return vehicle_id
+        except (httpx.HTTPError, ValueError) as exc:
+            logger.warning("Service Vehicles indisponible (%s)", type(exc).__name__)
+            return None
+
+    def _get(
+        self, *, plate: str | None = None, vehicle_id: str | None = None
+    ) -> VehicleInfo | _NotFound | None:
+        path = self._lookup_path.replace("{plate}", quote(plate or "", safe="")).replace(
+            "{vehicleId}", quote(vehicle_id or "", safe="")
+        )
+        try:
+            with self._client() as client:
                 response = client.get(f"{self._base_url}{path}")
             if response.status_code == 404:
                 return _NOT_FOUND
@@ -113,39 +174,10 @@ class HttpVehiclesClient:
                 return None
             return _to_vehicle_info(response.json())
         except (httpx.HTTPError, AttributeError, KeyError, TypeError, ValueError) as exc:
-            # Autres exceptions : réponse non-JSON ou contrat inattendu.
-            # Seul le type d'erreur est loggé : le message pourrait contenir l'URL.
+            # Réponse non-JSON ou contrat inattendu. Seul le type d'erreur est
+            # loggé : le message pourrait contenir l'URL (donc la plaque).
             logger.warning("Service Vehicles indisponible (%s)", type(exc).__name__)
             return None
-
-    def _create(self, plate: str) -> bool:
-        body = {
-            "licensePlate": plate,
-            "isElectric": False,
-            "isDisabled": False,
-            "isXl": False,
-            "isTwoWheels": False,
-        }
-        try:
-            with self._client() as client:
-                response = client.post(f"{self._base_url}{self._identify_path}", json=body)
-        except httpx.HTTPError as exc:
-            logger.warning("Service Vehicles indisponible (%s)", type(exc).__name__)
-            return False
-        if response.status_code == 404:
-            # La création ne renvoie jamais 404 : la route a changé chez Vehicles.
-            logger.error(
-                "Vehicles : route d'identification introuvable (POST %s → 404). "
-                "Contrat changé ? Vérifier son Swagger et VEHICLES_IDENTIFY_PATH",
-                self._identify_path,
-            )
-            return False
-        if response.status_code != 200:
-            logger.warning(
-                "Vehicles n'a pas enregistré le véhicule (HTTP %s)", response.status_code
-            )
-            return False
-        return True
 
 
 def _to_vehicle_info(data: dict) -> VehicleInfo:

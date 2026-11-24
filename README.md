@@ -20,7 +20,7 @@
 | | |
 |---|---|
 | **Rôle** | Décide si un véhicule peut entrer/sortir du parking et coordonne les échanges avec Vehicles, Booking, Parking, Pricing, Payment (aucune donnée métier des autres services). |
-| **Version actuelle** | `4.6.0` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
+| **Version actuelle** | `4.6.1` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
 | **Dernière mise à jour** | 24 novembre 2026 (plaques de tous pays ; Parking 1.5.0 : catégories et occupation ; borne client ; Vehicles par plaque) |
 | **URL du service déployé** | https://access-api-a1u7.onrender.com |
 | **Documentation Swagger/OpenAPI** | https://access-api-a1u7.onrender.com/docs (ReDoc : `/redoc`, spec brute : `/openapi.json`) |
@@ -50,7 +50,7 @@
 - [x] Conserver les données (stationnements, décisions, événements) dans une base Postgres (Neon) qui survit aux redémarrages.
 - [x] Plafonner la durée facturée à 7 jours et compter tout début de minute (règles 2.4 et 2.5).
 - [x] Vérifier une réservation via le vrai service **Booking** (`GET /reservations/active`, à l'heure du passage) ; la place est prise dans le quota « réservation » de Parking, et la sortie ne refait pas payer le créneau déjà réglé (seul un dépassement est facturé).
-- [x] Identifier un véhicule via le vrai service **Vehicles** (`GET /api/getvehicles/{plaque}`, création via `POST /api/identify` à l'entrée ; routes réglables).
+- [x] Identifier un véhicule via le vrai service **Vehicles** (`POST /api/identify` : plaque → identifiant, création si inconnue ; puis `GET /api/getvehicles/{identifiant}` ; routes réglables).
 - [x] Attribuer/occuper/libérer une place via le vrai service **Parking** (place mise de côté puis confirmée avec son `hold_id`).
 - [x] Vérifier que chaque catégorie demandée existe chez Parking (`GET /parking/categories`, en cache 5 min) : une catégorie renommée donne un motif précis, pas « Parking indisponible ».
 - [x] Afficher l'occupation par catégorie vue par Parking (prises, mises de côté, capacité) et ses libellés (dashboard, borne, `GET /access/presences`).
@@ -73,7 +73,7 @@
 | **Observabilité** | ✅ Correlation ID propagé à tous les services et événements, logs par décision, `/metrics` Prometheus (techniques + métier + intégration), config Prometheus fournie, `/health` avec version et commit | [section 9](#métriques-prometheus) |
 | **CI/CD et déploiement** | ✅ GitHub Actions (lint → tests → bandit → pip-audit → gitleaks), déploiement Render après CI verte, smoke test de l'instance déployée (version vérifiée), CHANGELOG, Dependabot | [section 9](#intégration-continue-cicd), [section 14](#14-déploiement-sur-render) |
 | **Sécurité** | ✅ Clé API (comparaison en temps constant) sur toutes les routes sauf `/health`, clé borne limitée au passage d'un véhicule, refus de démarrer en production avec une clé faible, validation stricte, erreurs sans stack trace, en-têtes de sécurité, CORS restreint, rate limiting, secrets hors Git, plaque jamais stockée/publiée/renvoyée/loggée (test dédié) | [section 10](#10-sécurité) |
-| **Version** | `4.6.0` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
+| **Version** | `4.6.1` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
 | **Dernière mise à jour** | 24 novembre 2026 | |
 
 ### Suivi des jalons
@@ -136,11 +136,8 @@ sequenceDiagram
     participant Pa as Payment
 
     V->>A: Entrée (plaque)
-    A->>Ve: GET /api/getvehicles/{plaque}
-    alt plaque inconnue (404)
-        A->>Ve: POST /api/identify (crée le véhicule)
-        A->>Ve: GET /api/getvehicles/{plaque}
-    end
+    A->>Ve: POST /api/identify (plaque → pseudoId, crée si inconnue)
+    A->>Ve: GET /api/getvehicles/{pseudoId}
     Ve-->>A: pseudoId (= vehicleId) + attributs
     A->>B: GET /reservations/active?vehicle_id=…&at=…
     alt réservation valable
@@ -152,7 +149,7 @@ sequenceDiagram
     A--)A: Publie VEHICLE_ENTERED / ACCESS_REFUSED
 
     V->>A: Sortie (plaque)
-    A->>Ve: GET /api/getvehicles/{plaque} (consultation seule)
+    A->>Ve: POST /api/identify puis GET /api/getvehicles/{pseudoId}
     A->>Pr: calculate_price(...)
     Pr-->>A: amount
     A->>Pa: POST /payments (clé d'idempotence = stationnement)
@@ -379,7 +376,7 @@ même fichier `deps.py`) — chaque squelette liste ses propres `TODO` :
 
 | Service  | Fichier squelette                      | Points ouverts principaux |
 |----------|------------------------------------------|----------------------------|
-| **Vehicles** | `http_vehicles_client.py` | **✅ Branché** (`GET /api/getvehicles/{plaque}`, et `POST /api/identify` à l'entrée sur un 404 ; routes réglables par `VEHICLES_LOOKUP_PATH` et `VEHICLES_IDENTIFY_PATH`, Vehicles les ayant renommées deux fois le 24/11) — `pseudoId` devient le `vehicleId`, `disabled` vaut type PMR **et** justificatif, toute autre réponse = véhicule non identifié, voir section 16 |
+| **Vehicles** | `http_vehicles_client.py` | **✅ Branché** (`POST /api/identify` : plaque → pseudoId, création si inconnue, véhicule connu jamais réécrit ; puis `GET /api/getvehicles/{pseudoId}` ; routes réglables par `VEHICLES_IDENTIFY_PATH` et `VEHICLES_LOOKUP_PATH`, Vehicles ayant changé son contrat trois fois le 24/11 ; `{plate}` dans la route de consultation rétablit l'ancien mode « par plaque ») — `pseudoId` devient le `vehicleId`, `disabled` vaut type PMR **et** justificatif, toute autre réponse = véhicule non identifié, voir section 16 |
 | **Booking** | `http_booking_client.py` | **✅ Branché** (`GET /reservations/active?vehicle_id=…&at=…`, toujours 200 : `valid` + réservations confirmées couvrant l'instant ; mêmes codes de type de place que Parking ; panne → entrée sans réservation). Pas de place nominative : la place est prise chez Parking, type réservé, quota « booking » |
 | **Parking** | `http_parking_client.py` | **✅ Branché** (`hold` → `confirm_entry` avec le `hold_id` reçu, place mise de côté 30 s → `free` ; catégories STANDARD/XL/ELECTRIC/HANDICAPPED/TWO_WHEELS vérifiées sur `GET /parking/categories` avant chaque `hold` (liste en cache 5 min ; une catégorie absente ou un 404 sur `hold` → « Catégorie de place X inconnue du service Parking ») ; libellé de Parking remonté ; occupation lue sur `GET /parking/occupation` ; en-tête `X-API-Key` = `PARKING_API_KEY`) — pas de `placeId` réel, encodage synthétique `"CATEGORIE:walkin\|booking"`, voir section 16 |
 | **Pricing** | `http_pricing_client.py` | **✅ Branché** (`PRICING_USE_MOCK=false`) contre le vrai service (`POST /quote`) — mapping `PlaceType → zone` et arrondi de durée pour les réservations restent des hypothèses documentées dans le fichier, voir aussi section 16 |

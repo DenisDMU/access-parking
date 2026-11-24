@@ -4,6 +4,23 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.6.1] — 2026-11-24 — Vehicles : identification puis consultation par identifiant
+
+### Corrigé
+- Vehicles a encore changé son contrat : `GET /api/getvehicles/{…}` attend
+  l'identifiant du véhicule (UUID), plus la plaque (400). Aucune nouvelle
+  plaque n'était identifiée à la borne (« Un agent arrive »). Nouveau
+  parcours : plaque → `POST /api/identify` (retrouve ou crée, sans réécrire
+  un véhicule connu) → `GET /api/getvehicles/{pseudoId}`. Vérifié contre le
+  vrai service.
+
+### Modifié
+- `VEHICLES_LOOKUP_PATH` par défaut : `/api/getvehicles/{vehicleId}` ; une
+  route contenant `{plate}` rétablit l'ancien mode « par plaque ».
+- Vehicles n'offrant plus de consultation sans création, une plaque inconnue
+  à la sortie est enregistrée chez Vehicles (refus « non présent » côté
+  Access, comme avant).
+
 ## [4.6.0] — 2026-11-24 — Booking réel
 
 ### Ajouté

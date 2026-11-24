@@ -1,5 +1,10 @@
 """Tests unitaires — `http_vehicles_client.py` contre un faux serveur Vehicles
-(`httpx.MockTransport`), sans appel réseau au vrai service."""
+(`httpx.MockTransport`), sans appel réseau au vrai service.
+
+Deux contrats : celui en vigueur (plaque → `POST /api/identify` → pseudoId →
+`GET /api/getvehicles/{vehicleId}`) et l'ancien (consultation par plaque),
+encore sélectionnable par `VEHICLES_LOOKUP_PATH` si Vehicles y revenait.
+"""
 
 import json
 import logging
@@ -12,6 +17,7 @@ from src.infrastructure.external.http_vehicles_client import HttpVehiclesClient
 _BASE_URL = "https://vehicles.test"
 _PSEUDO_ID = "301b7c98-3634-4842-8ff5-baf503c53302"
 _PLATE = "AB-123-CD"
+_PLATE_PATH = "/api/getvehicles/{plate}"
 
 
 def _vehicle(**overrides) -> dict:
@@ -26,148 +32,170 @@ def _vehicle(**overrides) -> dict:
     return body
 
 
-def _client(handler) -> HttpVehiclesClient:
-    return HttpVehiclesClient(_BASE_URL, transport=httpx.MockTransport(handler))
-
-
 class _FakeVehicles:
-    """Faux Vehicles qui retient ce qu'on lui demande, avec un registre."""
+    """Faux Vehicles (contrat en vigueur) : `identify` retrouve ou crée."""
 
-    def __init__(self, known: bool = False, identify_status: int = 200) -> None:
+    def __init__(self, known: bool = False, identify_status: int = 200, **vehicle) -> None:
         self.known = known
         self.identify_status = identify_status
+        self.vehicle = _vehicle(**vehicle)
         self.requests: list[tuple[str, str]] = []
-        self.created: list[dict] = []
+        self.identified: list[dict] = []
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         self.requests.append((request.method, request.url.path))
         if request.method == "POST":
             if self.identify_status != 200:
                 return httpx.Response(self.identify_status)
-            self.created.append(json.loads(request.content))
+            self.identified.append(json.loads(request.content))
             self.known = True
             return httpx.Response(200, json=_PSEUDO_ID)
-        return httpx.Response(200, json=_vehicle()) if self.known else httpx.Response(404)
+        if request.url.path == f"/api/getvehicles/{_PSEUDO_ID}" and self.known:
+            return httpx.Response(200, json=self.vehicle)
+        return httpx.Response(404)
 
 
-# --- Consultation (get_vehicle_info) -----------------------------------------
+def _client(handler, **kwargs) -> HttpVehiclesClient:
+    return HttpVehiclesClient(_BASE_URL, transport=httpx.MockTransport(handler), **kwargs)
 
 
-def test_calls_vehicles_by_plate():
+# --- Contrat en vigueur : identify puis consultation par identifiant -----------
+
+
+def test_identify_puis_consultation_par_identifiant():
     vehicles = _FakeVehicles(known=True)
-    _client(vehicles).get_vehicle_info(_PLATE)
-    assert vehicles.requests == [("GET", f"/api/getvehicles/{_PLATE}")]
+    info = _client(vehicles).identify_vehicle(_PLATE)
+    assert info is not None and info.vehicle_id == _PSEUDO_ID
+    assert vehicles.requests == [
+        ("POST", "/api/identify"),
+        ("GET", f"/api/getvehicles/{_PSEUDO_ID}"),
+    ]
+    # Seule la plaque est envoyée : un véhicule connu n'est jamais réécrit.
+    assert vehicles.identified == [{"licensePlate": _PLATE}]
 
 
-def test_maps_response_to_pseudonymized_vehicle_info():
-    info = _client(lambda _r: httpx.Response(200, json=_vehicle())).get_vehicle_info(_PLATE)
+def test_plaque_inconnue_creee_par_identify():
+    vehicles = _FakeVehicles(known=False)
+    assert _client(vehicles).identify_vehicle(_PLATE).vehicle_id == _PSEUDO_ID
 
-    assert info is not None
-    assert info.vehicle_id == _PSEUDO_ID
+
+def test_consultation_passe_aussi_par_identify():
+    """Vehicles n'offre plus de consultation par plaque sans création."""
+
+    vehicles = _FakeVehicles(known=True)
+    assert _client(vehicles).get_vehicle_info(_PLATE).vehicle_id == _PSEUDO_ID
+    assert vehicles.requests[0] == ("POST", "/api/identify")
+
+
+def test_caracteristiques_traduites():
+    vehicles = _FakeVehicles(known=True, twoWheels=True, xl=True, electric=True, disabled=True)
+    info = _client(vehicles).identify_vehicle(_PLATE)
+    assert info.vehicle_type.category is VehicleCategory.TWO_WHEELER
+    assert info.vehicle_type.is_xl and info.vehicle_type.is_electric
+    # Pas de justificatif distinct côté Vehicles : `disabled` vaut les deux.
+    assert info.vehicle_type.is_handicap and info.disability_permit is True
+
+
+def test_caracteristiques_par_defaut():
+    info = _client(_FakeVehicles(known=True)).identify_vehicle(_PLATE)
     assert info.vehicle_type.category is VehicleCategory.FOUR_WHEELER
-    assert not info.vehicle_type.is_xl
-    assert not info.vehicle_type.is_electric
-    assert not info.vehicle_type.is_handicap
+    assert not (info.vehicle_type.is_xl or info.vehicle_type.is_electric)
     assert info.disability_permit is False
 
 
-def test_maps_vehicle_characteristics():
-    body = _vehicle(twoWheels=True, xl=True, electric=True, disabled=True)
-    info = _client(lambda _r: httpx.Response(200, json=body)).get_vehicle_info(_PLATE)
-
-    assert info is not None
-    assert info.vehicle_type.category is VehicleCategory.TWO_WHEELER
-    assert info.vehicle_type.is_xl
-    assert info.vehicle_type.is_electric
-    # Pas de justificatif distinct côté Vehicles : `disabled` vaut les deux.
-    assert info.vehicle_type.is_handicap
-    assert info.disability_permit is True
+def test_identify_404_signale_une_route_changee_en_erreur(caplog):
+    with caplog.at_level(logging.ERROR):
+        assert _client(_FakeVehicles(identify_status=404)).identify_vehicle(_PLATE) is None
+    errors = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
+    assert len(errors) == 1 and "/api/identify" in errors[0]
+    assert _PLATE not in errors[0]
 
 
-def test_unknown_plate_returns_none_without_creating_it():
-    vehicles = _FakeVehicles(known=False)
-    assert _client(vehicles).get_vehicle_info(_PLATE) is None
-    assert vehicles.created == []
+def test_identify_en_panne():
+    assert _client(_FakeVehicles(identify_status=500)).identify_vehicle(_PLATE) is None
 
 
-def test_server_error_returns_none():
-    assert _client(lambda _r: httpx.Response(500)).get_vehicle_info(_PLATE) is None
+def test_identifiant_inattendu():
+    for body in ({"pseudoId": _PSEUDO_ID}, "", None):
+        client = _client(lambda r, b=body: httpx.Response(200, json=b))
+        assert client.identify_vehicle(_PLATE) is None
 
 
-def test_network_error_returns_none():
+def test_vehicule_introuvable_juste_apres_identify():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST":
+            return httpx.Response(200, json=_PSEUDO_ID)
+        return httpx.Response(404)
+
+    assert _client(handler).identify_vehicle(_PLATE) is None
+
+
+def test_reponse_de_consultation_inattendue():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=_PSEUDO_ID if request.method == "POST" else ["?"])
+
+    assert _client(handler).identify_vehicle(_PLATE) is None
+
+
+def test_erreur_reseau():
     def handler(request: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError("connexion refusée", request=request)
 
+    assert _client(handler).identify_vehicle(_PLATE) is None
     assert _client(handler).get_vehicle_info(_PLATE) is None
 
 
-def test_unexpected_payload_returns_none():
-    client = _client(lambda _r: httpx.Response(200, json={"code": 1}))
-    assert client.get_vehicle_info(_PLATE) is None
+def test_routes_reglables_si_vehicles_les_renomme():
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append((request.method, request.url.path))
+        if request.method == "POST":
+            return httpx.Response(200, json=_PSEUDO_ID)
+        return httpx.Response(200, json=_vehicle())
+
+    client = _client(handler, lookup_path="/v2/cars/{vehicleId}", identify_path="/v2/identify")
+    assert client.identify_vehicle(_PLATE) is not None
+    assert seen == [("POST", "/v2/identify"), ("GET", f"/v2/cars/{_PSEUDO_ID}")]
 
 
-def test_non_object_payload_returns_none():
-    client = _client(lambda _r: httpx.Response(200, json=["inattendu"]))
-    assert client.get_vehicle_info(_PLATE) is None
+# --- Ancien contrat : consultation par plaque ({plate} dans la route) ---------
 
 
-# --- Identification à l'entrée (identify_vehicle) ----------------------------
+class _FakeVehiclesParPlaque(_FakeVehicles):
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            self.requests.append(("GET", request.url.path))
+            return httpx.Response(200, json=self.vehicle) if self.known else httpx.Response(404)
+        return super().__call__(request)
 
 
-def test_identify_known_vehicle_does_not_call_identify():
-    vehicles = _FakeVehicles(known=True)
-    info = _client(vehicles).identify_vehicle(_PLATE)
-
-    assert info is not None and info.vehicle_id == _PSEUDO_ID
+def test_ancien_contrat_consultation_sans_creation():
+    vehicles = _FakeVehiclesParPlaque(known=False)
+    assert _client(vehicles, lookup_path=_PLATE_PATH).get_vehicle_info(_PLATE) is None
     assert vehicles.requests == [("GET", f"/api/getvehicles/{_PLATE}")]
 
 
-def test_identify_unknown_vehicle_creates_it_then_reads_it():
-    vehicles = _FakeVehicles(known=False)
-    info = _client(vehicles).identify_vehicle(_PLATE)
-
-    assert info is not None and info.vehicle_id == _PSEUDO_ID
+def test_ancien_contrat_entree_cree_sur_404_seulement():
+    vehicles = _FakeVehiclesParPlaque(known=False)
+    info = _client(vehicles, lookup_path=_PLATE_PATH).identify_vehicle(_PLATE)
+    assert info is not None
     assert vehicles.requests == [
         ("GET", f"/api/getvehicles/{_PLATE}"),
         ("POST", "/api/identify"),
         ("GET", f"/api/getvehicles/{_PLATE}"),
     ]
-    assert vehicles.created == [
-        {
-            "licensePlate": _PLATE,
-            "isElectric": False,
-            "isDisabled": False,
-            "isXl": False,
-            "isTwoWheels": False,
-        }
-    ]
 
 
-def test_identify_never_creates_when_vehicles_is_down():
-    """Une panne (500) n'est pas un « inconnu » : aucune création."""
-
-    seen: list[str] = []
+def test_ancien_contrat_panne_ne_cree_jamais():
+    seen = []
 
     def handler(request: httpx.Request) -> httpx.Response:
         seen.append(request.method)
         return httpx.Response(500)
 
-    assert _client(handler).identify_vehicle(_PLATE) is None
+    assert _client(handler, lookup_path=_PLATE_PATH).identify_vehicle(_PLATE) is None
     assert seen == ["GET"]
-
-
-def test_identify_returns_none_when_creation_fails():
-    vehicles = _FakeVehicles(known=False, identify_status=500)
-    assert _client(vehicles).identify_vehicle(_PLATE) is None
-
-
-def test_identify_returns_none_on_network_error_during_creation():
-    def handler(request: httpx.Request) -> httpx.Response:
-        if request.method == "POST":
-            raise httpx.ConnectError("connexion refusée", request=request)
-        return httpx.Response(404)
-
-    assert _client(handler).identify_vehicle(_PLATE) is None
 
 
 # --- RGPD ----------------------------------------------------------------------
@@ -179,35 +207,9 @@ def test_plate_never_appears_in_logs(caplog):
 
     with caplog.at_level(logging.DEBUG):
         _client(handler).identify_vehicle(_PLATE)
+        _client(handler, lookup_path=_PLATE_PATH).get_vehicle_info(_PLATE)
+        _client(_FakeVehicles(identify_status=404)).identify_vehicle(_PLATE)
         _client(lambda _r: httpx.Response(500)).get_vehicle_info(_PLATE)
-        _client(_FakeVehicles(known=False)).identify_vehicle(_PLATE)
 
     assert caplog.records
     assert all(_PLATE not in record.getMessage() for record in caplog.records)
-
-
-def test_routes_reglables_si_vehicles_les_renomme():
-    vehicles = _FakeVehicles(known=False)
-    client = HttpVehiclesClient(
-        _BASE_URL,
-        transport=httpx.MockTransport(vehicles),
-        lookup_path="/v2/cars/{plate}",
-        identify_path="/v2/cars",
-    )
-    client.identify_vehicle(_PLATE)
-    assert vehicles.requests == [
-        ("GET", f"/v2/cars/{_PLATE}"),
-        ("POST", "/v2/cars"),
-        ("GET", f"/v2/cars/{_PLATE}"),
-    ]
-
-
-def test_identify_404_signale_une_route_changee_en_erreur(caplog):
-    def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(404)  # GET (inconnue) puis POST (route disparue)
-
-    with caplog.at_level(logging.ERROR):
-        assert _client(handler).identify_vehicle(_PLATE) is None
-    errors = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
-    assert len(errors) == 1 and "/api/identify" in errors[0]
-    assert _PLATE not in errors[0]
