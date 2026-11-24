@@ -4,6 +4,14 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.9.2] — 2026-11-24 — Champs Vehicles renommés
+
+### Corrigé
+- Vehicles a renommé les champs de sa réponse (`electric` → `isElectric`,
+  `xl` → `isXl`, `twoWheels` → `isTwoWheels`, `handicaped` →
+  `isHandicaped`) : tout véhicule était lu comme une voiture standard.
+  Chaque caractéristique est désormais lue sous tous ses noms connus.
+
 ## [4.9.1] — 2026-11-24 — Zone PMR de Pricing
 
 ### Corrigé

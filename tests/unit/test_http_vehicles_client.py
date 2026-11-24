@@ -41,10 +41,10 @@ def _routes_oubliees():
 def _vehicle(**overrides) -> dict:
     body = {
         "pseudoId": _PSEUDO_ID,
-        "electric": False,
-        "handicaped": False,
-        "xl": False,
-        "twoWheels": False,
+        "isElectric": False,
+        "isHandicaped": False,
+        "isXl": False,
+        "isTwoWheels": False,
     }
     body.update(overrides)
     return body
@@ -106,11 +106,29 @@ def test_consultation_passe_aussi_par_identify():
 
 
 def test_caracteristiques_traduites():
-    vehicles = _FakeVehicles(known=True, twoWheels=True, xl=True, electric=True, handicaped=True)
+    vehicles = _FakeVehicles(
+        known=True, isTwoWheels=True, isXl=True, isElectric=True, isHandicaped=True
+    )
     info = _client(vehicles).identify_vehicle(_PLATE)
     assert info.vehicle_type.category is VehicleCategory.TWO_WHEELER
     assert info.vehicle_type.is_xl and info.vehicle_type.is_electric
-    # Pas de justificatif distinct côté Vehicles : `handicaped` vaut les deux.
+    # Pas de justificatif distinct côté Vehicles : `isHandicaped` vaut les deux.
+    assert info.vehicle_type.is_handicap and info.disability_permit is True
+
+
+def test_noms_du_contrat_5_encore_lus():
+    """`electric`, `xl`, `twoWheels`, `handicaped` (avant le 24/11, 14 h)."""
+
+    vehicles = _FakeVehicles(known=True)
+    vehicles.vehicle = {
+        "pseudoId": _PSEUDO_ID,
+        "electric": True,
+        "xl": True,
+        "twoWheels": False,
+        "handicaped": True,
+    }
+    info = _client(vehicles).identify_vehicle(_PLATE)
+    assert info.vehicle_type.is_electric and info.vehicle_type.is_xl
     assert info.vehicle_type.is_handicap and info.disability_permit is True
 
 
@@ -329,7 +347,7 @@ class _VehiclesRenomme:
         if request.method == "POST" and path == self.create:
             return httpx.Response(200, json=_PSEUDO_ID)
         if request.method == "GET" and path == self.lookup.replace("{vehicleId}", _PSEUDO_ID):
-            return httpx.Response(200, json=_vehicle(xl=True))
+            return httpx.Response(200, json=_vehicle(isXl=True))
         return httpx.Response(404)
 
 
