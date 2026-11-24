@@ -12,7 +12,7 @@ import re
 from datetime import UTC, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from src.domain.value_objects.enums import (
     AuthorizationResult,
@@ -20,6 +20,7 @@ from src.domain.value_objects.enums import (
     RequestStatus,
     RequestType,
 )
+from src.interfaces.api.plates import CountryCode, plate_identity
 
 # Plaques de tous pays et de tous formats (SIV, ancien FNI, étrangères).
 # Les séparateurs (espaces, tirets, points) sont retirés pour qu'une même
@@ -38,6 +39,12 @@ VEHICLE_TYPE_DESCRIPTION = (
     "HANDICAPPED, TWO_WHEELS). Crée un véhicule inconnu avec ces caractéristiques ; "
     "pour un véhicule connu, Vehicles fait foi. HANDICAPPED sur un véhicule que "
     "Vehicles ne connaît pas comme PMR : place PMR, justificatif vérifié par un agent."
+)
+COUNTRY_DESCRIPTION = (
+    "Pays de la plaque, code ISO (FR, IT, ES, DE, BE, CH, GB, NL, LU, PT, XX = autre). "
+    "Vérifie le format national et distingue des plaques identiques de pays "
+    "différents (une plaque italienne n'est jamais confondue avec une française). "
+    "Absent : comportement d'avant 4.8.0 (plaque traitée comme française)."
 )
 PLATE_FORMAT_ERROR = "Plaque attendue : 2 à 10 lettres (A-Z) ou chiffres, séparateurs acceptés"
 
@@ -96,10 +103,17 @@ class AccessRequestIn(BaseModel):
         default=None, alias="photoBase64", max_length=MAX_PHOTO_BASE64_LENGTH
     )
 
+    country: CountryCode | None = Field(default=None, description=COUNTRY_DESCRIPTION)
+
     @field_validator("license_plate")
     @classmethod
     def _normalize_plate(cls, value: str) -> str:
         return normalize_plate(value)
+
+    @model_validator(mode="after")
+    def _apply_country(self):
+        self.license_plate = plate_identity(self.license_plate, self.country)
+        return self
 
     @field_validator("date")
     @classmethod
@@ -279,10 +293,17 @@ class BornePassageIn(BaseModel):
         default=None, alias="vehicleType", description=VEHICLE_TYPE_DESCRIPTION
     )
 
+    country: CountryCode | None = Field(default=None, description=COUNTRY_DESCRIPTION)
+
     @field_validator("license_plate")
     @classmethod
     def _normalize_plate(cls, value: str) -> str:
         return normalize_plate(value)
+
+    @model_validator(mode="after")
+    def _apply_country(self):
+        self.license_plate = plate_identity(self.license_plate, self.country)
+        return self
 
 
 class BornePassageOut(BaseModel):
@@ -321,10 +342,17 @@ class VehicleKnownIn(BaseModel):
 
     license_plate: str = Field(alias="licensePlate", max_length=20)
 
+    country: CountryCode | None = Field(default=None, description=COUNTRY_DESCRIPTION)
+
     @field_validator("license_plate")
     @classmethod
     def _normalize_plate(cls, value: str) -> str:
         return normalize_plate(value)
+
+    @model_validator(mode="after")
+    def _apply_country(self):
+        self.license_plate = plate_identity(self.license_plate, self.country)
+        return self
 
 
 class VehicleKnownOut(BaseModel):
@@ -357,7 +385,7 @@ class HealthOut(BaseModel):
         description="Moteur de base utilisé (sqlite ou postgresql) — jamais l'URL",
     )
     uptime_seconds: int = Field(alias="uptimeSeconds", examples=[1234])
-    version: str = Field(examples=["4.7.0"])
+    version: str = Field(examples=["4.8.0"])
     commit: str = Field(examples=["b742756d0c1e9f4a8b3c2d1e0f9a8b7c6d5e4f3a"])
     booking: str = Field(
         examples=["réel"],

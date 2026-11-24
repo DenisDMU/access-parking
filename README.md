@@ -20,7 +20,7 @@
 | | |
 |---|---|
 | **Rôle** | Décide si un véhicule peut entrer/sortir du parking et coordonne les échanges avec Vehicles, Booking, Parking, Pricing, Payment (aucune donnée métier des autres services). |
-| **Version actuelle** | `4.7.0` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
+| **Version actuelle** | `4.8.0` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
 | **Dernière mise à jour** | 24 novembre 2026 (plaques de tous pays ; Parking 1.5.0 : catégories et occupation ; borne client ; Vehicles par plaque) |
 | **URL du service déployé** | https://access-api-a1u7.onrender.com |
 | **Documentation Swagger/OpenAPI** | https://access-api-a1u7.onrender.com/docs (ReDoc : `/redoc`, spec brute : `/openapi.json`) |
@@ -69,11 +69,11 @@
 | **API** | ✅ REST documentée (`/docs`), entrées/sorties validées, erreurs normalisées, `/health` | [section 11](#11-endpoints) |
 | **Intégration** | ✅ Les 5 services réels (Vehicles, Booking, Parking, Pricing, Payment, en REST) ; événements publiés sur RabbitMQ (bus d'équipe) | [section 5](#5-brancher-un-vrai-microservice-à-la-place-dun-mock), [section 6](#6-publication-dévénements--webhook-ou-rabbitmq) |
 | **UI** | ✅ Borne client `/borne` (entrée/sortie, clavier à l'écran, ticket, clair/sombre, mobile) et dashboard servi par Access : borne d'entrée/sortie, état du parking (présences, occupation vue par Parking, décisions, santé), journal d'événements, recherche | [section 12](#12-borne-et-journal-de-bord-dashboard) |
-| **Qualité** | ✅ 315 tests (unitaires + intégration), entrées invalides et cas limites couverts, `ruff` (lint + format), script de vérification reproductible | [section 9](#9-tests-et-qualité) |
+| **Qualité** | ✅ 333 tests (unitaires + intégration), entrées invalides et cas limites couverts, `ruff` (lint + format), script de vérification reproductible | [section 9](#9-tests-et-qualité) |
 | **Observabilité** | ✅ Correlation ID propagé à tous les services et événements, logs par décision, `/metrics` Prometheus (techniques + métier + intégration), config Prometheus fournie, `/health` avec version et commit | [section 9](#métriques-prometheus) |
 | **CI/CD et déploiement** | ✅ GitHub Actions (lint → tests → bandit → pip-audit → gitleaks), déploiement Render après CI verte, smoke test de l'instance déployée (version vérifiée), CHANGELOG, Dependabot | [section 9](#intégration-continue-cicd), [section 14](#14-déploiement-sur-render) |
 | **Sécurité** | ✅ Clé API (comparaison en temps constant) sur toutes les routes sauf `/health`, clé borne limitée au passage d'un véhicule, refus de démarrer en production avec une clé faible, validation stricte, erreurs sans stack trace, en-têtes de sécurité, CORS restreint, rate limiting, secrets hors Git, plaque jamais stockée/publiée/renvoyée/loggée (test dédié) | [section 10](#10-sécurité) |
-| **Version** | `4.7.0` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
+| **Version** | `4.8.0` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
 | **Dernière mise à jour** | 24 novembre 2026 | |
 
 ### Suivi des jalons
@@ -229,11 +229,25 @@ minuscules, avec ou sans espaces, tirets ou points :
 |---|---|---|
 | `ab 123 cd`, `AB123CD` | `AB-123-CD` | plaque française SIV : forme avec tirets conservée (déjà connue de Vehicles) |
 | `123 ABC 75` | `123ABC75` | ancien format français (FNI) : séparateurs retirés |
-| `B-MW 1234`, `bmw1234` | `BMW1234` | plaque étrangère : séparateurs retirés |
+| `B-MW 1234` + pays `DE` | `DE:BMW1234` | plaque étrangère : pays en préfixe, séparateurs retirés |
+| `AB 123 CD` + pays `IT` | `IT:AB123CD` | plaque italienne : **jamais confondue** avec la française `AB-123-CD` |
+| `B-MW 1234` sans pays | `BMW1234` | appel sans pays (avant 4.8.0) : plaque traitée comme française |
 
-Une même plaque saisie de deux façons donne donc toujours le même véhicule
-chez Vehicles (entrée « B-MW 1234 », sortie « bmw1234 »). Refusé (422) :
-moins de 2 ou plus de 10 lettres et chiffres, ou un autre caractère
+**Pays de la plaque** (`country`, 4.8.0) : l'Italie utilise exactement le
+format français `AB 123 CD` ; sans le pays, deux voitures différentes
+seraient le même véhicule chez Vehicles. La borne demande donc le pays
+(France par défaut), et Access l'envoie à Vehicles sous la forme
+`<code ISO>:<plaque>` pour toute plaque non française. Les plaques
+françaises gardent leur forme : les véhicules déjà enregistrés sont
+retrouvés. Le format est vérifié pour la France (SIV ou FNI), l'Italie,
+l'Espagne, l'Allemagne, la Belgique, la Suisse et le Royaume-Uni ; pour les
+Pays-Bas, le Luxembourg, le Portugal et « autre pays » (`XX`), contrôle
+générique. Une plaque qui ne correspond pas au pays choisi est refusée (422,
+sans recopier la plaque).
+
+Une même plaque saisie de deux façons donne toujours le même véhicule chez
+Vehicles (entrée « B-MW 1234 », sortie « bmw1234 », même pays). Refusé
+(422) : moins de 2 ou plus de 10 lettres et chiffres, ou un autre caractère
 (`#`, `_`, lettres accentuées…).
 Les tests automatisés utilisent un registre déterministe de plaques
 `AA-111-AA` à `HH-888-HH` (`DEMO_VEHICLES`, dans
@@ -489,7 +503,7 @@ ACCESS_TEST_DATABASE_URL=<url Postgres> pytest tests/integration   # idem contre
 pytest -v            # détail de chaque cas
 ```
 
-Couverture (315 tests) :
+Couverture (333 tests) :
 
 - **Unitaires** — matrice complète de la règle de compatibilité
   véhicule/place, règle de présence, règle d'accessibilité ; chaque use case
@@ -532,7 +546,7 @@ précédente, `needs:` dans le workflow) et doivent **tous** passer — si une
 | Job | Outil | Ce qu'il vérifie |
 |---|---|---|
 | Lint | `ruff` | Erreurs, imports, bugs probables, règles de sécurité, **formatage homogène** (config : `ruff.toml`) |
-| Tests | `pytest` | Les 315 tests unitaires + intégration, sans aucun secret |
+| Tests | `pytest` | Les 333 tests unitaires + intégration, sans aucun secret |
 | Sécurité du code | `bandit` | Analyse statique (SAST) : injections, appels dangereux, secrets en dur… |
 | Dépendances | `pip-audit` | Vulnérabilités connues (CVE) dans `requirements.txt` |
 | Secrets | `gitleaks` | Aucun secret (clé API, URL CloudAMQP…) dans tout l'historique git |
@@ -862,10 +876,13 @@ que voit le conducteur à l'entrée ou à la sortie du parking :
 
    L'écran suivant rappelle le type choisi, avec « Modifier ».
 3. **Plaque** : saisie libre au clavier à l'écran (ou au clavier
-   physique) : lettres, chiffres et espace, pour les plaques françaises
-   (SIV ou ancien format) comme étrangères, 2 à 10 caractères. Une plaque
-   SIV est mise en forme `AB-123-CD` et marquée « F » ; les autres
-   s'affichent telles que saisies.
+   physique) : lettres, chiffres et espace, 2 à 10 caractères. **Pays** :
+   France par défaut, bouton « Changer de pays » (Italie, Espagne,
+   Allemagne, Belgique, Suisse, Royaume-Uni, Pays-Bas, Luxembourg,
+   Portugal, autre pays). Le bandeau bleu de la plaque affiche la lettre du
+   pays (F, I, E, D…), l'exemple s'adapte, et une plaque qui ne correspond
+   pas au format du pays est signalée avant l'envoi. À l'entrée comme à la
+   sortie : un véhicule italien sort en choisissant l'Italie.
 4. **Traitement** : étapes affichées (identification, place ou montant,
    paiement ; jusqu'à ~40 s pour un paiement).
 5. **Résultat** :

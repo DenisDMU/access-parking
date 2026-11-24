@@ -35,12 +35,22 @@ _SCENARIOS = [
     {"licensePlate": "B-MW 1234", "type": 1, "date": "2026-09-02T10:00:00Z", "source": 3},
     {"licensePlate": "BMW1234", "type": 2, "date": "2026-09-02T11:00:00Z", "source": 2},
     {"licensePlate": "123 ABC 75", "type": 1, "date": "2026-09-02T10:00:00Z", "source": 3},
+    # Plaque italienne au format français (4.8.0).
+    {
+        "licensePlate": "AB 456 CD",
+        "type": 1,
+        "date": "2026-09-02T10:00:00Z",
+        "source": 3,
+        "country": "IT",
+    },
 ]
 _SENT = {scenario["licensePlate"] for scenario in _SCENARIOS} | {
     "AA-111-AA",
     "AB#123",
     "BMW1234",
     "123ABC75",
+    "IT:AB456CD",  # identité envoyée à Vehicles pour la plaque italienne
+    "AB456CD",
 }
 
 
