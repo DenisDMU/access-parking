@@ -1,7 +1,9 @@
-"""Use case `CheckVehicleKnown` — vérifie si un code véhicule est connu par
-Vehicles, sans lancer le workflow complet et **sans rien persister**.
+"""Use case `CheckVehicleKnown` — vérifie si une plaque est connue par
+Vehicles, sans lancer le workflow complet, **sans rien persister** et sans
+créer le véhicule.
 
-Seul `vehicle_id` (pseudonymisé) peut apparaître dans le résultat.
+La plaque reste locale à `execute` et n'est jamais renvoyée : seul
+`vehicle_id` (pseudonymisé) peut apparaître dans le résultat.
 """
 
 from __future__ import annotations
@@ -21,8 +23,9 @@ class CheckVehicleKnown:
     def __init__(self, vehicles_port: VehiclesServicePort) -> None:
         self._vehicles_port = vehicles_port
 
-    def execute(self, vehicle_code: int) -> VehicleKnownResult:
-        vehicle_info = self._vehicles_port.get_vehicle_info(vehicle_code)
+    def execute(self, plate: str) -> VehicleKnownResult:
+        vehicle_info = self._vehicles_port.get_vehicle_info(plate)
+        del plate
         if vehicle_info is None:
             return VehicleKnownResult(known=False, vehicle_id=None)
         return VehicleKnownResult(known=True, vehicle_id=vehicle_info.vehicle_id)

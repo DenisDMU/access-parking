@@ -34,7 +34,7 @@ Vérifiable : aucun `import` de `infrastructure`/`interfaces` dans `domain` ni
 | Sortie : prix (Pricing) puis paiement (Payment) du stationnement | `ProcessExitRequest` | `test_process_exit_request.py`, `test_http_payment_client.py` |
 | Sortie datée avant l'entrée refusée | `stay_rule.py` | `test_stay_rule.py`, `test_quality.py` |
 | Durée plafonnée à 7 jours, tout quart d'heure entamé dû (règles 2.4 et 2.5) | `http_pricing_client.py::_duration_minutes` (minute supérieure, 1 min à 7 jours ; le calcul par quart d'heure est fait par Pricing) | `test_http_pricing_client.py` |
-| Access ne voit jamais la plaque (RGPD) | code Vehicles uniquement, `pseudoId` comme `vehicleId` | `test_http_vehicles_client.py` |
+| La plaque ne fait que traverser Access (RGPD) | transmise à Vehicles puis oubliée ; seul le `pseudoId` est stocké, publié, renvoyé ; erreurs 422 sans la valeur reçue | `test_no_plate_leak.py` (réponses, base, événements, logs), `test_http_vehicles_client.py` |
 
 ### Gestion des erreurs
 
@@ -85,7 +85,7 @@ timeout 20 s, en-tête `X-Correlation-ID`, métriques par service.
 
 | Service | Appel | Données envoyées | Données utilisées | Erreur → comportement d'Access |
 |---|---|---|---|---|
-| **Vehicles** | `GET /api/vehicles/{code}` | code véhicule | `pseudoId`, `twoWheels`, `xl`, `electric`, `disabled` | non-200 / réseau → « véhicule inconnu » (confirmation requise) |
+| **Vehicles** | `GET /api/vehicles/{plaque}` ; à l'entrée, sur un 404 : `POST /api/vehicles/identify` puis nouveau `GET` | plaque (normalisée `AB-123-CD`) | `pseudoId`, `twoWheels`, `xl`, `electric`, `disabled` | 404 à l'entrée → véhicule créé (4 roues standard) ; 404 à la sortie, 5xx ou réseau → « véhicule non identifié » (confirmation requise), jamais de création sur une panne |
 | **Booking** *(mocké)* | `GET /bookings/active?vehicleId=` *(supposé)* | `vehicleId` pseudonymisé | `id`, `reservedPlaceType`, dates, `placeId` | 404 → pas de réservation ; panne → entrée sans réservation |
 | **Parking** | `POST /parking/hold` → `POST /parking/confirm_entry` (avec `hold_id`) ; sortie : `POST /parking/free` — en-tête `X-API-Key` exigé | `category_name`, `commercial_type` (`walkin`/`booking`), `hold_id` | `success`, `hold_id` (place mise de côté 30 s) | `success: false` → « Aucune place disponible » ; panne ou clé refusée → « Service Parking indisponible » ; confirmation refusée (409 expiré/déjà utilisé, 422) → entrée refusée « Place non confirmée par Parking » ; `free` en échec loggé |
 | **Pricing** | `POST /quote` | `zone`, `mode`, `duration_min` | `amount_eur` | panne → sortie refusée « tarification indisponible » |
@@ -124,7 +124,7 @@ sequenceDiagram
     participant P as Parking
     participant Bus as Bus d'événements
     B->>A: POST /access/requests (X-Correlation-ID: c1, ou généré)
-    A->>Ve: GET /api/vehicles/{code} (X-Correlation-ID: c1)
+    A->>Ve: GET /api/vehicles/{plaque} (X-Correlation-ID: c1)
     A->>P: POST /parking/hold (X-Correlation-ID: c1)
     A->>P: POST /parking/confirm_entry (X-Correlation-ID: c1)
     A--)Bus: access.entry (correlation_id: c1)
@@ -151,18 +151,19 @@ toujours avec un refus explicite et loggé, jamais un plantage.
 |---|---|---|
 | 1 | Booking toujours mocké : contrat (route, codes, champs) non confirmé | 📌 à traiter avec l'équipe Booking — `TODO[BOOKING-*]` dans `http_booking_client.py` |
 | 2 | Une panne de Booking (réel) aurait donné une 500 | ✅ corrigé en 3.2.0 (entrée traitée sans réservation) + tests |
-| 3 | Vehicles renvoie **500** (et non 404) pour un code inconnu | 📄 contourné (toute non-200 = inconnu) — à remonter à l'équipe Vehicles |
+| 3 | Vehicles renvoyait **500** (et non 404) pour un code inconnu | ✅ corrigé par Vehicles (24/11) : 404 pour une plaque inconnue, qu'Access distingue désormais d'une panne |
 | 4 | Vehicles n'a pas de justificatif PMR distinct : `disabled` sert de type et de justificatif → la confirmation PMR n'arrive jamais avec le vrai service | 📄 documenté (README section 16) — responsabilité à clarifier |
 | 5 | Parking ne gère pas d'identifiant de place : `placeId` synthétique `CATEGORIE:walkin\|booking` | 📄 documenté, conforme aux consignes (places comptées par catégorie) |
 | 6 | 18/11 : service Parking injoignable (aucune réponse en 75 s) → toutes les entrées refusées « Aucune place disponible », motif trompeur | ✅ corrigé en 3.4.0 : motif distinct « Service Parking indisponible, réessayez plus tard » |
 | 7 | 18/11 : variables du `render.yaml` non appliquées par un déploiement automatique (Access appelait `localhost` pour Vehicles) | ✅ résolu par redéploiement ; détectable désormais par le smoke test |
 | 8 | Payment n'active pas encore son authentification (`auth_enabled: false`) | 📄 Access envoie déjà `X-API-Key` si `PAYMENT_API_KEY` est renseignée |
-| 10 | 18/11 : Parking a activé son authentification (`X-API-Key`) sans prévenir → appels d'Access refusés | ✅ Access envoie `PARKING_API_KEY` (3.4.0) ; 📌 clé à obtenir de l'équipe Parking et à saisir dans Render |
+| 10 | 18/11 : Parking a activé son authentification (`X-API-Key`) sans prévenir → appels d'Access refusés | ✅ Access envoie `PARKING_API_KEY` (3.4.0) ; clé obtenue et saisie dans Render |
 | 11 | 18/11 : `confirm_entry` exige le `hold_id` du `hold` (place mise de côté 30 s) | ✅ géré en 3.5.0 ; entrée refusée si la confirmation échoue |
-| 12 | **Sécurité Parking** : la clé API de Parking est écrite en clair dans sa page publique `/dashboard` (lisible par tous dans le code source) | 📌 à signaler à l'équipe Parking — Access ne l'utilise pas et attend sa propre clé |
+| 12 | **Sécurité Parking** : la clé API de Parking était écrite en clair dans sa page publique `/dashboard` | ✅ vérifié le 24/11 : la page demande désormais la clé à l'utilisateur (`prompt`, gardée en `sessionStorage`), plus aucune clé dans le code source |
 | 13 | La doc de Parking indique qu'il **consomme aussi les événements RabbitMQ** pour les confirmations d'entrée/sortie : si Parking confirme à partir de `access.entry` en plus de l'appel `confirm_entry` d'Access, une entrée pourrait être comptée deux fois | 📌 à clarifier avec l'équipe Parking (un seul des deux mécanismes) |
-| 14 | **Vehicles ne respecte pas la règle 3.2** (« Vehicles *recherche ou crée* l'identifiant pseudonymisé ») : `POST /api/vehicles/identify` exige un code fourni par l'appelant, renvoie 500 pour une plaque déjà connue, n'offre aucune recherche par plaque et perd ses données à chaque mise en veille → tout véhicule non préenregistré est « inconnu » | 📌 à remonter à l'équipe Vehicles : `identify` doit retrouver ou créer le véhicule à partir de la plaque et renvoyer son code. Rien à changer côté Access (règle 3.7 : Access *demande* l'identifiant à Vehicles) |
+| 14 | **Vehicles ne respectait pas la règle 3.2** (« Vehicles *recherche ou crée* l'identifiant pseudonymisé ») : `identify` exigeait un code fourni par l'appelant et renvoyait 500 pour une plaque connue | ✅ corrigé par Vehicles (24/11) : `identify` retrouve ou crée (même `pseudoId` pour une même plaque, vérifié par appels réels) ; Access l'appelle à l'entrée pour une plaque inconnue (4.0.0) |
 | 15 | Durée envoyée à Pricing : 0 min (sortie juste après l'entrée) et plus de 7 jours refusés par Pricing (422) → sortie bloquée ; règle 2.4 (« durée plafonnée à sept jours ») non appliquée | ✅ corrigé en 3.5.1 : durée arrondie à la minute supérieure, bornée entre 1 min et 7 jours |
-| 16 | Le cas « véhicule inconnu → intervention d'un agent » vient de la spec d'Access, pas des règles métier, qui mettent le « traitement manuel des erreurs » hors périmètre (section 5) | 📄 conservé comme refus sûr (barrière fermée) ; ne devrait plus arriver avec un Vehicles conforme à la règle 3.2 |
+| 16 | Le cas « véhicule inconnu → intervention d'un agent » vient de la spec d'Access, pas des règles métier, qui mettent le « traitement manuel des erreurs » hors périmètre (section 5) | 📄 depuis 4.0.0, ne reste possible qu'en cas de panne de Vehicles (entrée) ou de plaque jamais entrée (sortie) : refus sûr, barrière fermée |
 | 17 | 18/11 : SQLite sur le disque éphémère de Render → base effacée à chaque redéploiement ou réveil (constaté : 4 passages perdus en quelques minutes). Un véhicule garé pendant une mise en veille ne pouvait plus sortir | ✅ 3.6.0 : Postgres Neon en production (`DATABASE_URL`), tables créées au démarrage. Corrigé au passage : la présence était enregistrée avant la demande d'entrée qu'elle référence (clé étrangère), ce qui aurait fait échouer chaque entrée sous Postgres |
+| 18 | 24/11 : **nouveau contrat Vehicles**, sans prévenir : plus de `code`, consultation par plaque (`GET /api/vehicles/{plaque}`). Access envoyait un code → tous les véhicules auraient été « inconnus » | ✅ 4.0.0 : Access reçoit la plaque (`licensePlate`), la transmet à Vehicles sans la conserver, vérification déplacée en `POST /access/vehicles/known` (plaque hors des URL) ; testé contre le vrai service. 📌 à signaler à Vehicles : la plaque figure dans l'URL de `GET /api/vehicles/{plaque}`, donc dans les journaux de leur hébergeur |
 | 9 | Propagation du correlation ID par les autres services | 📌 à vérifier en revue d'intégration (Access le transmet partout) |

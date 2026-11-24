@@ -5,10 +5,12 @@ vers `infrastructure`/`interfaces`), conformément à la règle de dépendance
 stricte de l'architecture hexagonale.
 
 Déroulé (section 8 de la spec) :
-1. Réceptionner le code véhicule (Vehicles a déjà identifié la plaque).
+1. Réceptionner la plaque lue par la borne (elle ne quitte pas cette
+   méthode : seul l'identifiant pseudonymisé est conservé).
 2. Analyse IA optionnelle (photo) → `ai_check`.
-3. Résolution Vehicles du code → identifiant pseudonymisé + type de véhicule.
-4. Véhicule inconnu → rejet journalisé, `stop`.
+3. Identification par Vehicles, qui retrouve le véhicule ou le crée
+   (règle 3.2) → identifiant pseudonymisé + type de véhicule.
+4. Vehicles indisponible → rejet journalisé, `stop`.
 5. Règle de présence → refus si déjà `IN`.
 6. Réservation (Booking) sinon attribution de place (Parking).
 7. Règle de compatibilité véhicule/place → refus si incompatible.
@@ -91,7 +93,7 @@ class ProcessEntryRequest:
 
     def execute(
         self,
-        vehicle_code: int,
+        plate: str,
         date: datetime,
         source: DetectionSource,
         photo: bytes | None = None,
@@ -99,7 +101,8 @@ class ProcessEntryRequest:
         request_id = str(uuid4())
 
         ai_check = self._analyze_photo(photo)
-        vehicle_info = self._vehicles_port.get_vehicle_info(vehicle_code)
+        vehicle_info = self._vehicles_port.identify_vehicle(plate)
+        del plate  # RGPD : la plaque ne sert qu'à interroger Vehicles
 
         if vehicle_info is None:
             return self._reject_unknown_vehicle(request_id, date, source, ai_check)
@@ -337,7 +340,7 @@ class ProcessEntryRequest:
             vehicle_id=None,
             ai_check=ai_check,
         )
-        reason = "Véhicule inconnu de Vehicles — procédure alternative requise"
+        reason = "Véhicule non identifié par Vehicles — procédure alternative requise"
         authorization = AccessAuthorization(
             id=str(uuid4()),
             request_id=request_id,
@@ -346,7 +349,9 @@ class ProcessEntryRequest:
         )
         self._access_repo.save_request(request)
         self._access_repo.save_authorization(authorization)
-        logger.warning("Entrée rejetée : véhicule inconnu de Vehicles (request=%s)", request_id)
+        logger.warning(
+            "Entrée rejetée : véhicule non identifié par Vehicles (request=%s)", request_id
+        )
         self._event_publisher.publish(
             AccessEvent(
                 id=str(uuid4()),

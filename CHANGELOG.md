@@ -4,11 +4,37 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
-## [Non publié]
+## [4.0.0] — 2026-11-24 — Vehicles par plaque
 
-Aucun changement de l'API : la version exposée reste `3.6.2`.
+Vehicles a changé de contrat le 24/11 : plus de `code`, les véhicules sont
+identifiés par leur plaque. Sans cette version, tous les véhicules étaient
+« inconnus ».
+
+### Modifié (rupture de contrat)
+- `POST /access/requests` reçoit `licensePlate` (format `AB-123-CD`,
+  minuscules et espaces acceptés, normalisée) au lieu de `vehicleCode`.
+- `POST /access/vehicles/known` (plaque dans le corps) remplace
+  `GET /access/vehicles/{vehicle_code}/known` : la plaque ne passe jamais
+  dans une URL.
+- Smoke test : `VEHICLE_PLATE` remplace `VEHICLE_CODE`.
+
+### Ajouté
+- Entrée : une plaque inconnue de Vehicles (404) est créée via
+  `POST /api/vehicles/identify` (règle 3.2), comme un 4 roues standard, et
+  l'entrée continue. Une panne de Vehicles ne crée jamais rien : agent requis.
+- Sortie et vérification : consultation seule, jamais de création.
+- Test anti-fuite rétabli : aucune plaque dans les réponses, la base, les
+  événements ni les logs.
+
+### Sécurité
+- La plaque est transmise à Vehicles puis oubliée : jamais stockée,
+  publiée, renvoyée ni loggée (le client Vehicles ne logge que le type
+  d'erreur, jamais l'URL appelée).
+- Les erreurs 422 ne recopient plus la valeur reçue (`input` retiré).
 
 ### Corrigé
+- Client Vehicles : une réponse JSON qui n'est pas un objet ne fait plus
+  planter la demande (traitée comme Vehicles indisponible).
 - Simulateur (`scripts/simulate_bus_events.py`) : une erreur réseau (DNS
   indisponible, connexion coupée) n'arrête plus la simulation ; la
   publication est retentée au cycle suivant.
@@ -18,6 +44,7 @@ Aucun changement de l'API : la version exposée reste `3.6.2`.
   Dependabot #31 à #35) : `fastapi>=0.163.1`, `pydantic>=2.14.3`,
   `psycopg[binary]>=3.3.9`, `httpx>=0.28.1`, `certifi>=2026.10.23`.
   191 tests au vert ; suite d'intégration validée aussi contre la base Neon.
+- Dashboard : borne et recherche par plaque.
 
 ## [3.6.2] — 2026-11-18 — Événement de sortie enrichi
 

@@ -1,8 +1,9 @@
 """Endpoints `/access/requests`, `/access/presences` et
-`/access/vehicles/{vehicle_code}/known`.
+`/access/vehicles/known`.
 
-Access ne reçoit jamais la plaque : les demandes portent le code véhicule
-attribué par Vehicles, seul l'identifiant pseudonymisé circule ensuite.
+⚠️ Discipline RGPD : la plaque reçue (`body.license_plate`) n'est transmise
+qu'aux use cases, qui la passent à Vehicles. Elle n'est jamais passée à un
+logger ni incluse dans une réponse : seul l'identifiant pseudonymisé circule.
 """
 
 from __future__ import annotations
@@ -27,7 +28,6 @@ from src.infrastructure.security.api_key_auth import verify_api_key
 from src.interfaces.api import deps
 from src.interfaces.api.rate_limit import limiter
 from src.interfaces.api.schemas.access_request_schemas import (
-    MAX_VEHICLE_CODE,
     AccessRequestDetailOut,
     AccessRequestIn,
     AccessRequestListItemOut,
@@ -35,6 +35,7 @@ from src.interfaces.api.schemas.access_request_schemas import (
     AuthorizationOut,
     PlaceTypeOut,
     PresentVehicleOut,
+    VehicleKnownIn,
     VehicleKnownOut,
 )
 from src.interfaces.api.schemas.error_schemas import ErrorOut
@@ -68,8 +69,8 @@ _COMMON_ERROR_RESPONSES = {
         "Orchestre le workflow d'entrée (résolution Vehicles, réservation "
         "Booking ou attribution Parking, compatibilité véhicule/place, "
         "accessibilité PMR) ou de sortie (Pricing puis Payment) et retourne "
-        "la décision. Le véhicule est désigné par son code Vehicles, jamais "
-        "par sa plaque."
+        "la décision. La plaque est transmise à Vehicles puis oubliée : elle "
+        "n'est jamais persistée, publiée ni renvoyée."
     ),
     responses={
         200: {"description": "Décision rendue (autorisée, refusée, ou confirmation requise)"},
@@ -95,7 +96,7 @@ def create_access_request(
 
     if body.type == RequestType.ENTRY:
         decision = entry_use_case.execute(
-            vehicle_code=body.vehicle_code, date=body.date, source=body.source, photo=photo
+            plate=body.license_plate, date=body.date, source=body.source, photo=photo
         )
         record_decision(decision.type, decision.result, decision.reason)
         return AccessRequestOut(
@@ -112,9 +113,7 @@ def create_access_request(
             ),
         )
 
-    decision = exit_use_case.execute(
-        vehicle_code=body.vehicle_code, date=body.date, source=body.source
-    )
+    decision = exit_use_case.execute(plate=body.license_plate, date=body.date, source=body.source)
     record_decision(decision.type, decision.result, decision.reason)
     amount = float(decision.payment_amount) if decision.payment_amount is not None else None
     return AccessRequestOut(
@@ -264,19 +263,20 @@ def list_present_vehicles(
     ]
 
 
-@router.get(
-    "/vehicles/{vehicle_code}/known",
+@router.post(
+    "/vehicles/known",
     response_model=VehicleKnownOut,
-    summary="Vérifie si un code véhicule est connu par Vehicles",
+    summary="Vérifie si une plaque est connue par Vehicles",
     description=(
-        "Résolution à la volée auprès de Vehicles, sans lancer le workflow "
-        "complet et sans rien persister."
+        "Consultation à la volée auprès de Vehicles, sans lancer le workflow "
+        "complet, sans créer le véhicule et sans rien persister. La plaque "
+        "voyage dans le corps (jamais dans l'URL) et n'est jamais renvoyée."
     ),
     responses=_COMMON_ERROR_RESPONSES,
 )
 def check_vehicle_known(
-    vehicle_code: int = Path(..., ge=0, le=MAX_VEHICLE_CODE),
+    body: VehicleKnownIn,
     use_case: CheckVehicleKnown = Depends(deps.get_check_vehicle_known_use_case),
 ) -> VehicleKnownOut:
-    result = use_case.execute(vehicle_code)
+    result = use_case.execute(body.license_plate)
     return VehicleKnownOut(known=result.known, vehicleId=result.vehicle_id)

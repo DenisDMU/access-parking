@@ -5,7 +5,7 @@
 # Prérequis (une fois) : Settings → Secrets and variables → Actions →
 #   - secret  ACCESS_API_KEY  = clé API de l'instance Render
 #   - variable ACCESS_BASE_URL (optionnelle, défaut : URL Render ci-dessous)
-# Sans VEHICLE_CODE : aucun effet de bord (pas d'entrée/sortie réelle).
+# Sans VEHICLE_PLATE : aucun effet de bord (pas d'entrée/sortie réelle).
 name: Smoke test (instance déployée)
 
 on:

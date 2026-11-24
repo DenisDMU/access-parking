@@ -103,12 +103,16 @@ def client():
     )
     app.dependency_overrides[deps.get_parking_port] = lambda: FakeParkingPort()
     app.dependency_overrides[deps.get_payment_port] = lambda: FakePaymentPort()
-    app.dependency_overrides[deps.get_vehicles_port] = lambda: FakeVehiclesPort(DEMO_VEHICLES)
+    # Une seule instance par test : un véhicule créé à l'entrée est retrouvé
+    # à la sortie, comme avec le vrai Vehicles.
+    vehicles = FakeVehiclesPort(DEMO_VEHICLES)
+    app.dependency_overrides[deps.get_vehicles_port] = lambda: vehicles
 
     with TestClient(app) as test_client:
         test_client.test_engine = (
             test_engine  # exposé pour les tests qui inspectent la DB directement
         )
+        test_client.vehicles = vehicles  # faux Vehicles, pour simuler une panne
         yield test_client
 
     app.dependency_overrides.clear()

@@ -24,41 +24,41 @@ from src.domain.value_objects.dto import (
 )
 from src.domain.value_objects.enums import PresenceStatus, VehicleCategory
 
-# Registre déterministe de codes véhicule "connus" (ex-mock Vehicles), pensé
-# pour exercer chaque branche des règles métier dans les tests d'intégration.
+# Registre déterministe de plaques "connues" de Vehicles, pensé pour exercer
+# chaque branche des règles métier dans les tests d'intégration.
 # `v_with_reservation` est l'identifiant attendu par le mock Booking.
-DEMO_VEHICLES: dict[int, VehicleInfo] = {
-    1: VehicleInfo(
+DEMO_VEHICLES: dict[str, VehicleInfo] = {
+    "AA-111-AA": VehicleInfo(
         vehicle_id="v_standard_4wheeler",
         vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER),
     ),
-    2: VehicleInfo(
+    "BB-222-BB": VehicleInfo(
         vehicle_id="v_2wheeler",
         vehicle_type=VehicleType(category=VehicleCategory.TWO_WHEELER),
     ),
-    3: VehicleInfo(
+    "CC-333-CC": VehicleInfo(
         vehicle_id="v_xl",
         vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER, is_xl=True),
     ),
-    4: VehicleInfo(
+    "DD-444-DD": VehicleInfo(
         vehicle_id="v_electric",
         vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER, is_electric=True),
     ),
-    5: VehicleInfo(
+    "EE-555-EE": VehicleInfo(
         vehicle_id="v_disabled_ok",
         vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER, is_handicap=True),
         disability_permit=True,
     ),
-    6: VehicleInfo(
+    "FF-666-FF": VehicleInfo(
         vehicle_id="v_disabled_no_permit",
         vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER, is_handicap=True),
         disability_permit=False,
     ),
-    7: VehicleInfo(
+    "GG-777-GG": VehicleInfo(
         vehicle_id="v_with_reservation",
         vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER),
     ),
-    8: VehicleInfo(
+    "HH-888-HH": VehicleInfo(
         vehicle_id="v_standard_4wheeler_bis",
         vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER),
     ),
@@ -66,13 +66,32 @@ DEMO_VEHICLES: dict[int, VehicleInfo] = {
 
 
 class FakeVehiclesPort:
-    def __init__(self, registry: dict[int, VehicleInfo] | None = None) -> None:
-        self.registry = registry or {}
-        self.calls: list[int] = []
+    """Faux Vehicles : `identify_vehicle` crée un véhicule standard pour une
+    plaque inconnue (règle 3.2), sauf si `available=False` (panne simulée)."""
 
-    def get_vehicle_info(self, vehicle_code: int) -> VehicleInfo | None:
-        self.calls.append(vehicle_code)
-        return self.registry.get(vehicle_code)
+    def __init__(
+        self, registry: dict[str, VehicleInfo] | None = None, available: bool = True
+    ) -> None:
+        # Copie : un véhicule créé par un test ne fuit pas dans les suivants.
+        self.registry = dict(registry or {})
+        self.available = available
+        self.calls: list[str] = []
+        self.created: list[str] = []
+
+    def get_vehicle_info(self, plate: str) -> VehicleInfo | None:
+        self.calls.append(plate)
+        return self.registry.get(plate) if self.available else None
+
+    def identify_vehicle(self, plate: str) -> VehicleInfo | None:
+        info = self.get_vehicle_info(plate)
+        if info is None and self.available:
+            info = VehicleInfo(
+                vehicle_id=f"v_created_{len(self.created) + 1}",
+                vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER),
+            )
+            self.registry[plate] = info
+            self.created.append(plate)
+        return info
 
 
 class FakeBookingPort:

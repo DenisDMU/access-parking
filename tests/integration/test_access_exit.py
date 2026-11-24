@@ -6,21 +6,21 @@ from tests.integration.conftest import AUTH_HEADERS
 from tests.unit.fakes import FakePaymentPort
 
 
-def _payload(code: int, type_: int, date: str, source: int = 3) -> dict:
-    return {"vehicleCode": code, "type": type_, "date": date, "source": source}
+def _payload(plate: str, type_: int, date: str, source: int = 3) -> dict:
+    return {"licensePlate": plate, "type": type_, "date": date, "source": source}
 
 
 def test_exit_authorized_pricing_and_payment_ok(client):
     entry = client.post(
         "/api/v1/access/requests",
-        json=_payload(1, 1, "2026-09-02T10:00:00Z"),
+        json=_payload("AA-111-AA", 1, "2026-09-02T10:00:00Z"),
         headers=AUTH_HEADERS,
     )
     assert entry.json()["authorization"]["result"] == 1
 
     exit_response = client.post(
         "/api/v1/access/requests",
-        json=_payload(1, 2, "2026-09-02T11:00:00Z", source=2),
+        json=_payload("AA-111-AA", 2, "2026-09-02T11:00:00Z", source=2),
         headers=AUTH_HEADERS,
     )
     assert exit_response.status_code == 200
@@ -34,14 +34,14 @@ def test_exit_refused_payment_failed(client):
     app.dependency_overrides[deps.get_payment_port] = lambda: FakePaymentPort(success=False)
     entry = client.post(
         "/api/v1/access/requests",
-        json=_payload(8, 1, "2026-09-02T10:00:00Z"),
+        json=_payload("HH-888-HH", 1, "2026-09-02T10:00:00Z"),
         headers=AUTH_HEADERS,
     )
     assert entry.json()["authorization"]["result"] == 1
 
     exit_response = client.post(
         "/api/v1/access/requests",
-        json=_payload(8, 2, "2026-09-02T11:00:00Z", source=2),
+        json=_payload("HH-888-HH", 2, "2026-09-02T11:00:00Z", source=2),
         headers=AUTH_HEADERS,
     )
     assert exit_response.status_code == 200
@@ -53,7 +53,7 @@ def test_exit_refused_payment_failed(client):
 def test_exit_refused_vehicle_not_present(client):
     response = client.post(
         "/api/v1/access/requests",
-        json=_payload(3, 2, "2026-09-02T11:00:00Z", source=2),
+        json=_payload("CC-333-CC", 2, "2026-09-02T11:00:00Z", source=2),
         headers=AUTH_HEADERS,
     )
     assert response.status_code == 200
@@ -65,7 +65,7 @@ def test_exit_refused_vehicle_not_present(client):
 def test_get_access_request_by_id(client):
     entry = client.post(
         "/api/v1/access/requests",
-        json=_payload(4, 1, "2026-09-02T10:00:00Z"),
+        json=_payload("DD-444-DD", 1, "2026-09-02T10:00:00Z"),
         headers=AUTH_HEADERS,
     )
     request_id = entry.json()["requestId"]
@@ -85,12 +85,12 @@ def test_get_access_request_not_found(client):
 def test_list_access_requests_filters_by_vehicle_id(client):
     client.post(
         "/api/v1/access/requests",
-        json=_payload(1, 1, "2026-09-02T10:00:00Z"),
+        json=_payload("AA-111-AA", 1, "2026-09-02T10:00:00Z"),
         headers=AUTH_HEADERS,
     )
     client.post(
         "/api/v1/access/requests",
-        json=_payload(2, 1, "2026-09-02T10:05:00Z"),
+        json=_payload("BB-222-BB", 1, "2026-09-02T10:05:00Z"),
         headers=AUTH_HEADERS,
     )
 

@@ -116,9 +116,12 @@ async def validation_exception_handler(
     logger.info(
         "Requête invalide sur %s : %d erreur(s) de validation", request.url.path, len(exc.errors())
     )
+    # RGPD : Pydantic recopie la valeur reçue (`input`) dans chaque erreur ;
+    # elle est retirée pour ne jamais renvoyer une plaque, même invalide.
+    errors = [{k: v for k, v in error.items() if k != "input"} for error in exc.errors()]
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-        content={"detail": jsonable_encoder(exc.errors())},
+        content={"detail": jsonable_encoder(errors)},
     )
 
 

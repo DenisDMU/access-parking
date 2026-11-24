@@ -17,10 +17,10 @@ def _sample(name: str, **labels) -> float:
     return REGISTRY.get_sample_value(name, labels) or 0.0
 
 
-def _passage(client, code: int, type_: int, date: str):
+def _passage(client, plate: str, type_: int, date: str):
     return client.post(
         URL,
-        json={"vehicleCode": code, "type": type_, "date": date, "source": 3},
+        json={"licensePlate": plate, "type": type_, "date": date, "source": 3},
         headers=AUTH_HEADERS,
     )
 
@@ -31,8 +31,8 @@ def test_metrics_metier_exposees_apres_des_passages(client):
         "access_refusals_total", type="entry", reason="Véhicule déjà présent dans le parking"
     )
 
-    _passage(client, 1, 1, "2026-09-02T10:00:00Z")
-    _passage(client, 1, 1, "2026-09-02T10:05:00Z")  # déjà présent → refus
+    _passage(client, "AA-111-AA", 1, "2026-09-02T10:00:00Z")
+    _passage(client, "AA-111-AA", 1, "2026-09-02T10:05:00Z")  # déjà présent → refus
 
     assert _sample("access_decisions_total", type="entry", result="authorized") == before_ok + 1
     assert (
@@ -59,11 +59,11 @@ def test_jauge_des_vehicules_presents(client):
     register_presence_collector(count)
     assert _sample("access_vehicles_present") == 0
 
-    _passage(client, 1, 1, "2026-09-02T10:00:00Z")
-    _passage(client, 2, 1, "2026-09-02T10:00:00Z")
+    _passage(client, "AA-111-AA", 1, "2026-09-02T10:00:00Z")
+    _passage(client, "BB-222-BB", 1, "2026-09-02T10:00:00Z")
     assert _sample("access_vehicles_present") == 2
 
-    _passage(client, 1, 2, "2026-09-02T12:00:00Z")
+    _passage(client, "AA-111-AA", 2, "2026-09-02T12:00:00Z")
     assert _sample("access_vehicles_present") == 1
 
 
