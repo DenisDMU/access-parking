@@ -4,6 +4,20 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.3.0] — 2026-11-24 — Plaques de tous pays
+
+### Modifié
+- Toutes les plaques sont acceptées : françaises SIV ou ancien format
+  (FNI), étrangères. 2 à 10 lettres ou chiffres, espaces, tirets et points
+  acceptés comme séparateurs. La plaque SIV garde sa forme `AB-123-CD`
+  (véhicules déjà enregistrés chez Vehicles retrouvés) ; les autres sont
+  envoyées sans séparateurs (`B-MW 1234` → `BMW1234`), pour qu'une même
+  plaque saisie autrement donne le même véhicule. Aucune plaque acceptée
+  avant n'est refusée maintenant.
+- Borne client : saisie libre (toutes les touches actives, touche Espace),
+  bandeau « F » seulement pour une plaque SIV ; borne de test et recherche
+  du dashboard alignées ; smoke test mis à jour.
+
 ## [4.2.0] — 2026-11-24 — Catégories et occupation Parking
 
 Parking 1.5.0 a ajouté `GET /parking/categories`, un `label` dans ses

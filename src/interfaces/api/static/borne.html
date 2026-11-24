@@ -119,6 +119,7 @@
     color: var(--plate-ink); letter-spacing: .04em; white-space: nowrap;
   }
   .plate-text .ph { color: #b8bccb; }
+  .plate-text.long { font-size: clamp(30px, 6.5vw, 48px); }
   .plate-text .caret { display: inline-block; width: 4px; height: .9em; background: var(--blue); margin-left: 2px; vertical-align: -0.08em; animation: blink 1s steps(1) infinite; }
   @keyframes blink { 50% { opacity: 0; } }
   .plate-band.right { justify-content: center; padding: 0; }
@@ -259,12 +260,12 @@
     <div class="plate" role="textbox" aria-live="polite" aria-label="Plaque saisie" id="plateBox">
       <div class="plate-band" aria-hidden="true">
         <svg viewBox="0 0 24 24"><g fill="#ffd200"><circle cx="12" cy="3.5" r="1.2"/><circle cx="16.25" cy="4.64" r="1.2"/><circle cx="19.36" cy="7.75" r="1.2"/><circle cx="20.5" cy="12" r="1.2"/><circle cx="19.36" cy="16.25" r="1.2"/><circle cx="16.25" cy="19.36" r="1.2"/><circle cx="12" cy="20.5" r="1.2"/><circle cx="7.75" cy="19.36" r="1.2"/><circle cx="4.64" cy="16.25" r="1.2"/><circle cx="3.5" cy="12" r="1.2"/><circle cx="4.64" cy="7.75" r="1.2"/><circle cx="7.75" cy="4.64" r="1.2"/></g></svg>
-        F
+        <span id="plateCountry"></span>
       </div>
       <div class="plate-text" id="plateText"></div>
       <div class="plate-band right" aria-hidden="true"></div>
     </div>
-    <p class="plate-hint" id="plateHint">Format : AB-123-CD</p>
+    <p class="plate-hint" id="plateHint">Plaque française ou étrangère.</p>
     <div class="keyboard" id="keyboard" aria-label="Clavier"></div>
     <div class="actions">
       <button class="btn ghost" type="button" id="cancelBtn">Annuler</button>
@@ -405,20 +406,29 @@
     btn.addEventListener("click", function () { startPlate(Number(btn.dataset.go)); });
   });
 
-  // --- Saisie de la plaque (format SIV : AB-123-CD) ---------------------------------
+  // --- Saisie de la plaque (toutes plaques : SIV, ancien format, étrangères) ----------
+  // Toutes les touches restent actives : lettres, chiffres et espace (séparateur
+  // facultatif, retiré par Access). Une plaque française SIV est mise en forme
+  // AB-123-CD et marquée « F » ; les autres s'affichent telles que saisies.
   var buffer = "";
-  var LETTERS = "AZERTYUIOPQSDFGHJKLMWXCVBN";
+  var MAX_CHARS = 10;      // lettres et chiffres, séparateurs non compris
+  var MAX_RAW = 14;        // avec les séparateurs
   var ROWS = ["1234567890", "AZERTYUIOP", "QSDFGHJKLM", "WXCVBN"];
+  var SIV = /^([A-Z]{2})(\d{3})([A-Z]{2})$/;
 
-  function expectsLetter(pos) { return pos < 2 || pos > 4; }
+  function compact() { return buffer.replace(/[\s-]+/g, ""); }
+  function isSiv() { return SIV.test(compact()); }
+  function isValid() { var n = compact().length; return n >= 2 && n <= MAX_CHARS; }
   function accepts(ch) {
-    if (buffer.length >= 7) return false;
-    var isLetter = LETTERS.indexOf(ch) !== -1;
-    return expectsLetter(buffer.length) ? isLetter : /\d/.test(ch);
+    if (ch === " ") {
+      // Séparateur : jamais en premier ni deux fois de suite.
+      return buffer.length > 0 && buffer.length < MAX_RAW && !/\s$/.test(buffer);
+    }
+    return compact().length < MAX_CHARS && buffer.length < MAX_RAW;
   }
   function formatted() {
-    return buffer.slice(0, 2) + (buffer.length > 2 ? "-" + buffer.slice(2, 5) : "") +
-      (buffer.length > 5 ? "-" + buffer.slice(5) : "");
+    var m = compact().match(SIV);
+    return m ? m[1] + "-" + m[2] + "-" + m[3] : buffer.trim();
   }
 
   function renderPlate() {
@@ -431,18 +441,21 @@
     } else {
       text.appendChild(document.createTextNode(formatted()));
     }
-    if (buffer.length < 7) {
+    if (compact().length < MAX_CHARS) {
       var caret = document.createElement("span"); caret.className = "caret"; text.appendChild(caret);
     }
+    text.classList.toggle("long", formatted().length > 9);
+    $("plateCountry").textContent = isSiv() ? "F" : "";
     $("plateBox").setAttribute("aria-label", buffer ? "Plaque saisie : " + formatted().split("").join(" ") : "Aucune plaque saisie");
-    $("submitBtn").disabled = buffer.length !== 7;
+    $("submitBtn").disabled = !isValid();
     document.querySelectorAll(".key[data-ch]").forEach(function (k) { k.disabled = !accepts(k.dataset.ch); });
     $("eraseKey").disabled = buffer.length === 0;
     var hint = $("plateHint");
     hint.classList.remove("error");
-    hint.textContent = buffer.length === 7 ? "Vérifiez votre plaque, puis « Valider »."
-      : expectsLetter(buffer.length) ? "Saisissez " + (buffer.length < 2 ? "les 2 premières lettres" : "les 2 dernières lettres")
-      : "Saisissez les 3 chiffres";
+    hint.textContent = !buffer ? "Plaque française ou étrangère : lettres et chiffres, espaces facultatifs."
+      : isSiv() ? "Plaque française reconnue. Vérifiez-la, puis « Valider »."
+      : isValid() ? "Vérifiez votre plaque, puis « Valider »."
+      : "Continuez la saisie (2 caractères au moins).";
     if (fixedMode()) $("cancelBtn").hidden = buffer.length === 0;
   }
   function resetPlate() { buffer = ""; renderPlate(); }
@@ -461,6 +474,11 @@
         r.appendChild(k);
       });
       if (i === ROWS.length - 1) {
+        var space = document.createElement("button");
+        space.type = "button"; space.className = "key wide"; space.dataset.ch = " "; space.textContent = "Espace";
+        space.setAttribute("aria-label", "Espace");
+        space.addEventListener("click", function () { typeChar(" "); });
+        r.appendChild(space);
         var del = document.createElement("button");
         del.type = "button"; del.className = "key wide"; del.id = "eraseKey"; del.textContent = "⌫ Effacer";
         del.addEventListener("click", erase);
@@ -473,8 +491,9 @@
   document.addEventListener("keydown", function (e) {
     if (current !== "plate" || e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.key === "Backspace") { erase(); e.preventDefault(); return; }
-    if (e.key === "Enter") { if (buffer.length === 7) submit(); e.preventDefault(); return; }
+    if (e.key === "Enter") { if (isValid()) submit(); e.preventDefault(); return; }
     if (e.key === "Escape") { goHome(); return; }
+    if (e.key === " " || e.key === "-") { typeChar(" "); e.preventDefault(); return; }
     var ch = (e.key || "").toUpperCase();
     if (ch.length === 1 && /[A-Z0-9]/.test(ch)) { typeChar(ch); e.preventDefault(); }
   });
@@ -510,7 +529,7 @@
   }
 
   function submit() {
-    if (buffer.length !== 7 || !direction) return;
+    if (!isValid() || !direction) return;
     var plate = formatted();
     var dir = direction;
     // La plaque quitte l'écran dès l'envoi : elle n'est ni gardée ni réaffichée.
@@ -620,7 +639,7 @@
     return { kind: "ko", title: "Passage refusé", lead: "Un agent peut vous aider.", retry: dir, delay: 15 };
   }
   function invalidPlateResult(dir) {
-    return { kind: "ko", title: "Plaque non reconnue", lead: "Vérifiez le format : deux lettres, trois chiffres, deux lettres.", retry: dir, delay: 15 };
+    return { kind: "ko", title: "Plaque non reconnue", lead: "Saisissez uniquement les lettres et les chiffres de la plaque (2 à 10).", retry: dir, delay: 15 };
   }
   function unavailableResult(dir) {
     return { kind: "ko", title: "Service momentanément indisponible", lead: "Veuillez réessayer dans un instant, ou appelez un agent.", retry: dir, delay: 20 };
