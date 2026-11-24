@@ -4,6 +4,27 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.11.0] — 2026-11-24 — Plan 3D du parking
+
+### Ajouté
+- Dashboard : onglet « Plan 3D ». Le parking en trois dimensions, construit
+  à partir de l'occupation renvoyée par Parking : une zone par catégorie,
+  un véhicule du bon type par place prise (citadine, berline, SUV,
+  électrique, utilitaire, camping-car, moto, scooter). Les véhicules
+  entrent par la barrière et se garent, ou sortent, quand l'occupation
+  change ; les places mises de côté clignotent ; jour en thème clair, nuit
+  en thème sombre. Caméra libre, zoom sur une zone, plein écran, survol et
+  clic sur un véhicule (ouvre sa demande d'entrée).
+- Sans clé ou si Parking ne répond pas : plan de démonstration, signalé
+  comme tel.
+- three.js 0.160.0 (MIT) servi par Access (`static/vendor/`), empreinte
+  contrôlée par les tests : toujours aucune ressource externe.
+
+### Compatibilité
+- Aucune route d'API ajoutée ni modifiée ; l'occupation de Parking est
+  redemandée toutes les 10 s seulement quand l'onglet « Plan 3D » est
+  ouvert (30 s sinon).
+
 ## [4.10.2] — 2026-11-24 — Création Vehicles en 201
 
 ### Corrigé

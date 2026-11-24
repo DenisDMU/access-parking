@@ -1,5 +1,10 @@
 """Test d'intégration — dashboard statique (borne + journal) servi par Access."""
 
+import hashlib
+
+# three.js 0.160.0 (MIT), copie figée : voir static/vendor/README.md.
+THREE_SHA256 = "3e690ac7d180b0aadf0891bea39eec643e29e2d3e75c99b18689518665f69ba6"
+
 
 def test_root_redirects_to_dashboard(client):
     response = client.get("/", follow_redirects=False)
@@ -10,9 +15,15 @@ def test_root_redirects_to_dashboard(client):
 def test_dashboard_served_with_borne_tab(client):
     response = client.get("/static/dashboard.html")
     assert response.status_code == 200
-    # Les quatre onglets sont présents : borne (par défaut), état du parking,
-    # journal, recherche
-    for tab in ('id="tab-borne"', 'id="tab-state"', 'id="tab-journal"', 'id="tab-search"'):
+    # Les cinq onglets sont présents : borne (par défaut), état du parking,
+    # plan 3D, journal, recherche
+    for tab in (
+        'id="tab-borne"',
+        'id="tab-state"',
+        'id="tab-plan3d"',
+        'id="tab-journal"',
+        'id="tab-search"',
+    ):
         assert tab in response.text
 
 
@@ -32,3 +43,42 @@ def test_police_servie_par_access(client):
         assert response.status_code == 200
         assert response.headers["content-type"] == "font/woff2"
         assert response.content[:4] == b"wOF2"
+
+
+# --- Plan 3D (onglet du dashboard, three.js servi par Access) -------------------
+
+
+def test_onglet_plan_3d_present(client):
+    html = client.get("/static/dashboard.html").text
+    assert 'data-tab="plan3d"' in html and ">Plan 3D<" in html
+    assert 'id="plan3d"' in html
+    # Module chargé seulement à l'ouverture de l'onglet, depuis Access.
+    assert 'import("/static/parking3d.js' in html
+
+
+def test_plan_3d_servi_sans_ressource_externe(client):
+    response = client.get("/static/parking3d.js")
+    assert response.status_code == 200
+    assert "javascript" in response.headers["content-type"]
+    source = response.text
+    assert 'from "./vendor/three-0.160.0.module.min.js"' in source
+    assert "export function createParking3D" in source
+    # Ni CDN, ni image, ni police externe : la page détient la clé d'exploitation.
+    assert "https://" not in source and "http://" not in source
+    # Les libellés de Parking sont écrits en texte, jamais interprétés en HTML.
+    assert "innerHTML" not in source
+
+
+def test_plan_3d_ne_connait_aucune_plaque(client):
+    """Le plan ne reçoit que des compteurs et des identifiants pseudonymisés."""
+
+    source = client.get("/static/parking3d.js").text
+    for word in ("licensePlate", "license_plate", "plaque d'immatriculation"):
+        assert word not in source
+
+
+def test_three_js_fige_et_intact(client):
+    response = client.get("/static/vendor/three-0.160.0.module.min.js")
+    assert response.status_code == 200
+    assert "javascript" in response.headers["content-type"]
+    assert hashlib.sha256(response.content).hexdigest() == THREE_SHA256
