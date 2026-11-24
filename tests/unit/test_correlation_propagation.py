@@ -55,6 +55,9 @@ def test_client_vehicles_propage_le_correlation_id_et_compte_lappel():
 
     def handler(request: httpx.Request) -> httpx.Response:
         seen["cid"] = request.headers.get("X-Correlation-ID")
+        # identify renvoie l'identifiant, la consultation renvoie le véhicule.
+        if request.method == "POST":
+            return httpx.Response(200, json="p1")
         return httpx.Response(200, json={"pseudoId": "p1"})
 
     before = _sample("access_outgoing_requests_total", service="vehicles", outcome="2xx")
@@ -67,7 +70,7 @@ def test_client_vehicles_propage_le_correlation_id_et_compte_lappel():
 
     assert seen["cid"] == "cid-vehicles"
     after = _sample("access_outgoing_requests_total", service="vehicles", outcome="2xx")
-    assert after == before + 1
+    assert after == before + 2  # identify puis consultation par identifiant
 
 
 def test_echec_reseau_compte_comme_erreur():
