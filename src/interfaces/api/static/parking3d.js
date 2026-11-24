@@ -598,7 +598,7 @@ export function createParking3D(container, options) {
   // Interface
   const labelLayer = elem("div", "p3d-layer");
   const head = elem("div", "p3d-card p3d-head");
-  const headTitle = elem("strong", null, "Plan 3D du parking");
+  const headTitle = elem("strong", null, opts.title || "Plan 3D du parking");
   const src = elem("span", "p3d-src");
   const srcDot = elem("i");
   const srcText = elem("span", null, "Chargement…");
@@ -788,7 +788,8 @@ export function createParking3D(container, options) {
   let active = false;
   let raf = 0;
   let last = 0;
-  let night = document.documentElement.dataset.theme === "mocha" ? 1 : 0;
+  // Nuit en thème sombre : `theme` imposé par la page, sinon celui du dashboard.
+  let night = (opts.theme || document.documentElement.dataset.theme) === "mocha" ? 1 : 0;
   let nightGoal = night;
   let autoRotate = !reduceMotion;
   let idle = 0;

@@ -151,6 +151,7 @@ def test_page_borne_autonome_et_sans_donnees_d_exploitation(client):
         "screen-wait",
         "screen-result",
         "screen-config",
+        "screen-plan",
     ):
         assert f'id="{screen}"' in html
     # Aucune ressource externe.
@@ -232,3 +233,23 @@ def test_choix_du_pays_sur_la_borne(client):
     for code, name in [("FR", "France"), ("IT", "Italie"), ("ES", "Espagne"), ("XX", "Autre pays")]:
         assert f'code: "{code}"' in html and f'name: "{name}"' in html
     assert "country: country.code" in html  # envoyé avec chaque passage
+
+
+# --- Dock et parking en direct (plan 3D public) ---------------------------------
+
+
+def test_dock_et_plan_3d_sur_la_borne(client):
+    html = client.get("/borne").text
+    # Deux entrées : la borne (entrer, sortir) et le parking en direct.
+    assert 'id="dock"' in html and 'id="dockHome"' in html and 'id="dockPlan"' in html
+    assert 'id="screen-plan"' in html and 'id="plan3d"' in html
+    assert "Parking en direct" in html
+    # Le plan est le même module que celui du dashboard, servi par Access.
+    assert 'import("/static/parking3d.js' in html
+
+
+def test_plan_de_la_borne_lit_la_route_publique_seulement(client):
+    html = client.get("/borne").text
+    assert "/api/v1/borne/parking" in html
+    # Jamais la route d'exploitation (clé requise, plus de détails).
+    assert "/access/parking" not in html

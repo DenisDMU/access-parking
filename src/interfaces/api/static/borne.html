@@ -30,6 +30,9 @@
     --on-accent: #ffffff;
     --plate-bg: #ffffff; --plate-ink: #11111b; --plate-band: #1e4fb4;
     --shadow: 0 18px 48px rgba(76, 79, 105, 0.16);
+    /* Panneaux du plan 3D (parking3d.js) */
+    --subtext: var(--muted); --glass-hi: rgba(255, 255, 255, 0.74); --glass-lo: rgba(255, 255, 255, 0.5);
+    --glass-border: rgba(255, 255, 255, 0.72); --field: rgba(204, 208, 218, 0.45); --hairline: rgba(76, 79, 105, 0.12);
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -41,6 +44,8 @@
       --on-accent: #11111b;
       --plate-bg: #f4f4f6; --plate-ink: #11111b; --plate-band: #1e4fb4;
       --shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+      --glass-hi: rgba(69, 71, 90, 0.62); --glass-lo: rgba(30, 30, 46, 0.52);
+      --glass-border: rgba(205, 214, 244, 0.12); --field: rgba(88, 91, 112, 0.45); --hairline: rgba(205, 214, 244, 0.12);
     }
   }
 
@@ -273,6 +278,54 @@
     .clock { font-size: 20px; }
     .brand-mark { width: 40px; height: 40px; font-size: 22px; }
   }
+
+  /* --- Dock : accueil de la borne / parking en direct ------------------------ */
+  .dock {
+    position: fixed; left: 16px; top: 50%; transform: translateY(-50%); z-index: 30;
+    display: flex; flex-direction: column; gap: 10px; padding: 10px; border-radius: 26px;
+    background: color-mix(in srgb, var(--card) 70%, transparent);
+    -webkit-backdrop-filter: blur(18px) saturate(170%); backdrop-filter: blur(18px) saturate(170%);
+    border: 1px solid color-mix(in srgb, var(--text) 12%, transparent); box-shadow: var(--shadow);
+  }
+  .dock[hidden] { display: none; }
+  .dock-btn {
+    position: relative; width: 62px; height: 62px; border: 0; border-radius: 18px;
+    background: var(--bg-2); color: var(--muted); display: grid; place-items: center;
+    transform-origin: left center; transition: transform .18s cubic-bezier(.2, .8, .2, 1), background .18s, color .18s;
+  }
+  .dock-btn svg { width: 30px; height: 30px; }
+  .dock-btn:hover { transform: scale(1.16); color: var(--text); }
+  .dock-btn:active { transform: scale(1.04); }
+  .dock-btn[aria-current="page"] { background: var(--blue); color: var(--on-accent); }
+  .dock-btn[aria-current="page"]::after {
+    content: ""; position: absolute; left: -8px; top: 50%; width: 5px; height: 5px; margin-top: -2.5px;
+    border-radius: 50%; background: var(--text);
+  }
+  .dock-btn span {
+    position: absolute; left: calc(100% + 16px); top: 50%; transform: translateY(-50%); white-space: nowrap;
+    padding: 6px 11px; border-radius: 10px; background: var(--text); color: var(--bg);
+    font-size: 14px; font-weight: 600; opacity: 0; pointer-events: none; transition: opacity .12s;
+  }
+  .dock-btn:hover span, .dock-btn:focus-visible span { opacity: 1; }
+  @media (max-width: 1220px) { body.has-dock .kiosk { padding-left: 112px; } }
+
+  /* Parking en direct : plan 3D plein écran, sous le dock */
+  #screen-plan { padding: 0; }
+  .plan-wrap { position: fixed; inset: 0; z-index: 10; background: var(--bg); }
+  #plan3d.p3d { height: 100%; border-radius: 0; }
+  #plan3d .p3d-head, #plan3d .p3d-legend { left: 112px; }
+  .plan-fail { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; color: var(--muted); }
+
+  @media (max-width: 760px) {
+    .dock { left: 50%; top: auto; bottom: 14px; transform: translateX(-50%); flex-direction: row; padding: 8px; border-radius: 24px; }
+    .dock-btn { width: 56px; height: 56px; transform-origin: center bottom; }
+    .dock-btn span { display: none; }
+    .dock-btn[aria-current="page"]::after { left: 50%; top: auto; bottom: -7px; margin: 0 0 0 -2.5px; }
+    body.has-dock .kiosk { padding-left: 16px; padding-bottom: 104px; }
+    #plan3d .p3d-head { left: 10px; }
+    #plan3d .p3d-legend { left: 10px; bottom: 92px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .dock-btn { transition: none; } }
 </style>
 </head>
 <body>
@@ -445,8 +498,25 @@
     </form>
   </section>
 
+  <!-- Parking en direct : plan 3D (mêmes compteurs que Parking, aucune donnée personnelle) -->
+  <section class="screen" id="screen-plan" aria-label="Le parking en direct">
+    <div class="plan-wrap"><div id="plan3d"></div></div>
+  </section>
+
   <p class="foot">Vos données : seule la plaque est transmise au service d'identification, elle n'est pas conservée par la borne.</p>
 </div>
+
+<!-- Dock : la borne (entrer, sortir) et le parking en direct -->
+<nav class="dock" id="dock" aria-label="Navigation de la borne" hidden>
+  <button class="dock-btn" type="button" id="dockHome" aria-current="page" aria-label="Borne : entrer ou sortir">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 11 9-7.5 9 7.5"/><path d="M5 9.5V20h14V9.5"/><path d="M10 20v-6h4v6"/></svg>
+    <span>Borne</span>
+  </button>
+  <button class="dock-btn" type="button" id="dockPlan" aria-label="Le parking en direct, en 3D">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 15v-3l2.2-5.2A2 2 0 0 1 7 5.5h10a2 2 0 0 1 1.8 1.3L21 12v3"/><path d="M3 15h18v2.5H3z"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/><path d="M5 11.5h14"/></svg>
+    <span>Parking en direct</span>
+  </button>
+</nav>
 
 <script>
 (function () {
@@ -470,11 +540,78 @@
   function fixedMode() { var m = load(MODE_STORAGE); return m === "1" || m === "2" ? Number(m) : null; }
 
   var $ = function (id) { return document.getElementById(id); };
-  var screens = ["home", "type", "plate", "country", "wait", "result", "agent", "off", "config"];
+  var screens = ["home", "type", "plate", "country", "wait", "result", "agent", "off", "config", "plan"];
   var current = "";
   function show(name) {
     current = name;
     screens.forEach(function (s) { $("screen-" + s).classList.toggle("active", s === name); });
+    updateDock();
+    if (name !== "plan") closePlan();
+  }
+
+  // --- Dock et parking en direct (plan 3D) -------------------------------------------
+  // Deux entrées, comme un dock : la borne (entrer, sortir) et le parking vu
+  // en 3D. Le plan lit GET /api/v1/borne/parking : des compteurs par
+  // catégorie, sans clé, sans véhicule ni identifiant. Module chargé à la
+  // première ouverture ; rendu arrêté dès qu'on quitte l'écran.
+  var plan = null, planLoading = false, planTimer = null;
+  var darkScheme = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+  function planTheme() { return darkScheme && darkScheme.matches ? "mocha" : "latte"; }
+  function updateDock() {
+    // Masqué pendant un passage en cours d'envoi, dans les réglages, ou borne fermée.
+    var hidden = !publicAccess || current === "wait" || current === "config" || current === "off";
+    $("dock").hidden = hidden;
+    document.body.classList.toggle("has-dock", !hidden);
+    var onPlan = current === "plan";
+    if (onPlan) { $("dockPlan").setAttribute("aria-current", "page"); $("dockHome").removeAttribute("aria-current"); }
+    else { $("dockHome").setAttribute("aria-current", "page"); $("dockPlan").removeAttribute("aria-current"); }
+  }
+  function refreshPlan() {
+    fetch("/api/v1/borne/parking")
+      .then(function (res) { return res.ok ? res.json() : null; })
+      .catch(function () { return null; })
+      .then(function (overview) {
+        if (!plan) return;
+        plan.update({
+          overview: overview, presences: [],
+          reason: overview && !overview.available ? "le service Parking ne répond pas" : "occupation indisponible pour l'instant",
+        });
+      });
+  }
+  function closePlan() {
+    if (planTimer) { clearInterval(planTimer); planTimer = null; }
+    if (plan) plan.setActive(false);
+  }
+  function openPlan() {
+    clearTimers();
+    resetPlate();
+    pendingPmr = null;
+    direction = null;
+    show("plan");
+    planTimer = setInterval(function () { if (!document.hidden) refreshPlan(); }, 10000);
+    if (plan) { plan.setTheme(planTheme()); plan.setActive(true); refreshPlan(); return; }
+    if (planLoading) return;
+    planLoading = true;
+    import("/static/parking3d.js?v=4.12.0").then(function (mod) {
+      plan = mod.createParking3D($("plan3d"), { title: "Le parking en direct", theme: planTheme() });
+      if (!plan) return;
+      plan.setActive(current === "plan" && !document.hidden);
+      refreshPlan();
+    }).catch(function () {
+      planLoading = false;
+      var fail = document.createElement("p");
+      fail.className = "plan-fail";
+      fail.textContent = "Le plan du parking n'a pas pu être chargé.";
+      $("plan3d").replaceChildren(fail);
+    });
+  }
+  $("dockHome").addEventListener("click", function () { goHome(); });
+  $("dockPlan").addEventListener("click", openPlan);
+  document.addEventListener("visibilitychange", function () {
+    if (plan) plan.setActive(current === "plan" && !document.hidden);
+  });
+  if (darkScheme && darkScheme.addEventListener) {
+    darkScheme.addEventListener("change", function () { if (plan) plan.setTheme(planTheme()); });
   }
 
   // --- Horloge ----------------------------------------------------------------------
@@ -719,6 +856,7 @@
   })();
 
   document.addEventListener("keydown", function (e) {
+    if (current === "plan") { if (e.key === "Escape") goHome(); return; } // les flèches pilotent la caméra
     if (current === "type" && e.key === "Escape") { goHome(); return; }
     if (current === "country" && e.key === "Escape") { show("plate"); return; }
     if (current === "agent") {

@@ -18,6 +18,11 @@ garde sa clé.
   PMR que Vehicles ne connaissait pas comme tel (carte vérifiée, code agent
   `AGENT_CODE`). Le justificatif est enregistré chez Vehicles, puis l'entrée
   est rejouée normalement. Même débit limité par adresse.
+- `GET /borne/parking` : occupation par catégorie pour le plan 3D affiché
+  sur la borne. Des compteurs seulement (capacité, places prises, mises de
+  côté) : aucun véhicule, aucun identifiant. Réponse de Parking gardée
+  quelques secondes (`BORNE_PARKING_CACHE_S`) : le nombre de visiteurs ne
+  change pas le nombre d'appels à Parking.
 
 ⚠️ La plaque reçue n'est ni loggée ni renvoyée (même discipline RGPD que
 `access_router`).
@@ -26,11 +31,13 @@ garde sa clé.
 from __future__ import annotations
 
 import hmac
+import time
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from src.application.use_cases.confirm_disability_by_agent import ConfirmDisabilityByAgent
+from src.application.use_cases.get_parking_overview import GetParkingOverview
 from src.application.use_cases.process_entry_request import ProcessEntryRequest
 from src.application.use_cases.process_exit_request import ProcessExitRequest
 from src.domain.value_objects.enums import DetectionSource, RequestType
@@ -40,6 +47,8 @@ from src.interfaces.api import deps
 from src.interfaces.api.rate_limit import client_ip, limiter
 from src.interfaces.api.routers.access_router import _place_type_out
 from src.interfaces.api.schemas.access_request_schemas import (
+    BorneParkingCategoryOut,
+    BorneParkingOut,
     BornePassageIn,
     BornePassageOut,
     BornePmrValidationIn,
@@ -166,3 +175,58 @@ def borne_pmr_validation(
         plate=body.license_plate, date=datetime.now(UTC), source=DetectionSource.TERMINAL
     )
     return _entry_out(decision)
+
+
+# Dernière occupation lue chez Parking, resservie pendant quelques secondes.
+_parking_cache: dict = {"at": 0.0, "value": None}
+
+
+def reset_parking_cache() -> None:
+    """Oublie l'occupation gardée en mémoire (tests)."""
+
+    _parking_cache.update(at=0.0, value=None)
+
+
+@router.get(
+    "/parking",
+    response_model=BorneParkingOut,
+    summary="Occupation du parking pour le plan 3D de la borne (sans clé)",
+    description=(
+        "Compteurs par catégorie (capacité, places prises, places mises de "
+        "côté), pour le plan 3D affiché sur la borne publique. Aucun "
+        "véhicule, aucun identifiant, aucune demande. Réponse de Parking "
+        "gardée quelques secondes. `available: false` si Parking ne répond "
+        "pas. 403 si la borne publique est désactivée."
+    ),
+    responses={
+        403: {"model": ErrorOut, "description": "Borne publique désactivée"},
+        429: {"description": "Trop de demandes depuis cette adresse"},
+    },
+)
+@limiter.limit(lambda: get_settings().rate_limit_borne_parking, key_func=client_ip)
+def borne_parking(
+    request: Request,
+    use_case: GetParkingOverview = Depends(deps.get_parking_overview_use_case),
+) -> BorneParkingOut:
+    _require_public_borne()
+    now = time.monotonic()
+    cached = _parking_cache["value"]
+    if cached is not None and now - _parking_cache["at"] < get_settings().borne_parking_cache_s:
+        return cached
+    overview = use_case.execute()
+    result = BorneParkingOut(
+        available=overview.available,
+        categories=[
+            BorneParkingCategoryOut(
+                name=c.name,
+                label=c.label,
+                totalCapacity=c.total_capacity,
+                spotTaken=c.spot_taken or 0,
+                spotHeld=c.spot_held or 0,
+            )
+            for c in overview.categories
+            if c.total_capacity
+        ],
+    )
+    _parking_cache.update(at=now, value=result)
+    return result
