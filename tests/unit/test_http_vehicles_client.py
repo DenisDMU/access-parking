@@ -428,3 +428,45 @@ def test_swagger_injoignable_reste_un_vehicule_non_identifie():
         return httpx.Response(404)
 
     assert _client(handler).identify_vehicle(_PLATE) is None
+
+
+# --- Justificatif PMR validé par un agent ----------------------------------------
+
+
+def test_confirm_disability_met_seulement_le_champ_pmr():
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append((request.method, request.url.path, json.loads(request.content)))
+        return httpx.Response(200, json=_vehicle(isHandicaped=True))
+
+    assert _client(handler).confirm_disability(_PSEUDO_ID) is True
+    assert seen == [("PUT", f"/api/vehicle/{_PSEUDO_ID}", {"isHandicaped": True})]
+
+
+def test_confirm_disability_suit_les_routes_decouvertes():
+    vehicles = _VehiclesRenomme()
+    _client(vehicles).identify_vehicle(_PLATE)  # découvre /api/v9/cars/...
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.url.path)
+        return httpx.Response(200)
+
+    assert _client(handler).confirm_disability(_PSEUDO_ID) is True
+    assert seen == [f"/api/v9/cars/{_PSEUDO_ID}"]
+
+
+def test_confirm_disability_echec():
+    assert _client(lambda r: httpx.Response(404)).confirm_disability(_PSEUDO_ID) is False
+
+    def down(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("refusé", request=request)
+
+    assert _client(down).confirm_disability(_PSEUDO_ID) is False
+
+
+def test_confirm_disability_impossible_en_mode_par_plaque():
+    seen = []
+    client = _client(lambda r: seen.append(r) or httpx.Response(200), lookup_path=_PLATE_PATH)
+    assert client.confirm_disability(_PSEUDO_ID) is False and seen == []

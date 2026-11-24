@@ -83,6 +83,7 @@ class FakeVehiclesPort:
         self.calls: list[str] = []
         self.created: list[str] = []
         self.declared: list[VehicleType | None] = []
+        self.confirmed: list[str] = []
 
     def get_vehicle_info(self, plate: str) -> VehicleInfo | None:
         self.calls.append(plate)
@@ -106,6 +107,26 @@ class FakeVehiclesPort:
             self.registry[plate] = info
             self.created.append(plate)
         return info
+
+    def confirm_disability(self, vehicle_id: str) -> bool:
+        self.confirmed.append(vehicle_id)
+        if not self.available:
+            return False
+        for plate, info in self.registry.items():
+            if info.vehicle_id == vehicle_id:
+                vt = info.vehicle_type
+                self.registry[plate] = VehicleInfo(
+                    vehicle_id=vehicle_id,
+                    vehicle_type=VehicleType(
+                        category=vt.category,
+                        is_xl=vt.is_xl,
+                        is_electric=vt.is_electric,
+                        is_handicap=True,
+                    ),
+                    disability_permit=True,
+                )
+                return True
+        return False
 
 
 class FakeBookingPort:

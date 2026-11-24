@@ -124,6 +124,9 @@ class Settings:
     # débit limité par adresse). false = la borne exige sa clé (BORNE_API_KEY).
     borne_public: bool = field(default_factory=lambda: _bool_env("BORNE_PUBLIC", True))
     rate_limit_borne: str = os.getenv("RATE_LIMIT_BORNE", "10/minute")
+    # Code saisi par l'agent sur la borne pour valider un PMR (carte mobilité
+    # inclusion vérifiée). Volontairement simple pour la démonstration.
+    agent_code: str = os.getenv("AGENT_CODE", "123")
 
 
 _settings: Settings | None = None

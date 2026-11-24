@@ -87,6 +87,15 @@ def test_no_plate_in_responses_tables_events_or_logs(client, caplog):
         )
         assert not PLATE.search(known.text)
 
+        # Validation PMR par un agent, à la borne (4.10.0).
+        pmr = {"licensePlate": "PM-321-RA", "type": 1, "vehicleType": "HANDICAPPED"}
+        assert client.post("/api/v1/borne/passages", json=pmr).json()["result"] == 3
+        validated = client.post(
+            "/api/v1/borne/pmr-validation", json={"licensePlate": "PM-321-RA", "agentCode": "123"}
+        )
+        assert validated.json()["result"] == 1
+        assert not PLATE.search(validated.text)
+
         client.vehicles.available = False
         down = client.post(URL, json=_SCENARIOS[2], headers=AUTH_HEADERS)
         assert not PLATE.search(down.text)

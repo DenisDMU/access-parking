@@ -15,6 +15,7 @@ from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from src.application.use_cases.check_vehicle_known import CheckVehicleKnown
+from src.application.use_cases.confirm_disability_by_agent import ConfirmDisabilityByAgent
 from src.application.use_cases.get_access_request import GetAccessRequest
 from src.application.use_cases.get_parking_overview import GetParkingOverview
 from src.application.use_cases.list_access_requests import ListAccessRequests
@@ -248,3 +249,10 @@ def get_check_vehicle_known_use_case(
     vehicles_port: VehiclesServicePort = Depends(get_vehicles_port),
 ) -> CheckVehicleKnown:
     return CheckVehicleKnown(vehicles_port)
+
+
+def get_confirm_disability_use_case(
+    vehicles_port: VehiclesServicePort = Depends(get_vehicles_port),
+    entry_use_case: ProcessEntryRequest = Depends(get_process_entry_request_use_case),
+) -> ConfirmDisabilityByAgent:
+    return ConfirmDisabilityByAgent(vehicles_port=vehicles_port, entry_use_case=entry_use_case)
