@@ -4,6 +4,14 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.4.1] — 2026-11-24 — Adresse courte de la borne
+
+### Modifié
+- La borne client est servie directement sur `/borne` (plus de redirection
+  vers `/static/borne.html`) : l'adresse affichée reste courte, `?mode=…`
+  compris. L'ancienne adresse redirige (301) vers `/borne` en gardant ses
+  paramètres : les bornes déjà ouvertes continuent de fonctionner.
+
 ## [4.4.0] — 2026-11-24 — Mise en service de la borne depuis le dashboard
 
 ### Ajouté
