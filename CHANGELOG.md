@@ -4,6 +4,21 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [Non publié]
+
+Aucun changement de l'API : la version exposée reste `3.6.2`.
+
+### Corrigé
+- Simulateur (`scripts/simulate_bus_events.py`) : une erreur réseau (DNS
+  indisponible, connexion coupée) n'arrête plus la simulation ; la
+  publication est retentée au cycle suivant.
+
+### Modifié
+- Dépendances mises à jour en un seul passage de CI (reprend les PR
+  Dependabot #31 à #35) : `fastapi>=0.163.1`, `pydantic>=2.14.3`,
+  `psycopg[binary]>=3.3.9`, `httpx>=0.28.1`, `certifi>=2026.10.23`.
+  191 tests au vert ; suite d'intégration validée aussi contre la base Neon.
+
 ## [3.6.2] — 2026-11-18 — Événement de sortie enrichi
 
 ### Ajouté
