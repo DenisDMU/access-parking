@@ -582,7 +582,8 @@
     var auth = data.authorization || {};
     var reason = auth.reason || "";
     if (auth.result === 1 && dir === 1) {
-      var rows = [["Place", placeLabel(data.placeType)], ["Heure d'entrée", fmtTime(Date.now())]];
+      // Libellé de Parking s'il est fourni (Parking 1.5.0), sinon libellé local.
+      var rows = [["Place", data.placeLabel || placeLabel(data.placeType)], ["Heure d'entrée", fmtTime(Date.now())]];
       if (data.reservation) rows.splice(1, 0, ["Réservation", "Reconnue"]);
       return { kind: "ok", title: "La barrière s'ouvre", lead: "Bienvenue ! Bon stationnement.", rows: rows, delay: 12 };
     }

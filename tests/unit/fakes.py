@@ -11,10 +11,15 @@ from src.domain.entities.access_authorization import AccessAuthorization
 from src.domain.entities.access_event import AccessEvent
 from src.domain.entities.access_request import AccessRequest
 from src.domain.entities.vehicle_presence import VehiclePresence
-from src.domain.ports.parking_service_port import ParkingUnavailableError
+from src.domain.ports.parking_service_port import (
+    ParkingCategoryUnknownError,
+    ParkingUnavailableError,
+)
 from src.domain.value_objects.dto import (
     AccessFilters,
     AICheckResult,
+    CategoryOccupation,
+    ParkingCategory,
     PaymentResult,
     PlaceAssignment,
     PlaceType,
@@ -102,6 +107,15 @@ class FakeBookingPort:
         return self.reservations.get(vehicle_id)
 
 
+PARKING_CATEGORIES = [
+    ParkingCategory("STANDARD", "Standard"),
+    ParkingCategory("XL", "Grand gabarit"),
+    ParkingCategory("ELECTRIC", "Recharge électrique"),
+    ParkingCategory("HANDICAPPED", "Place PMR"),
+    ParkingCategory("TWO_WHEELS", "Deux-roues"),
+]
+
+
 class FakeParkingPort:
     def __init__(
         self,
@@ -109,11 +123,15 @@ class FakeParkingPort:
         has_place: bool = True,
         unavailable: bool = False,
         confirm_ok: bool = True,
+        unknown_category: str | None = None,
+        categories: list[ParkingCategory] | None = None,
     ) -> None:
         self._assignment = assignment
         self._has_place = has_place
         self._unavailable = unavailable  # simule Parking injoignable
         self._confirm_ok = confirm_ok  # False : hold expiré / déjà utilisé
+        self._unknown_category = unknown_category  # catégorie absente chez Parking
+        self.categories = list(PARKING_CATEGORIES if categories is None else categories)
         self.confirmed_holds: list[str | None] = []
         self.occupied: dict[str, str] = {}
         self.freed: list[str] = []
@@ -125,6 +143,8 @@ class FakeParkingPort:
         self.calls.append((vehicle_type, is_reservation))
         if self._unavailable:
             raise ParkingUnavailableError("parking injoignable (test)")
+        if self._unknown_category:
+            raise ParkingCategoryUnknownError(self._unknown_category)
         if not self._has_place:
             return None
         if self._assignment is not None:
@@ -132,6 +152,7 @@ class FakeParkingPort:
         return PlaceAssignment(
             hold_id="H-1",
             place_id="P-TEST-1",
+            label="Place de test",
             place_type=PlaceType(
                 category=vehicle_type.category,
                 is_xl=vehicle_type.is_xl,
@@ -152,6 +173,24 @@ class FakeParkingPort:
     def mark_place_free(self, place_id: str) -> bool:
         self.freed.append(place_id)
         return True
+
+    def required_categories(self) -> list[str]:
+        return [c.name for c in PARKING_CATEGORIES]
+
+    def list_categories(self) -> list[ParkingCategory]:
+        if self._unavailable:
+            raise ParkingUnavailableError("parking injoignable (test)")
+        return list(self.categories)
+
+    def get_occupation(self) -> list[CategoryOccupation]:
+        if self._unavailable:
+            raise ParkingUnavailableError("parking injoignable (test)")
+        return [
+            CategoryOccupation(
+                c.name, c.label, spot_taken=3, spot_held=1, total_capacity=10, occupation_rate=0.3
+            )
+            for c in self.categories
+        ]
 
 
 class FakePricingPort:

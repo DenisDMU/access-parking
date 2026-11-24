@@ -6,11 +6,16 @@ import json
 import httpx
 import pytest
 
-from src.domain.ports.parking_service_port import ParkingUnavailableError
+from src.domain.ports.parking_service_port import (
+    ParkingCategoryUnknownError,
+    ParkingUnavailableError,
+)
 from src.domain.value_objects.dto import VehicleType
 from src.domain.value_objects.enums import VehicleCategory
 from src.infrastructure.external.http_parking_client import (
+    REQUIRED_CATEGORIES,
     HttpParkingClient,
+    _CategoriesCache,
     _map_category,
     _place_type_from_category,
 )
@@ -197,3 +202,163 @@ def test_confirm_entry_sans_hold_id_n_appelle_pas_parking():
     client = HttpParkingClient("http://parking.test", transport=httpx.MockTransport(handler))
     assert client.mark_place_occupied("STANDARD:walkin", "v1") is False
     assert calls == []
+
+
+# --- Parking 1.5.0 : catégories, libellés, occupation ---------------------------
+
+_CATEGORIES = [
+    {"category_name": "STANDARD", "label": "Standard"},
+    {"category_name": "XL", "label": "Grand gabarit"},
+    {"category_name": "ELECTRIC", "label": "Recharge électrique"},
+    {"category_name": "HANDICAPPED", "label": "Place PMR"},
+    {"category_name": "TWO_WHEELS", "label": "Deux-roues"},
+]
+
+
+class _FakeParking:
+    """Faux Parking 1.5.0 qui retient les appels."""
+
+    def __init__(self, categories=None, hold_status: int = 201, categories_status: int = 200):
+        self.categories = _CATEGORIES if categories is None else categories
+        self.hold_status = hold_status
+        self.categories_status = categories_status
+        self.calls: list[str] = []
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        self.calls.append(f"{request.method} {request.url.path}")
+        if request.url.path == "/parking/categories":
+            return httpx.Response(self.categories_status, json=self.categories)
+        if request.url.path == "/parking/hold":
+            if self.hold_status == 404:
+                return httpx.Response(404, json={"detail": "Catégorie introuvable"})
+            return httpx.Response(self.hold_status, json=_HOLD_RESPONSE)
+        if request.url.path == "/parking/occupation":
+            return httpx.Response(
+                200,
+                json={
+                    "categories": [
+                        {
+                            "category_name": "STANDARD",
+                            "label": "Standard",
+                            "occupation_rate": 0.25,
+                            "spot_taken": 5,
+                            "total_capacity": 20,
+                            "spot_held": 1,
+                        },
+                        # Parking < 1.5.0 : ni label ni spot_held.
+                        {
+                            "category_name": "XL",
+                            "occupation_rate": 0.0,
+                            "spot_taken": 0,
+                            "total_capacity": 4,
+                        },
+                    ]
+                },
+            )
+        return httpx.Response(404)
+
+
+def _parking(fake: _FakeParking, cache: _CategoriesCache | None = None) -> HttpParkingClient:
+    return HttpParkingClient(
+        "http://parking.test",
+        transport=httpx.MockTransport(fake),
+        categories_cache=cache or _CategoriesCache(),
+    )
+
+
+def test_list_categories():
+    categories = _parking(_FakeParking()).list_categories()
+    assert [(c.name, c.label) for c in categories][:2] == [
+        ("STANDARD", "Standard"),
+        ("XL", "Grand gabarit"),
+    ]
+
+
+def test_toutes_les_categories_d_access_sont_requises():
+    assert set(_parking(_FakeParking()).required_categories()) == set(REQUIRED_CATEGORIES)
+    assert len(REQUIRED_CATEGORIES) == 5
+
+
+def test_hold_verifie_la_categorie_puis_garde_la_liste_en_cache():
+    fake = _FakeParking()
+    client = _parking(fake)
+    client.request_place(VehicleType(category=FOUR))
+    client.request_place(VehicleType(category=FOUR))
+    assert fake.calls == ["GET /parking/categories", "POST /parking/hold", "POST /parking/hold"]
+
+
+def test_cache_expire_apres_le_delai():
+    now = [0.0]
+    cache = _CategoriesCache(ttl_s=300, clock=lambda: now[0])
+    fake = _FakeParking()
+    client = _parking(fake, cache)
+    client.request_place(VehicleType(category=FOUR))
+    now[0] = 301.0
+    client.request_place(VehicleType(category=FOUR))
+    assert fake.calls.count("GET /parking/categories") == 2
+
+
+def test_hold_remonte_le_libelle_de_parking():
+    assignment = _parking(_FakeParking()).request_place(VehicleType(category=FOUR))
+    assert assignment.label == "Standard"
+
+
+def test_categorie_absente_de_parking_refusee_sans_hold():
+    fake = _FakeParking(categories=[{"category_name": "STANDARD", "label": "Standard"}])
+    with pytest.raises(ParkingCategoryUnknownError) as exc:
+        _parking(fake).request_place(VehicleType(category=FOUR, is_electric=True))
+    assert exc.value.category == "ELECTRIC"
+    assert "POST /parking/hold" not in fake.calls
+
+
+def test_hold_404_est_une_categorie_inconnue_et_vide_le_cache():
+    cache = _CategoriesCache()
+    fake = _FakeParking(hold_status=404)
+    client = _parking(fake, cache)
+    with pytest.raises(ParkingCategoryUnknownError):
+        client.request_place(VehicleType(category=FOUR))
+    assert cache.get("http://parking.test") is None
+
+
+def test_liste_indisponible_ne_bloque_pas_l_entree():
+    fake = _FakeParking(categories_status=500)
+    assignment = _parking(fake).request_place(VehicleType(category=FOUR))
+    assert assignment is not None and assignment.hold_id == "12"
+
+
+def test_list_categories_indisponible_leve_une_erreur_de_service():
+    with pytest.raises(ParkingUnavailableError):
+        _parking(_FakeParking(categories_status=401)).list_categories()
+
+
+def test_list_categories_reponse_inattendue():
+    with pytest.raises(ParkingUnavailableError):
+        _parking(_FakeParking(categories=[{"nom": "STANDARD"}])).list_categories()
+
+
+def test_get_occupation_avec_et_sans_champs_1_5_0():
+    occupation = _parking(_FakeParking()).get_occupation()
+    standard, xl = occupation
+    assert (standard.label, standard.spot_taken, standard.spot_held, standard.total_capacity) == (
+        "Standard",
+        5,
+        1,
+        20,
+    )
+    assert (xl.label, xl.spot_held) == ("XL", 0)
+
+
+def test_get_occupation_parking_injoignable():
+    client = HttpParkingClient(_UNREACHABLE_URL, timeout_s=1.0, categories_cache=_CategoriesCache())
+    with pytest.raises(ParkingUnavailableError):
+        client.get_occupation()
+
+
+def test_comparaison_des_categories_insensible_a_la_casse():
+    fake = _FakeParking(categories=[{"category_name": "standard", "label": "Standard"}])
+    assert _parking(fake).request_place(VehicleType(category=FOUR)) is not None
+
+
+def test_liste_vide_ne_bloque_pas_l_entree():
+    fake = _FakeParking(categories=[])
+    assert _parking(fake).request_place(VehicleType(category=FOUR)) is not None

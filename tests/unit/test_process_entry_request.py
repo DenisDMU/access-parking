@@ -284,3 +284,18 @@ def test_confirmation_refusee_par_parking_ferme_la_barriere():
     assert decision.reason == "Place non confirmée par Parking, réessayez"
     assert presence.get_status(decision.vehicle_id) is None
     assert [e.type for e in publisher.published] == [EventType.ACCESS_REFUSED]
+
+
+def test_categorie_inconnue_de_parking_donne_un_motif_precis():
+    decision = _entry_use_case(FakeParkingPort(unknown_category="ELECTRIC")).execute(
+        "AA-111-AA", datetime(2026, 9, 2, 10, 0, tzinfo=UTC), DetectionSource.LPR
+    )
+    assert decision.result is AuthorizationResult.REFUSED
+    assert decision.reason == "Catégorie de place ELECTRIC inconnue du service Parking"
+
+
+def test_le_libelle_de_parking_est_remonte():
+    decision = _entry_use_case(FakeParkingPort()).execute(
+        "AA-111-AA", datetime(2026, 9, 2, 10, 0, tzinfo=UTC), DetectionSource.LPR
+    )
+    assert decision.place_label == "Place de test"

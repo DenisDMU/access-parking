@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, sta
 
 from src.application.use_cases.check_vehicle_known import CheckVehicleKnown
 from src.application.use_cases.get_access_request import GetAccessRequest
+from src.application.use_cases.get_parking_overview import GetParkingOverview
 from src.application.use_cases.list_access_requests import ListAccessRequests
 from src.application.use_cases.list_present_vehicles import ListPresentVehicles
 from src.application.use_cases.process_entry_request import ProcessEntryRequest
@@ -33,6 +34,8 @@ from src.interfaces.api.schemas.access_request_schemas import (
     AccessRequestListItemOut,
     AccessRequestOut,
     AuthorizationOut,
+    ParkingCategoryOut,
+    ParkingOverviewOut,
     PlaceTypeOut,
     PresentVehicleOut,
     VehicleKnownIn,
@@ -131,6 +134,7 @@ def create_access_request(
                 paymentAmount=None,
             ),
             placeType=_place_type_out(decision.place_type),
+            placeLabel=decision.place_label,
             reservation=decision.reservation,
         )
 
@@ -294,3 +298,37 @@ def check_vehicle_known(
 ) -> VehicleKnownOut:
     result = use_case.execute(body.license_plate)
     return VehicleKnownOut(known=result.known, vehicleId=result.vehicle_id)
+
+
+@router.get(
+    "/parking",
+    response_model=ParkingOverviewOut,
+    summary="État du parking vu par le service Parking",
+    description=(
+        "Catégories déclarées par Parking (libellé, places prises, mises de "
+        "côté, capacité) et catégories dont Access a besoin mais que Parking "
+        "ne déclare pas. `available: false` si Parking ne répond pas (jamais "
+        "d'erreur 500). Rien n'est persisté."
+    ),
+    responses=_COMMON_ERROR_RESPONSES,
+)
+def get_parking_overview(
+    use_case: GetParkingOverview = Depends(deps.get_parking_overview_use_case),
+) -> ParkingOverviewOut:
+    overview = use_case.execute()
+    return ParkingOverviewOut(
+        available=overview.available,
+        categories=[
+            ParkingCategoryOut(
+                name=c.name,
+                label=c.label,
+                usedByAccess=c.used_by_access,
+                spotTaken=c.spot_taken,
+                spotHeld=c.spot_held,
+                totalCapacity=c.total_capacity,
+                occupationRate=c.occupation_rate,
+            )
+            for c in overview.categories
+        ],
+        missingCategories=overview.missing_categories,
+    )

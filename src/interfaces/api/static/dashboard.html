@@ -297,6 +297,12 @@
   .badge.dotted::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--c); }
   .b-green { --c: var(--green); } .b-blue { --c: var(--blue); } .b-red { --c: var(--red); }
   .b-peach { --c: var(--peach); } .b-mauve { --c: var(--mauve); } .b-neutral { --c: var(--subtext); }
+  .meter { height: 6px; margin-top: 6px; border-radius: 99px; background: var(--field); overflow: hidden; display: flex; }
+  .meter > span { display: block; height: 100%; }
+  .meter .taken { background: var(--c, var(--blue)); }
+  .meter .held { background: color-mix(in srgb, var(--c, var(--blue)) 40%, transparent); }
+  .notice { margin: 0 0 10px; padding: 10px 12px; border-radius: 12px; font-size: 13px; background: color-mix(in srgb, var(--c) 14%, transparent); color: color-mix(in srgb, var(--c) 70%, var(--text)); }
+  .notice[hidden] { display: none; }
   pre.json {
     display: none;
     margin: 2px 10px 10px; padding: 12px 14px;
@@ -582,10 +588,20 @@
     </div>
 
     <div class="panel glass" style="margin-top:18px">
+      <div class="panel-head">
+        <h2>Occupation vue par Parking</h2>
+        <code>GET /access/parking</code>
+      </div>
+      <p class="notice" id="parkingNotice" role="status" hidden></p>
+      <div id="parkingList" class="list"></div>
+    </div>
+
+    <div class="panel glass" style="margin-top:18px">
       <div class="panel-head"><h2>Opérations disponibles</h2></div>
       <ul class="ops">
         <li><strong>Entrée / sortie</strong> d'un véhicule par sa plaque : onglet <em>Borne</em> (<code>POST /api/v1/access/requests</code>).</li>
         <li><strong>Consulter</strong> une demande, l'historique d'un véhicule ou vérifier une plaque : onglet <em>Recherche</em>.</li>
+        <li><strong>Occupation</strong> par catégorie telle que la voit le service Parking (places prises, mises de côté, capacité ; rafraîchie toutes les 30 s) : panneau ci-dessus (<code>GET /api/v1/access/parking</code>).</li>
         <li><strong>Suivre</strong> les événements publiés aux autres services (RabbitMQ / webhooks) : onglet <em>Journal</em>.</li>
         <li><strong>Documentation</strong> de l'API : <a href="/docs" target="_blank" rel="noopener">/docs</a> · santé : <a href="/health" target="_blank" rel="noopener">/health</a> · métriques Prometheus : <code>/metrics</code> (clé API).</li>
       </ul>
@@ -661,6 +677,9 @@
   const searchResults = $("searchResults");
   const presenceList = $("presenceList");
   const recentList = $("recentList");
+  const parkingList = $("parkingList");
+  // Libellés des catégories fournis par Parking (ex. ELECTRIC → « Recharge électrique »).
+  let parkingLabels = {};
   const borneCode = $("borneCode");
   const borneEntry = $("borneEntry");
   const borneExit = $("borneExit");
@@ -780,16 +799,22 @@
       d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
   }
 
-  function durationSince(iso) {
-    if (!iso) return "";
-    const minutes = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  function fmtMinutes(minutes) {
     if (minutes < 60) return minutes + " min";
     return Math.floor(minutes / 60) + " h " + String(minutes % 60).padStart(2, "0");
   }
 
+  function durationSince(iso) {
+    if (!iso) return "";
+    return fmtMinutes(Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000)));
+  }
+
   function placeLabel(placeType, placeId, reservation) {
     let label = placeId || "place inconnue";
-    if (placeType) {
+    const parkingCategory = placeId && placeId.indexOf(":") > 0 ? placeId.split(":")[0] : null;
+    if (parkingCategory && parkingLabels[parkingCategory]) {
+      label = parkingLabels[parkingCategory];
+    } else if (placeType) {
       const bits = [CATEGORY_LABEL[placeType.category] || "catégorie " + placeType.category];
       if (placeType.isXl) bits.push("XL");
       if (placeType.isElectric) bits.push("électrique");
@@ -1043,16 +1068,86 @@
     }));
   }
 
-  async function refreshState() {
+  function occupationClass(rate) {
+    return rate >= 0.9 ? "b-red" : rate >= 0.7 ? "b-peach" : "b-green";
+  }
+
+  function renderParking(overview) {
+    if (!changed("parking", overview)) return;
+    const notice = $("parkingNotice");
+    notice.hidden = true;
+    if (!overview.available) {
+      notice.hidden = false;
+      notice.style.setProperty("--c", "var(--peach)");
+      notice.textContent = "Parking ne répond pas pour l'instant : les entrées sont refusées avec « Service Parking indisponible ».";
+      setEmpty(parkingList, "Occupation indisponible.", "inbox");
+      return;
+    }
+    parkingLabels = {};
+    overview.categories.forEach(function (c) { parkingLabels[c.name] = c.label; });
+    lastSignature.presences = null; // les présences reprennent les libellés de Parking
+    if (overview.missingCategories.length) {
+      notice.hidden = false;
+      notice.style.setProperty("--c", "var(--red)");
+      notice.textContent = "Catégories utilisées par Access mais absentes chez Parking : " +
+        overview.missingCategories.join(", ") + ". Les véhicules concernés seront refusés à l'entrée.";
+    }
+    if (!overview.categories.length) {
+      setEmpty(parkingList, "Parking ne déclare aucune catégorie.", "inbox");
+      return;
+    }
+    parkingList.replaceChildren.apply(parkingList, overview.categories.map(function (c) {
+      const hasCounts = c.totalCapacity != null;
+      const rate = c.occupationRate || 0;
+      const cls = occupationClass(rate);
+      const node = row({
+        badges: [hasCounts ? { label: Math.round(rate * 100) + " %", cls: cls } : { label: "—", cls: "b-neutral" }],
+        title: c.label + (c.usedByAccess ? "" : " · non utilisée par Access"),
+        sub: hasCounts
+          ? c.spotTaken + " prise(s) · " + (c.spotHeld || 0) + " mise(s) de côté · " + c.totalCapacity + " place(s)"
+          : "occupation non communiquée",
+        time: c.name,
+      });
+      if (hasCounts && c.totalCapacity > 0) {
+        const meter = el("div", "meter");
+        meter.style.setProperty("--c", "var(--" + cls.slice(2) + ")");
+        const taken = el("span", "taken");
+        taken.style.width = Math.min(100, (c.spotTaken / c.totalCapacity) * 100) + "%";
+        const held = el("span", "held");
+        held.style.width = Math.min(100, ((c.spotHeld || 0) / c.totalCapacity) * 100) + "%";
+        meter.append(taken, held);
+        node.querySelector(".row-main").appendChild(meter);
+      }
+      return node;
+    }));
+  }
+
+  // Parking est sur l'offre gratuite de Render : son occupation n'est
+  // redemandée que toutes les 30 s (ou sur « Rafraîchir »), pas à chaque tick.
+  let lastParkingFetch = 0;
+  async function refreshParking(headers, force) {
+    if (!force && Date.now() - lastParkingFetch < 30000) return;
+    lastParkingFetch = Date.now();
+    try {
+      const res = await fetch("/api/v1/access/parking", { headers });
+      if (res.ok) renderParking(await res.json());
+    } catch (err) {
+      /* signalé dans la barre de connexion */
+    }
+  }
+
+  async function refreshState(force) {
     refreshHealth();
     const key = getKey();
     if (!key) {
       needKey(presenceList);
       needKey(recentList);
-      lastSignature.presences = lastSignature.recent = null;
+      needKey(parkingList);
+      lastSignature.presences = lastSignature.recent = lastSignature.parking = null;
       return;
     }
     const headers = { "X-API-Key": key };
+    refreshParking(headers, force === true);
     try {
       const responses = await Promise.all([
         fetch("/api/v1/access/presences", { headers }),
@@ -1065,9 +1160,9 @@
     }
   }
 
-  function refreshAll() {
+  function refreshAll(force) {
     refreshJournal();
-    refreshState();
+    refreshState(force === true);
   }
 
   let timer = null;
@@ -1078,7 +1173,7 @@
     if (ms > 0) timer = setInterval(function () { if (!document.hidden) refreshAll(); }, ms);
   }
 
-  $("refreshBtn").addEventListener("click", refreshAll);
+  $("refreshBtn").addEventListener("click", function () { refreshAll(true); });
   intervalSelect.addEventListener("change", scheduleAutoRefresh);
   apiKeyInput.addEventListener("change", refreshAll);
   document.addEventListener("visibilitychange", function () { if (!document.hidden) refreshAll(); });
@@ -1316,6 +1411,8 @@
         ["Véhicule", body.vehicleId || "non identifié par Vehicles"],
         ["Passage", verb.toLowerCase() + " · " + date.toLocaleString("fr-FR") + " · " + SOURCE_LABEL[source]],
       ];
+      if (body.placeLabel) facts.push(["Place", body.placeLabel + (body.reservation ? " · réservation" : "")]);
+      if (body.durationMinutes != null) facts.push(["Durée", fmtMinutes(body.durationMinutes)]);
       if (auth.paymentAmount != null) facts.push(["Montant", fmtEuro(auth.paymentAmount)]);
       if (isExit && auth.result === 1) {
         const paymentId = await findPaymentId(body.requestId, headers);

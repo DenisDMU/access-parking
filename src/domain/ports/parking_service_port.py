@@ -13,7 +13,12 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from src.domain.value_objects.dto import PlaceAssignment, VehicleType
+from src.domain.value_objects.dto import (
+    CategoryOccupation,
+    ParkingCategory,
+    PlaceAssignment,
+    VehicleType,
+)
 
 
 class ParkingUnavailableError(Exception):
@@ -25,12 +30,25 @@ class ParkingUnavailableError(Exception):
     """
 
 
+class ParkingCategoryUnknownError(Exception):
+    """La catégorie de place demandée n'existe pas (ou plus) chez Parking.
+
+    Ni une panne, ni « parking complet » : Parking a changé ses catégories
+    et Access doit être mis à jour. L'entrée est refusée avec ce motif précis.
+    """
+
+    def __init__(self, category: str) -> None:
+        super().__init__(category)
+        self.category = category
+
+
 class ParkingServicePort(Protocol):
     def request_place(
         self, vehicle_type: VehicleType, is_reservation: bool = False
     ) -> PlaceAssignment | None:
         """Demande l'attribution d'une place adaptée, ou `None` si aucune
-        disponible. Lève `ParkingUnavailableError` si Parking ne répond pas."""
+        disponible. Lève `ParkingUnavailableError` si Parking ne répond pas,
+        `ParkingCategoryUnknownError` si la catégorie n'existe pas chez lui."""
         ...
 
     def mark_place_occupied(
@@ -45,4 +63,16 @@ class ParkingServicePort(Protocol):
 
     def mark_place_free(self, place_id: str) -> bool:
         """Libère la place."""
+        ...
+
+    def required_categories(self) -> list[str]:
+        """Catégories que cet adaptateur peut demander à Parking."""
+        ...
+
+    def list_categories(self) -> list[ParkingCategory]:
+        """Catégories déclarées par Parking. Lève `ParkingUnavailableError`."""
+        ...
+
+    def get_occupation(self) -> list[CategoryOccupation]:
+        """Occupation par catégorie vue par Parking. Lève `ParkingUnavailableError`."""
         ...
