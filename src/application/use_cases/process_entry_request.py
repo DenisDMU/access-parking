@@ -103,7 +103,11 @@ class ProcessEntryRequest:
         source: DetectionSource,
         photo: bytes | None = None,
         declared_type: VehicleType | None = None,
+        disability_verified: bool = False,
     ) -> EntryDecision:
+        """`disability_verified` : carte PMR vérifiée par un agent à la borne
+        (`ConfirmDisabilityByAgent`) ; vaut justificatif pour ce passage."""
+
         request_id = str(uuid4())
 
         ai_check = self._analyze_photo(photo)
@@ -121,11 +125,12 @@ class ProcessEntryRequest:
         ):
             # PMR choisi à la borne mais inconnu de Vehicles : place PMR
             # demandée, justificatif non vérifié → un agent confirme
-            # (règle d'accessibilité : confirmation, jamais refus direct).
+            # (règle d'accessibilité : confirmation, jamais refus direct),
+            # sauf si l'agent vient de vérifier la carte.
             vehicle_info = replace(
                 vehicle_info,
                 vehicle_type=replace(vehicle_info.vehicle_type, is_handicap=True),
-                disability_permit=False,
+                disability_permit=disability_verified,
             )
 
         presence_status = self._presence_repo.get_status(vehicle_id)

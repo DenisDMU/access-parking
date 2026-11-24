@@ -20,7 +20,7 @@
 | | |
 |---|---|
 | **Rôle** | Décide si un véhicule peut entrer/sortir du parking et coordonne les échanges avec Vehicles, Booking, Parking, Pricing, Payment (aucune donnée métier des autres services). |
-| **Version actuelle** | `4.10.0` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
+| **Version actuelle** | `4.10.1` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
 | **Dernière mise à jour** | 24 novembre 2026 (plaques de tous pays ; Parking 1.5.0 : catégories et occupation ; borne client ; Vehicles par plaque) |
 | **URL du service déployé** | https://access-api-a1u7.onrender.com |
 | **Documentation Swagger/OpenAPI** | https://access-api-a1u7.onrender.com/docs (ReDoc : `/redoc`, spec brute : `/openapi.json`) |
@@ -73,7 +73,7 @@
 | **Observabilité** | ✅ Correlation ID propagé à tous les services et événements, logs par décision, `/metrics` Prometheus (techniques + métier + intégration), config Prometheus fournie, `/health` avec version et commit | [section 9](#métriques-prometheus) |
 | **CI/CD et déploiement** | ✅ GitHub Actions (lint → tests → bandit → pip-audit → gitleaks), déploiement Render après CI verte, smoke test de l'instance déployée (version vérifiée), CHANGELOG, Dependabot | [section 9](#intégration-continue-cicd), [section 14](#14-déploiement-sur-render) |
 | **Sécurité** | ✅ Clé API (comparaison en temps constant) sur toutes les routes sauf `/health`, clé borne limitée au passage d'un véhicule, refus de démarrer en production avec une clé faible, validation stricte, erreurs sans stack trace, en-têtes de sécurité, CORS restreint, rate limiting, secrets hors Git, plaque jamais stockée/publiée/renvoyée/loggée (test dédié) | [section 10](#10-sécurité) |
-| **Version** | `4.10.0` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
+| **Version** | `4.10.1` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
 | **Dernière mise à jour** | 24 novembre 2026 | |
 
 ### Suivi des jalons
@@ -756,7 +756,7 @@ Préfixe `/api/v1` (sauf `/health` et `/metrics`).
 | GET | `/access/requests?vehicleId=&type=&from=&to=&limit=` | Oui | Liste/filtre (audit), plus récentes d'abord, avec la décision (`result`, `reason`, `paymentAmount`) |
 | GET | `/access/presences` | Oui | Véhicules actuellement présents (heure d'entrée, place attribuée, réservation) |
 | GET | `/borne/status` | Non | `{"publicAccess": true}` si la borne publique est ouverte (lu par `/borne` au démarrage) |
-| POST | `/borne/pmr-validation` | Code agent (`agentCode`) | Validation PMR par un agent après « confirmation requise » : `{"licensePlate", "country", "agentCode"}` ; justificatif enregistré chez Vehicles (`PUT`), puis entrée rejouée ; réponse identique à `/borne/passages` ; 403 code faux, 503 si Vehicles n'enregistre pas |
+| POST | `/borne/pmr-validation` | Code agent (`agentCode`) | Validation PMR par un agent après « confirmation requise » : `{"licensePlate", "country", "agentCode"}` ; justificatif enregistré chez Vehicles (`PUT`), puis entrée rejouée ; réponse identique à `/borne/passages` (entrée PMR autorisée même si Vehicles refuse l'enregistrement) ; 403 code faux |
 | POST | `/borne/passages` | Non (borne publique) | Passage d'un véhicule depuis la borne : `{"licensePlate", "type", "vehicleType"}` (`vehicleType` facultatif, entrée seulement : `STANDARD`, `ELECTRIC`, `XL`, `HANDICAPPED`, `TWO_WHEELS`) ; date imposée par le serveur, 10/min par adresse, réponse sans identifiants ; 403 si `BORNE_PUBLIC=false` |
 | GET | `/access/borne/key` | Oui (clé API seulement) | Clé des bornes client, pour leur mise en service depuis le dashboard ; 404 si `BORNE_API_KEY` n'est pas définie. Refusée (401) avec la clé borne |
 | GET | `/access/parking` | Oui (clé API) | Occupation par catégorie vue par Parking (libellé, prises, mises de côté, capacité) et catégories utilisées par Access mais absentes chez Parking ; `available: false` si Parking ne répond pas |
@@ -907,7 +907,9 @@ que voit le conducteur à l'entrée ou à la sortie du parking :
      avec un bouton **« Validation agent »**. L'agent vérifie la carte
      mobilité inclusion et tape son code (`AGENT_CODE`, `123` par défaut) :
      Access enregistre le justificatif chez Vehicles et le véhicule entre
-     sur une place PMR. Aux passages suivants, plus besoin d'agent. Sans
+     sur une place PMR. Aux passages suivants, plus besoin d'agent (si
+     Vehicles refuse l'enregistrement, l'entrée PMR passe quand même pour
+     ce passage, sans mémorisation). Sans
      carte : « Pas de carte : place standard ». La plaque n'est gardée qu'en
      mémoire de la page, le temps de la validation (90 s sans action →
      accueil).

@@ -4,6 +4,18 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.10.1] — 2026-11-24 — Vehicles protège PUT et DELETE
+
+### Corrigé
+- Vehicles exige désormais une authentification pour `PUT` (et `DELETE`) :
+  la validation PMR par l'agent n'est plus bloquée pour autant. La carte
+  vérifiée vaut pour ce passage (entrée sur place PMR) ; seule la
+  mémorisation chez Vehicles est perdue tant qu'Access n'a pas sa clé
+  (`VEHICLES_API_KEY`).
+- Délai d'attente de Vehicles porté de 20 à 45 s : la première entrée après
+  une pause (Vehicles endormi par Render) ne finit plus en « Un agent
+  arrive ».
+
 ## [4.10.0] — 2026-11-24 — Validation PMR par un agent
 
 ### Ajouté

@@ -89,12 +89,20 @@ def test_vehicles_injoignable_vehicule_non_identifie(client):
     assert response.status_code == 200 and response.json()["vehicleIdentified"] is False
 
 
-def test_vehicles_refuse_enregistrement_503(client, monkeypatch):
+def test_vehicles_refuse_enregistrement_entree_pmr_quand_meme(client, monkeypatch):
+    """Vehicles protège son `PUT` (24/11) : la carte vérifiée par l'agent vaut
+    pour ce passage, seule la mémorisation est perdue."""
+
     _pmr_entry(client)
     monkeypatch.setattr(client.vehicles, "confirm_disability", lambda vehicle_id: False)
     response = _validate(client)
-    assert response.status_code == 503
+    assert response.status_code == 200
+    body = response.json()
+    assert body["result"] == 1 and body["placeType"]["isHandicap"] is True
     assert PLATE not in response.text
+    # Non mémorisé : au passage suivant, l'agent est de nouveau demandé.
+    client.post(PASSAGE, json={"licensePlate": PLATE, "type": 2})
+    assert _pmr_entry(client).json()["result"] == 3
 
 
 def test_borne_publique_desactivee(client, monkeypatch):

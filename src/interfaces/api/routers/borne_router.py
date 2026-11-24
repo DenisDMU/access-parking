@@ -30,10 +30,7 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
-from src.application.use_cases.confirm_disability_by_agent import (
-    ConfirmDisabilityByAgent,
-    DisabilityNotRecordedError,
-)
+from src.application.use_cases.confirm_disability_by_agent import ConfirmDisabilityByAgent
 from src.application.use_cases.process_entry_request import ProcessEntryRequest
 from src.application.use_cases.process_exit_request import ProcessExitRequest
 from src.domain.value_objects.enums import DetectionSource, RequestType
@@ -144,15 +141,15 @@ def borne_passage(
         "inconnu de Vehicles), l'agent vérifie la carte mobilité inclusion et "
         "saisit son code. Access enregistre le justificatif chez Vehicles "
         "(le véhicule n'aura plus besoin d'agent), puis rejoue l'entrée : "
-        "réponse identique à `POST /borne/passages`. 403 si le code est faux "
-        "ou la borne publique désactivée, 503 si Vehicles n'a pas enregistré "
-        "le justificatif."
+        "réponse identique à `POST /borne/passages`. Si Vehicles refuse "
+        "d'enregistrer le justificatif, l'entrée PMR est quand même autorisée "
+        "pour ce passage (carte vérifiée par l'agent). 403 si le code est faux "
+        "ou la borne publique désactivée."
     ),
     responses={
         403: {"model": ErrorOut, "description": "Code agent incorrect, ou borne désactivée"},
         422: {"model": ErrorOut, "description": "Plaque invalide"},
         429: {"description": "Trop de tentatives depuis cette adresse"},
-        503: {"model": ErrorOut, "description": "Vehicles n'a pas enregistré le PMR"},
     },
 )
 @limiter.limit(lambda: get_settings().rate_limit_borne, key_func=client_ip)
@@ -165,13 +162,7 @@ def borne_pmr_validation(
     expected = get_settings().agent_code
     if not expected or not hmac.compare_digest(body.agent_code.encode(), expected.encode()):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=WRONG_AGENT_CODE)
-    try:
-        decision = use_case.execute(
-            plate=body.license_plate, date=datetime.now(UTC), source=DetectionSource.TERMINAL
-        )
-    except DisabilityNotRecordedError:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Vehicles n'a pas enregistré le justificatif PMR, réessayez",
-        ) from None
+    decision = use_case.execute(
+        plate=body.license_plate, date=datetime.now(UTC), source=DetectionSource.TERMINAL
+    )
     return _entry_out(decision)
