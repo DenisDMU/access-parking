@@ -4,6 +4,21 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.5.1] — 2026-11-24 — Nouvelles routes Vehicles
+
+### Corrigé
+- Vehicles a renommé ses routes : `GET /api/getvehicles/{plaque}` et
+  `POST /api/identify` (au lieu de `/api/vehicles/{plaque}` et
+  `/api/vehicles/identify`). Access appelait les anciennes : toutes les
+  plaques passaient « inconnues » et aucune n'était créée à l'entrée
+  (« Un agent arrive »). Testé contre le vrai service.
+
+### Ajouté
+- Routes de Vehicles réglables sans toucher au code
+  (`VEHICLES_LOOKUP_PATH`, `VEHICLES_IDENTIFY_PATH`).
+- Un 404 sur `identify` (route disparue) est loggé en ERREUR avec la route
+  appelée, pour repérer tout de suite un nouveau changement de contrat.
+
 ## [4.5.0] — 2026-11-24 — Borne publique, sans réglage
 
 ### Ajouté

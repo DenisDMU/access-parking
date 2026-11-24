@@ -1,15 +1,21 @@
 """Client HTTP réel vers le service **Vehicles** de l'équipe.
 
-Implémente `VehiclesServicePort`. Contrat vérifié le 2026-11-24 par des
-appels réels contre https://parking-vehicles.onrender.com (swagger
-`/v3/api-docs`) :
+Implémente `VehiclesServicePort`. Contrat vérifié le 2026-11-24 (après
+midi) par des appels réels contre https://parking-vehicles.onrender.com
+(swagger `/v3/api-docs`) :
 
-  GET  /api/vehicles/{plate}
+  GET  /api/getvehicles/{plate}
     → 200 { pseudoId (uuid), electric, disabled, xl, twoWheels }
     → 404 si la plaque est inconnue
-  POST /api/vehicles/identify  { licensePlate, isElectric, isDisabled, isXl, isTwoWheels }
+  POST /api/identify  { licensePlate, isElectric, isDisabled, isXl, isTwoWheels }
     → 200 "pseudoId" (uuid) ; retrouve le véhicule ou le crée (même uuid
       pour une plaque déjà connue)
+
+Vehicles a renommé ses routes deux fois le 24/11 (`/api/vehicles/{plate}`
+et `/api/vehicles/identify` le matin) : elles sont réglables
+(`VEHICLES_LOOKUP_PATH`, `VEHICLES_IDENTIFY_PATH`). Un 404 sur `identify`
+ne peut venir que d'une route renommée (la création ne renvoie jamais 404) :
+il est loggé en ERREUR, avec la route appelée, pour être repéré tout de suite.
 
 - `get_vehicle_info` ne fait que consulter (sortie, vérification).
 - `identify_vehicle` (entrée) consulte d'abord, et n'appelle `identify` que
@@ -59,8 +65,12 @@ class HttpVehiclesClient:
         timeout_s: float = 20.0,
         transport: httpx.BaseTransport | None = None,
         api_key: str = "",
+        lookup_path: str = "/api/getvehicles/{plate}",
+        identify_path: str = "/api/identify",
     ) -> None:
         self._base_url = base_url.rstrip("/")
+        self._lookup_path = lookup_path
+        self._identify_path = identify_path
         self._timeout_s = timeout_s
         # Envoyé seulement si VEHICLES_API_KEY est renseignée (authentification
         # pas encore activée côté Vehicles au 2026-11-24).
@@ -92,7 +102,8 @@ class HttpVehiclesClient:
     def _lookup(self, plate: str) -> VehicleInfo | _NotFound | None:
         try:
             with self._client() as client:
-                response = client.get(f"{self._base_url}/api/vehicles/{quote(plate, safe='')}")
+                path = self._lookup_path.replace("{plate}", quote(plate, safe=""))
+                response = client.get(f"{self._base_url}{path}")
             if response.status_code == 404:
                 return _NOT_FOUND
             if response.status_code != 200:
@@ -117,9 +128,17 @@ class HttpVehiclesClient:
         }
         try:
             with self._client() as client:
-                response = client.post(f"{self._base_url}/api/vehicles/identify", json=body)
+                response = client.post(f"{self._base_url}{self._identify_path}", json=body)
         except httpx.HTTPError as exc:
             logger.warning("Service Vehicles indisponible (%s)", type(exc).__name__)
+            return False
+        if response.status_code == 404:
+            # La création ne renvoie jamais 404 : la route a changé chez Vehicles.
+            logger.error(
+                "Vehicles : route d'identification introuvable (POST %s → 404). "
+                "Contrat changé ? Vérifier son Swagger et VEHICLES_IDENTIFY_PATH",
+                self._identify_path,
+            )
             return False
         if response.status_code != 200:
             logger.warning(
