@@ -33,7 +33,11 @@ from src.domain.ports.access_repository_port import AccessRepositoryPort
 from src.domain.ports.ai_vision_port import AIVisionPort
 from src.domain.ports.booking_service_port import BookingServicePort
 from src.domain.ports.event_publisher_port import EventPublisherPort
-from src.domain.ports.parking_service_port import ParkingServicePort, ParkingUnavailableError
+from src.domain.ports.parking_service_port import (
+    ParkingCategoryUnknownError,
+    ParkingServicePort,
+    ParkingUnavailableError,
+)
 from src.domain.ports.vehicle_presence_repository_port import (
     VehiclePresenceRepositoryPort,
 )
@@ -271,6 +275,7 @@ class ProcessEntryRequest:
             vehicle_type_check_ok=True,
             disability_check_ok=disability_check_ok,
             place_type=place_type,
+            place_label=assignment.label,
             reservation=is_reservation,
         )
 
@@ -320,6 +325,10 @@ class ProcessEntryRequest:
             )
         except ParkingUnavailableError:
             return None, "Service Parking indisponible, réessayez plus tard"
+        except ParkingCategoryUnknownError as exc:
+            # Parking a renommé ou supprimé une catégorie : ni une panne, ni
+            # un parking complet. Motif précis pour l'exploitant.
+            return None, f"Catégorie de place {exc.category} inconnue du service Parking"
         if assignment is None:
             if is_reservation:
                 return None, "Réservation trouvée mais aucune place disponible"

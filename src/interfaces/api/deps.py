@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from src.application.use_cases.check_vehicle_known import CheckVehicleKnown
 from src.application.use_cases.get_access_request import GetAccessRequest
+from src.application.use_cases.get_parking_overview import GetParkingOverview
 from src.application.use_cases.list_access_requests import ListAccessRequests
 from src.application.use_cases.list_present_vehicles import ListPresentVehicles
 from src.application.use_cases.process_entry_request import ProcessEntryRequest
@@ -235,6 +236,12 @@ def get_list_present_vehicles_use_case(
     access_repo: AccessRepositoryPort = Depends(get_access_repository),
 ) -> ListPresentVehicles:
     return ListPresentVehicles(presence_repo, access_repo)
+
+
+def get_parking_overview_use_case(
+    parking_port: ParkingServicePort = Depends(get_parking_port),
+) -> GetParkingOverview:
+    return GetParkingOverview(parking_port)
 
 
 def get_check_vehicle_known_use_case(

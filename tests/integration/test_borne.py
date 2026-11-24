@@ -42,6 +42,7 @@ def test_cle_borne_fait_entrer_et_sortir_un_vehicule(client):
         ("GET", "/api/v1/access/requests/inexistante"),
         ("GET", "/api/v1/access/presences"),
         ("GET", "/api/v1/access/events"),
+        ("GET", "/api/v1/access/parking"),
         ("POST", "/api/v1/access/vehicles/known"),
         ("GET", "/metrics"),
     ],
@@ -83,6 +84,7 @@ def test_entree_indique_le_type_de_place(client):
         URL, json=_passage("DD-444-DD", 1, "2026-09-02T10:00:00Z"), headers=BORNE_HEADERS
     ).json()
     assert body["reservation"] is False
+    assert body["placeLabel"] == "Place de test"
     assert body["placeType"] == {
         "category": 2,
         "isXl": False,

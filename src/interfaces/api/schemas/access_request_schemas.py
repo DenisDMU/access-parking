@@ -140,6 +140,11 @@ class AccessRequestOut(BaseModel):
     place_type: PlaceTypeOut | None = Field(
         default=None, alias="placeType", description="Entrée : type de la place attribuée"
     )
+    place_label: str | None = Field(
+        default=None,
+        alias="placeLabel",
+        description="Entrée : libellé de la catégorie fourni par Parking (4.2.0)",
+    )
     reservation: bool | None = Field(
         default=None, description="Entrée : une réservation a été reconnue"
     )
@@ -192,6 +197,35 @@ class PresentVehicleOut(BaseModel):
     reservation: bool
 
 
+class ParkingCategoryOut(BaseModel):
+    """Une catégorie de places vue par Parking."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    name: str = Field(description="Nom technique chez Parking (ex. ELECTRIC)")
+    label: str = Field(description="Libellé fourni par Parking")
+    used_by_access: bool = Field(alias="usedByAccess")
+    spot_taken: int | None = Field(default=None, alias="spotTaken")
+    spot_held: int | None = Field(
+        default=None, alias="spotHeld", description="Places mises de côté (hold de 30 s)"
+    )
+    total_capacity: int | None = Field(default=None, alias="totalCapacity")
+    occupation_rate: float | None = Field(default=None, alias="occupationRate")
+
+
+class ParkingOverviewOut(BaseModel):
+    """Réponse de `GET /access/parking`."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    available: bool = Field(description="false si Parking n'a pas répondu")
+    categories: list[ParkingCategoryOut]
+    missing_categories: list[str] = Field(
+        alias="missingCategories",
+        description="Catégories dont Access a besoin mais que Parking ne déclare pas",
+    )
+
+
 class VehicleKnownIn(BaseModel):
     """Corps de `POST /access/vehicles/known` : la plaque voyage dans le corps
     et non dans l'URL, qui finit dans les journaux des proxys et de Render."""
@@ -239,7 +273,7 @@ class HealthOut(BaseModel):
         description="Moteur de base utilisé (sqlite ou postgresql) — jamais l'URL",
     )
     uptime_seconds: int = Field(alias="uptimeSeconds", examples=[1234])
-    version: str = Field(examples=["4.1.0"])
+    version: str = Field(examples=["4.2.0"])
     commit: str = Field(examples=["b742756d0c1e9f4a8b3c2d1e0f9a8b7c6d5e4f3a"])
 
     model_config = ConfigDict(populate_by_name=True)

@@ -87,6 +87,29 @@ class PlaceAssignment:
     place_id: str
     place_type: PlaceType
     hold_id: str | None = None
+    # Libellé de la catégorie tel que Parking le présente (ex. « Place PMR »),
+    # depuis Parking 1.5.0. `None` si Parking ne le fournit pas.
+    label: str | None = None
+
+
+@dataclass(frozen=True)
+class ParkingCategory:
+    """Catégorie de places déclarée par Parking (`GET /parking/categories`)."""
+
+    name: str
+    label: str
+
+
+@dataclass(frozen=True)
+class CategoryOccupation:
+    """Occupation d'une catégorie vue par Parking (`GET /parking/occupation`)."""
+
+    name: str
+    label: str
+    spot_taken: int
+    spot_held: int
+    total_capacity: int
+    occupation_rate: float
 
 
 @dataclass(frozen=True)
@@ -140,6 +163,7 @@ class EntryDecision:
     # Entrée autorisée : type de la place attribuée et réservation reconnue
     # (affichés par la borne client).
     place_type: PlaceType | None = None
+    place_label: str | None = None
     reservation: bool | None = None
 
 

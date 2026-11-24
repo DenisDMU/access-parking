@@ -4,6 +4,30 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.2.0] — 2026-11-24 — Catégories et occupation Parking
+
+Parking 1.5.0 a ajouté `GET /parking/categories`, un `label` dans ses
+réponses et `spot_held` dans l'occupation (rien de retiré). Aucun champ
+d'Access modifié ni retiré.
+
+### Ajouté
+- Avant chaque `hold`, la catégorie demandée est comparée à la liste de
+  Parking (cache 5 min). Absente, ou 404 sur `hold` : entrée refusée avec
+  « Catégorie de place X inconnue du service Parking » (au lieu de
+  « Service Parking indisponible »). Liste indisponible ou vide :
+  vérification sautée, l'entrée n'est jamais bloquée par elle ;
+  comparaison sans tenir compte de la casse.
+- `GET /access/parking` (clé d'exploitation) : occupation par catégorie vue
+  par Parking (libellé, prises, mises de côté, capacité, taux) et
+  catégories utilisées par Access mais absentes chez Parking ;
+  `available: false` si Parking ne répond pas.
+- Dashboard, onglet « État du parking » : panneau « Occupation vue par
+  Parking » (barres colorées, alerte catégorie manquante ou Parking muet,
+  rafraîchi toutes les 30 s) ; présences et borne de test affichent les
+  libellés de Parking.
+- `placeLabel` dans la réponse d'une entrée autorisée ; la borne client
+  l'affiche en priorité.
+
 ## [4.1.0] — 2026-11-24 — Borne client
 
 Aucun champ existant modifié ni retiré : les autres services et la borne du

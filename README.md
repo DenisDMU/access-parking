@@ -20,8 +20,8 @@
 | | |
 |---|---|
 | **Rôle** | Décide si un véhicule peut entrer/sortir du parking et coordonne les échanges avec Vehicles, Booking, Parking, Pricing, Payment (aucune donnée métier des autres services). |
-| **Version actuelle** | `4.1.0` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
-| **Dernière mise à jour** | 24 novembre 2026 (borne client entrée/sortie, nouveau contrat Vehicles : identification par plaque) |
+| **Version actuelle** | `4.2.0` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
+| **Dernière mise à jour** | 24 novembre 2026 (Parking 1.5.0 : catégories et occupation ; borne client ; Vehicles par plaque) |
 | **URL du service déployé** | https://access-api-a1u7.onrender.com |
 | **Documentation Swagger/OpenAPI** | https://access-api-a1u7.onrender.com/docs (ReDoc : `/redoc`, spec brute : `/openapi.json`) |
 | **Dépendances (services appelés)** | **Vehicles** *(réel)*, Booking *(mocké)*, **Parking** *(réel)*, **Pricing** *(réel)*, **Payment** *(réel)* |
@@ -52,6 +52,8 @@
 - [ ] Vérifier une réservation via le vrai service **Booking**.
 - [x] Identifier un véhicule via le vrai service **Vehicles** (`GET /api/vehicles/{plaque}`, création via `identify` à l'entrée).
 - [x] Attribuer/occuper/libérer une place via le vrai service **Parking** (place mise de côté puis confirmée avec son `hold_id`).
+- [x] Vérifier que chaque catégorie demandée existe chez Parking (`GET /parking/categories`, en cache 5 min) : une catégorie renommée donne un motif précis, pas « Parking indisponible ».
+- [x] Afficher l'occupation par catégorie vue par Parking (prises, mises de côté, capacité) et ses libellés (dashboard, borne, `GET /access/presences`).
 - [x] Calculer un prix via le vrai service **Pricing**.
 - [x] Exécuter un paiement via le vrai service **Payment** (idempotent : rejouer une sortie ne débite jamais deux fois).
 
@@ -66,12 +68,12 @@
 | **Métier** | ✅ Entrée (avec/sans réservation), sortie payée, refus (présence, compatibilité, paiement, date incohérente), confirmation PMR / véhicule inconnu | Règles pures dans `src/domain/rules/`, use cases `ProcessEntryRequest` / `ProcessExitRequest`, tests unitaires |
 | **API** | ✅ REST documentée (`/docs`), entrées/sorties validées, erreurs normalisées, `/health` | [section 11](#11-endpoints) |
 | **Intégration** | ✅ Vehicles, Parking, Pricing, Payment réels (REST) ; événements publiés sur RabbitMQ (bus d'équipe) · ⏳ Booking encore mocké | [section 5](#5-brancher-un-vrai-microservice-à-la-place-dun-mock), [section 6](#6-publication-dévénements--webhook-ou-rabbitmq) |
-| **UI** | ✅ Borne client `/borne` (entrée/sortie, clavier à l'écran, ticket, clair/sombre, mobile) et dashboard servi par Access : borne d'entrée/sortie, état du parking (présences, décisions, santé), journal d'événements, recherche | [section 12](#12-borne-et-journal-de-bord-dashboard) |
-| **Qualité** | ✅ 223 tests (unitaires + intégration), entrées invalides et cas limites couverts, `ruff` (lint + format), script de vérification reproductible | [section 9](#9-tests-et-qualité) |
+| **UI** | ✅ Borne client `/borne` (entrée/sortie, clavier à l'écran, ticket, clair/sombre, mobile) et dashboard servi par Access : borne d'entrée/sortie, état du parking (présences, occupation vue par Parking, décisions, santé), journal d'événements, recherche | [section 12](#12-borne-et-journal-de-bord-dashboard) |
+| **Qualité** | ✅ 246 tests (unitaires + intégration), entrées invalides et cas limites couverts, `ruff` (lint + format), script de vérification reproductible | [section 9](#9-tests-et-qualité) |
 | **Observabilité** | ✅ Correlation ID propagé à tous les services et événements, logs par décision, `/metrics` Prometheus (techniques + métier + intégration), config Prometheus fournie, `/health` avec version et commit | [section 9](#métriques-prometheus) |
 | **CI/CD et déploiement** | ✅ GitHub Actions (lint → tests → bandit → pip-audit → gitleaks), déploiement Render après CI verte, smoke test de l'instance déployée (version vérifiée), CHANGELOG, Dependabot | [section 9](#intégration-continue-cicd), [section 14](#14-déploiement-sur-render) |
 | **Sécurité** | ✅ Clé API (comparaison en temps constant) sur toutes les routes sauf `/health`, clé borne limitée au passage d'un véhicule, refus de démarrer en production avec une clé faible, validation stricte, erreurs sans stack trace, en-têtes de sécurité, CORS restreint, rate limiting, secrets hors Git, plaque jamais stockée/publiée/renvoyée/loggée (test dédié) | [section 10](#10-sécurité) |
-| **Version** | `4.1.0` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
+| **Version** | `4.2.0` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
 | **Dernière mise à jour** | 24 novembre 2026 | |
 
 ### Suivi des jalons
@@ -367,7 +369,7 @@ même fichier `deps.py`) — chaque squelette liste ses propres `TODO` :
 |----------|------------------------------------------|----------------------------|
 | **Vehicles** | `http_vehicles_client.py` | **✅ Branché** (`GET /api/vehicles/{plaque}`, et `POST /api/vehicles/identify` à l'entrée sur un 404) — `pseudoId` devient le `vehicleId`, `disabled` vaut type PMR **et** justificatif, toute autre réponse = véhicule non identifié, voir section 16 |
 | Booking  | `http_booking_client.py`   | Route/méthode, code "pas de réservation", `placeId` déjà assigné ou non |
-| **Parking** | `http_parking_client.py` | **✅ Branché** (`hold` → `confirm_entry` avec le `hold_id` reçu, place mise de côté 30 s → `free` ; catégories STANDARD/XL/ELECTRIC/HANDICAPPED/TWO_WHEELS ; en-tête `X-API-Key` = `PARKING_API_KEY`) — pas de `placeId` réel, encodage synthétique `"CATEGORIE:walkin\|booking"`, voir section 16 |
+| **Parking** | `http_parking_client.py` | **✅ Branché** (`hold` → `confirm_entry` avec le `hold_id` reçu, place mise de côté 30 s → `free` ; catégories STANDARD/XL/ELECTRIC/HANDICAPPED/TWO_WHEELS vérifiées sur `GET /parking/categories` avant chaque `hold` (liste en cache 5 min ; une catégorie absente ou un 404 sur `hold` → « Catégorie de place X inconnue du service Parking ») ; libellé de Parking remonté ; occupation lue sur `GET /parking/occupation` ; en-tête `X-API-Key` = `PARKING_API_KEY`) — pas de `placeId` réel, encodage synthétique `"CATEGORIE:walkin\|booking"`, voir section 16 |
 | **Pricing** | `http_pricing_client.py` | **✅ Branché** (`PRICING_USE_MOCK=false`) contre le vrai service (`POST /quote`) — mapping `PlaceType → zone` et arrondi de durée pour les réservations restent des hypothèses documentées dans le fichier, voir aussi section 16 |
 | **Payment** | `http_payment_client.py` | **✅ Branché** (`POST /payments` puis polling `GET /payments/{id}` jusqu'à `ACCEPTED`/`REFUSED`, 2 s / 40 s max) — montant en centimes, clé d'idempotence `access:{stationnement}:exit`, en-tête `X-API-Key` envoyé si `PAYMENT_API_KEY` est renseignée, voir section 16 |
 
@@ -478,7 +480,7 @@ ACCESS_TEST_DATABASE_URL=<url Postgres> pytest tests/integration   # idem contre
 pytest -v            # détail de chaque cas
 ```
 
-Couverture (223 tests) :
+Couverture (246 tests) :
 
 - **Unitaires** — matrice complète de la règle de compatibilité
   véhicule/place, règle de présence, règle d'accessibilité ; chaque use case
@@ -520,7 +522,7 @@ précédente, `needs:` dans le workflow) et doivent **tous** passer — si une
 | Job | Outil | Ce qu'il vérifie |
 |---|---|---|
 | Lint | `ruff` | Erreurs, imports, bugs probables, règles de sécurité, **formatage homogène** (config : `ruff.toml`) |
-| Tests | `pytest` | Les 223 tests unitaires + intégration, sans aucun secret |
+| Tests | `pytest` | Les 246 tests unitaires + intégration, sans aucun secret |
 | Sécurité du code | `bandit` | Analyse statique (SAST) : injections, appels dangereux, secrets en dur… |
 | Dépendances | `pip-audit` | Vulnérabilités connues (CVE) dans `requirements.txt` |
 | Secrets | `gitleaks` | Aucun secret (clé API, URL CloudAMQP…) dans tout l'historique git |
@@ -655,8 +657,8 @@ Puis http://localhost:9090 — requêtes utiles :
 - **Clé borne séparée** (`BORNE_API_KEY`) : les bornes client sont des écrans
   publics, la clé d'exploitation n'y est donc jamais saisie. La clé borne
   n'ouvre **que** `POST /access/requests` (faire passer un véhicule) : elle
-  est refusée (401) sur l'historique, les présences, les événements, la
-  vérification de plaque et `/metrics`. Elle doit faire 16 caractères au
+  est refusée (401) sur l'historique, les présences, les événements,
+  l'occupation Parking, la vérification de plaque et `/metrics`. Elle doit faire 16 caractères au
   moins et différer d'`API_KEY` (sinon Access refuse de démarrer en
   production). Vide = pas de clé borne.
 - **Gestion des secrets** : aucun secret dans Git (`gitleaks` en CI) ; clé API
@@ -701,10 +703,11 @@ Préfixe `/api/v1` (sauf `/health` et `/metrics`).
 
 | Méthode | Route | Auth | Description |
 |---|---|---|---|
-| POST | `/access/requests` | Oui (clé API ou clé borne) | Crée et traite une demande d'accès (entrée ou sortie). Si le passage est autorisé, la réponse indique aussi `placeType` et `reservation` (entrée) ou `enteredAt` et `durationMinutes` (sortie) |
+| POST | `/access/requests` | Oui (clé API ou clé borne) | Crée et traite une demande d'accès (entrée ou sortie). Si le passage est autorisé, la réponse indique aussi `placeType`, `placeLabel` et `reservation` (entrée) ou `enteredAt` et `durationMinutes` (sortie) |
 | GET | `/access/requests/{id}` | Oui | Détail d'une demande + décision |
 | GET | `/access/requests?vehicleId=&type=&from=&to=&limit=` | Oui | Liste/filtre (audit), plus récentes d'abord, avec la décision (`result`, `reason`, `paymentAmount`) |
 | GET | `/access/presences` | Oui | Véhicules actuellement présents (heure d'entrée, place attribuée, réservation) |
+| GET | `/access/parking` | Oui (clé API) | Occupation par catégorie vue par Parking (libellé, prises, mises de côté, capacité) et catégories utilisées par Access mais absentes chez Parking ; `available: false` si Parking ne répond pas |
 | POST | `/access/vehicles/known` | Oui | Vérifie si une plaque (`{"licensePlate": …}`) est connue de Vehicles, sans la créer ni rien persister |
 | GET | `/access/events` | Oui | Liste les événements publiés (outbox, démo/observabilité) |
 | GET | `/health` | Non | Healthcheck (API + DB) + moteur de base, version et SHA du commit déployé |
@@ -771,8 +774,13 @@ Renseignez votre `X-API-Key` dans le champ prévu (stockée uniquement dans le
   récentes (autorisées / refusées / confirmation requise), liste des
   **véhicules présents** (place attribuée, réservation, heure et durée de
   présence) et des **dernières demandes** avec leur motif et montant. Un
-  clic ouvre le détail. Rappel des opérations disponibles (borne, recherche,
-  journal, `/docs`, `/metrics`). Rafraîchi automatiquement.
+  clic ouvre le détail. Panneau **Occupation vue par Parking** : par
+  catégorie, libellé de Parking, taux d'occupation (vert, orange au-delà de
+  70 %, rouge au-delà de 90 %), places prises et mises de côté, capacité ;
+  alerte si une catégorie utilisée par Access manque chez Parking, ou si
+  Parking ne répond pas (redemandé toutes les 30 s seulement, Parking étant
+  sur l'offre gratuite de Render). Rappel des opérations disponibles (borne,
+  recherche, journal, `/docs`, `/metrics`). Rafraîchi automatiquement.
 - **Journal** : la liste des événements se rafraîchit automatiquement
   (intervalle configurable), avec un badge coloré par type d'événement et le
   détail JSON dépliable.
@@ -810,8 +818,9 @@ que voit le conducteur à l'entrée ou à la sortie du parking :
 3. **Traitement** : étapes affichées (identification, place ou montant,
    paiement ; jusqu'à ~40 s pour un paiement).
 4. **Résultat** :
-   - entrée autorisée : « La barrière s'ouvre », type de place (standard,
-     électrique, XL, PMR, deux-roues), réservation reconnue ;
+   - entrée autorisée : « La barrière s'ouvre », type de place (libellé
+     fourni par Parking, sinon standard, électrique, XL, PMR, deux-roues),
+     réservation reconnue ;
    - sortie autorisée : ticket avec heure d'entrée, heure de sortie, durée et
      montant payé (« Gratuit » pendant la première heure) ;
    - refus : message clair pour le client (parking complet, véhicule déjà

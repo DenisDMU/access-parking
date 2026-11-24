@@ -45,6 +45,19 @@ sortie) continue de fonctionner sans changement : il encode simplement
 client : le service Parking réel ne connaît aucun véhicule, uniquement des
 compteurs de catégories.
 
+Parking 1.5.0 (vérifié sur son Swagger le 2026-11-24, champs uniquement
+ajoutés) :
+
+    GET  {base_url}/parking/categories -> [{category_name, label}, ...]
+    `label` ajouté aux réponses de hold, availability et occupation ;
+    `spot_held` (places mises de côté) ajouté à occupation.
+
+Avant chaque `hold`, la catégorie demandée est comparée à la liste de
+Parking (mise en cache 5 min) : une catégorie renommée ou supprimée donne
+`ParkingCategoryUnknownError` (motif précis) au lieu d'une « panne ». Si la
+liste est indisponible, la vérification est sautée : elle ne bloque jamais
+une entrée à elle seule.
+
 TODO restés ouverts (à confirmer avec l'équipe Parking si besoin) :
   - Mapping `VehicleType` → `category_name` : priorité identique à celle
     utilisée pour Pricing (handicap > 2 roues > électrique > XL > standard),
@@ -56,15 +69,61 @@ TODO restés ouverts (à confirmer avec l'équipe Parking si besoin) :
 from __future__ import annotations
 
 import logging
+import time
+from collections.abc import Callable
 
 import httpx
 
-from src.domain.ports.parking_service_port import ParkingUnavailableError
-from src.domain.value_objects.dto import PlaceAssignment, PlaceType, VehicleType
+from src.domain.ports.parking_service_port import (
+    ParkingCategoryUnknownError,
+    ParkingUnavailableError,
+)
+from src.domain.value_objects.dto import (
+    CategoryOccupation,
+    ParkingCategory,
+    PlaceAssignment,
+    PlaceType,
+    VehicleType,
+)
 from src.domain.value_objects.enums import VehicleCategory
 from src.infrastructure.external.outgoing_http import outgoing_client
 
 logger = logging.getLogger(__name__)
+
+# Les 5 catégories qu'Access peut demander (voir `_map_category`).
+REQUIRED_CATEGORIES = ["STANDARD", "XL", "ELECTRIC", "HANDICAPPED", "TWO_WHEELS"]
+
+CATEGORIES_TTL_S = 300.0
+
+
+class _CategoriesCache:
+    """Noms des catégories de Parking, par URL, gardés `ttl_s` secondes.
+
+    Partagé entre les requêtes (le client est recréé à chaque requête) :
+    au plus un appel à `/parking/categories` toutes les 5 minutes.
+    """
+
+    def __init__(
+        self, ttl_s: float = CATEGORIES_TTL_S, clock: Callable[[], float] = time.monotonic
+    ):
+        self._ttl_s = ttl_s
+        self._clock = clock
+        self._entries: dict[str, tuple[float, frozenset[str]]] = {}
+
+    def get(self, key: str) -> frozenset[str] | None:
+        entry = self._entries.get(key)
+        if entry is None or self._clock() - entry[0] > self._ttl_s:
+            return None
+        return entry[1]
+
+    def put(self, key: str, names: frozenset[str]) -> None:
+        self._entries[key] = (self._clock(), names)
+
+    def forget(self, key: str) -> None:
+        self._entries.pop(key, None)
+
+
+_categories_cache = _CategoriesCache()
 
 
 def _map_category(vehicle_type: VehicleType) -> str:
@@ -111,8 +170,10 @@ class HttpParkingClient:
         timeout_s: float = 20.0,
         api_key: str = "",
         transport: httpx.BaseTransport | None = None,
+        categories_cache: _CategoriesCache | None = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")
+        self._categories_cache = categories_cache or _categories_cache
         self._timeout_s = timeout_s
         # Parking exige l'en-tête X-API-Key sur toutes ses routes (constaté le
         # 2026-11-18) ; clé fournie en privé par l'équipe (PARKING_API_KEY).
@@ -129,10 +190,15 @@ class HttpParkingClient:
     ) -> PlaceAssignment | None:
         category = _map_category(vehicle_type)
         commercial_type = "booking" if is_reservation else "walkin"
+        self._check_category(category)
         payload = {"category_name": category, "commercial_type": commercial_type}
         try:
             with self._client() as client:
                 response = client.post(f"{self._base_url}/parking/hold", json=payload)
+            if response.status_code == 404:
+                # « Catégorie <x> introuvable » : la liste en cache est périmée.
+                self._categories_cache.forget(self._base_url)
+                raise ParkingCategoryUnknownError(category)
             response.raise_for_status()
         except httpx.HTTPError as exc:
             # Panne, 429, timeout ou clé API refusée (401/403) : ce n'est PAS
@@ -149,12 +215,75 @@ class HttpParkingClient:
         if not response.json().get("success", False):
             return None
 
-        hold_id = response.json().get("hold_id")
+        body = response.json()
+        hold_id = body.get("hold_id")
         return PlaceAssignment(
             place_id=f"{category}:{commercial_type}",
             place_type=_place_type_from_category(category),
             hold_id=str(hold_id) if hold_id is not None else None,
+            label=body.get("label") or None,
         )
+
+    def required_categories(self) -> list[str]:
+        return list(REQUIRED_CATEGORIES)
+
+    def list_categories(self) -> list[ParkingCategory]:
+        data = self._get("/parking/categories", "list_categories")
+        try:
+            categories = [
+                ParkingCategory(name=str(item["category_name"]), label=str(item["label"]))
+                for item in data
+            ]
+        except (KeyError, TypeError) as exc:
+            raise ParkingUnavailableError(f"réponse inattendue : {exc!r}") from exc
+        self._categories_cache.put(self._base_url, frozenset(c.name for c in categories))
+        return categories
+
+    def get_occupation(self) -> list[CategoryOccupation]:
+        data = self._get("/parking/occupation", "get_occupation")
+        try:
+            return [
+                CategoryOccupation(
+                    name=str(item["category_name"]),
+                    label=str(item.get("label") or item["category_name"]),
+                    spot_taken=int(item["spot_taken"]),
+                    spot_held=int(item.get("spot_held", 0)),
+                    total_capacity=int(item["total_capacity"]),
+                    occupation_rate=float(item["occupation_rate"]),
+                )
+                for item in data["categories"]
+            ]
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ParkingUnavailableError(f"réponse inattendue : {exc!r}") from exc
+
+    def _get(self, path: str, operation: str):
+        try:
+            with self._client() as client:
+                response = client.get(f"{self._base_url}{path}")
+            response.raise_for_status()
+            return response.json()
+        except (httpx.HTTPError, ValueError) as exc:
+            logger.warning("Parking indisponible sur %s : %s", operation, exc)
+            raise ParkingUnavailableError(str(exc)) from exc
+
+    def _check_category(self, category: str) -> None:
+        """Refuse une catégorie absente de Parking ; ne bloque jamais si la
+        liste ne peut pas être obtenue ou est vide (le `hold` dira alors ce
+        qu'il en est). Comparaison sans tenir compte de la casse."""
+
+        names = self._categories_cache.get(self._base_url)
+        if names is None:
+            try:
+                names = frozenset(c.name for c in self.list_categories())
+            except ParkingUnavailableError:
+                return
+        if not names:
+            return
+        if category.upper() not in {name.upper() for name in names}:
+            logger.warning(
+                "Catégorie %s absente de Parking (connues : %s)", category, sorted(names)
+            )
+            raise ParkingCategoryUnknownError(category)
 
     def mark_place_occupied(
         self, place_id: str, vehicle_id: str, hold_id: str | None = None
