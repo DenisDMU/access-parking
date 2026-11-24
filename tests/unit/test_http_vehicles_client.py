@@ -92,6 +92,22 @@ def test_identify_puis_consultation_par_identifiant():
     assert vehicles.identified == [{"licensePlate": _PLATE}]
 
 
+def test_creation_en_201_acceptee():
+    """Vehicles a annoncé « 201 Created » à la création : même traitement que 200."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST":
+            return httpx.Response(201, json=_PSEUDO_ID)
+        return httpx.Response(200, json=_vehicle(isElectric=True))
+
+    info = _client(handler).identify_vehicle(_PLATE)
+    assert info is not None and info.vehicle_id == _PSEUDO_ID and info.vehicle_type.is_electric
+
+
+def test_enregistrement_pmr_en_204_accepte():
+    assert _client(lambda r: httpx.Response(204)).confirm_disability(_PSEUDO_ID) is True
+
+
 def test_plaque_inconnue_creee_par_identify():
     vehicles = _FakeVehicles(known=False)
     assert _client(vehicles).identify_vehicle(_PLATE).vehicle_id == _PSEUDO_ID

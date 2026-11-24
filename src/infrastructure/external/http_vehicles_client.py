@@ -6,7 +6,7 @@ de la journée) par des appels réels contre https://parking-vehicles.onrender.c
 
   POST /api/vehicle/create  { licensePlate, isElectric, isXl, isTwoWheels,
                               isHandicaped }
-    → 200 "pseudoId" (uuid) ; retrouve le véhicule ou le crée (même uuid
+    → 200 ou 201 "pseudoId" (uuid) ; retrouve le véhicule ou le crée (même uuid
       pour une plaque déjà connue). Un véhicule connu n'est PAS réécrit
       (ses caractéristiques sont conservées). La plaque est comparée telle
       quelle (casse et espaces comptent) : Access envoie toujours la forme
@@ -94,6 +94,10 @@ DEFAULT_IDENTIFY_PATH = "/api/vehicle/create"
 OPENAPI_PATH = "/v3/api-docs"
 DISCOVERY_MIN_INTERVAL_S = 60.0
 
+# Création : 200 aujourd'hui (véhicule retrouvé ou créé) ; 201 accepté d'avance,
+# Vehicles ayant annoncé qu'il renverrait « Created » à la création.
+_CREATED = (200, 201)
+
 _PATH_PARAM = re.compile(r"\{[^}]+\}")
 
 # Routes découvertes dans le Swagger de Vehicles, par URL de base : partagées
@@ -177,7 +181,7 @@ class HttpVehiclesClient:
         except httpx.HTTPError as exc:
             logger.warning("Vehicles : PMR non enregistré (%s)", type(exc).__name__)
             return False
-        if response.status_code != 200:
+        if response.status_code not in (200, 204):
             logger.warning("Vehicles : PMR non enregistré (HTTP %s)", response.status_code)
             return False
         return True
@@ -291,7 +295,7 @@ class HttpVehiclesClient:
             if response.status_code == 404:
                 # La création ne renvoie jamais 404 : la route a changé chez Vehicles.
                 return _NOT_FOUND
-            if response.status_code != 200:
+            if response.status_code not in _CREATED:
                 logger.warning(
                     "Vehicles n'a pas identifié le véhicule (HTTP %s)", response.status_code
                 )
