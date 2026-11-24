@@ -38,10 +38,12 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from src.application.use_cases.confirm_disability_by_agent import ConfirmDisabilityByAgent
 from src.application.use_cases.get_parking_overview import GetParkingOverview
+from src.application.use_cases.list_present_vehicles import ListPresentVehicles
 from src.application.use_cases.process_entry_request import ProcessEntryRequest
 from src.application.use_cases.process_exit_request import ProcessExitRequest
 from src.domain.value_objects.enums import DetectionSource, RequestType
 from src.infrastructure.config import get_settings
+from src.infrastructure.external.place_categories import code_of_place
 from src.infrastructure.metrics import record_decision
 from src.interfaces.api import deps
 from src.interfaces.api.rate_limit import client_ip, limiter
@@ -195,7 +197,8 @@ def reset_parking_cache() -> None:
     summary="Occupation du parking pour le plan 3D de la borne (sans clé)",
     description=(
         "Compteurs par catégorie (capacité, places prises, places mises de "
-        "côté), pour le plan 3D affiché sur la borne publique. Aucun "
+        "côté, véhicules entrés avec une réservation), pour le plan 3D affiché "
+        "sur la borne publique. Aucun "
         "véhicule, aucun identifiant, aucune demande. Réponse de Parking "
         "gardée quelques secondes. `available: false` si Parking ne répond "
         "pas. 403 si la borne publique est désactivée."
@@ -209,6 +212,7 @@ def reset_parking_cache() -> None:
 def borne_parking(
     request: Request,
     use_case: GetParkingOverview = Depends(deps.get_parking_overview_use_case),
+    presences: ListPresentVehicles = Depends(deps.get_list_present_vehicles_use_case),
 ) -> BorneParkingOut:
     _require_public_borne()
     now = time.monotonic()
@@ -216,6 +220,12 @@ def borne_parking(
     if cached is not None and now - _parking_cache["at"] < get_settings().borne_parking_cache_s:
         return cached
     overview = use_case.execute()
+    # Véhicules entrés avec une réservation, par catégorie : un compte, rien d'autre.
+    reserved: dict[str, int] = {}
+    for vehicle in presences.execute():
+        name = code_of_place(vehicle.place_id, vehicle.place_type)
+        if vehicle.is_reservation and name:
+            reserved[name] = reserved.get(name, 0) + 1
     result = BorneParkingOut(
         available=overview.available,
         categories=[
@@ -225,6 +235,7 @@ def borne_parking(
                 totalCapacity=c.total_capacity,
                 spotTaken=c.spot_taken or 0,
                 spotHeld=c.spot_held or 0,
+                reserved=reserved.get(c.name, 0),
             )
             for c in overview.categories
             if c.total_capacity

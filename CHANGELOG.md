@@ -4,6 +4,15 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.13.0] — 2026-11-24 — Réservations dans le plan 3D
+
+### Ajouté
+- Plan 3D (dashboard et borne) : un « R » bleu flotte au-dessus des
+  véhicules entrés avec une réservation Booking ; leur nombre est rappelé
+  dans la légende, zone par zone.
+- `GET /borne/parking` : champ `reserved` par catégorie (véhicules entrés
+  avec une réservation, compte d'Access ; aucun identifiant).
+
 ## [4.12.1] — 2026-11-24 — Parking complet et services réveillés d'avance
 
 ### Corrigé
