@@ -44,6 +44,7 @@ from src.interfaces.api.schemas.access_request_schemas import (
     VehicleKnownOut,
 )
 from src.interfaces.api.schemas.error_schemas import ErrorOut
+from src.interfaces.api.vehicle_types import declared_vehicle_type
 
 logger = logging.getLogger(__name__)
 
@@ -122,7 +123,11 @@ def create_access_request(
 
     if body.type == RequestType.ENTRY:
         decision = entry_use_case.execute(
-            plate=body.license_plate, date=body.date, source=body.source, photo=photo
+            plate=body.license_plate,
+            date=body.date,
+            source=body.source,
+            photo=photo,
+            declared_type=declared_vehicle_type(body.vehicle_type),
         )
         record_decision(decision.type, decision.result, decision.reason)
         return AccessRequestOut(

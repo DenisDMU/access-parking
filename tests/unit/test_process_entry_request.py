@@ -343,3 +343,78 @@ def test_reservation_cherchee_a_l_heure_du_passage_et_place_du_type_reserve():
     payload = publisher.published[0].payload
     assert payload["reservationId"] == "482913"
     assert payload["reservationEnd"] == (NOW + timedelta(hours=2)).isoformat()
+
+
+# --- Type de véhicule déclaré à la borne ------------------------------------------
+
+
+def _use_case(vehicles, parking=None):
+    return ProcessEntryRequest(
+        vehicles_port=vehicles,
+        booking_port=FakeBookingPort(),
+        parking_port=parking or FakeParkingPort(),
+        presence_repo=FakePresenceRepo(),
+        access_repo=FakeAccessRepo(),
+        event_publisher=FakeEventPublisher(),
+        ai_vision_port=FakeAIVisionPort(),
+    )
+
+
+def test_type_declare_transmis_a_vehicles_pour_un_vehicule_inconnu():
+    vehicles = FakeVehiclesPort({})
+    declared = VehicleType(category=VehicleCategory.FOUR_WHEELER, is_electric=True)
+    parking = FakeParkingPort()
+    decision = _use_case(vehicles, parking).execute(
+        "ZZ-999-ZZ", NOW, DetectionSource.TERMINAL, declared_type=declared
+    )
+    assert vehicles.declared == [declared]
+    assert decision.result is AuthorizationResult.AUTHORIZED
+    assert parking.calls[0][0].is_electric  # place avec recharge demandée
+
+
+def test_pmr_declare_inconnu_de_vehicles_demande_un_agent():
+    vehicles = FakeVehiclesPort({})
+    declared = VehicleType(category=VehicleCategory.FOUR_WHEELER, is_handicap=True)
+    parking = FakeParkingPort()
+    decision = _use_case(vehicles, parking).execute(
+        "ZZ-999-ZZ", NOW, DetectionSource.TERMINAL, declared_type=declared
+    )
+    assert parking.calls[0][0].is_handicap  # place PMR demandée
+    assert decision.result is AuthorizationResult.CONFIRMATION_REQUIRED
+    assert decision.disability_check_ok is False
+    assert parking.confirmed_holds == []  # place non confirmée tant qu'un agent n'a pas vérifié
+
+
+def test_pmr_connu_de_vehicles_entre_normalement():
+    vehicles = FakeVehiclesPort(
+        {
+            "FF-666-FF": VehicleInfo(
+                vehicle_id="v_pmr",
+                vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER, is_handicap=True),
+                disability_permit=True,
+            )
+        }
+    )
+    declared = VehicleType(category=VehicleCategory.FOUR_WHEELER, is_handicap=True)
+    decision = _use_case(vehicles).execute(
+        "FF-666-FF", NOW, DetectionSource.TERMINAL, declared_type=declared
+    )
+    assert decision.result is AuthorizationResult.AUTHORIZED
+
+
+def test_vehicle_connu_sa_fiche_vehicles_fait_foi():
+    vehicles = FakeVehiclesPort(
+        {
+            "AA-111-AA": VehicleInfo(
+                vehicle_id="v_std", vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER)
+            )
+        }
+    )
+    parking = FakeParkingPort()
+    _use_case(vehicles, parking).execute(
+        "AA-111-AA",
+        NOW,
+        DetectionSource.TERMINAL,
+        declared_type=VehicleType(category=VehicleCategory.FOUR_WHEELER, is_xl=True),
+    )
+    assert not parking.calls[0][0].is_xl

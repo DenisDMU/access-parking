@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from src.domain.value_objects.dto import VehicleInfo
+from src.domain.value_objects.dto import VehicleInfo, VehicleType
 
 
 class VehiclesServicePort(Protocol):
@@ -20,9 +20,16 @@ class VehiclesServicePort(Protocol):
         s'il est inconnu (ou si Vehicles est indisponible)."""
         ...
 
-    def identify_vehicle(self, plate: str) -> VehicleInfo | None:
+    def identify_vehicle(
+        self, plate: str, declared: VehicleType | None = None
+    ) -> VehicleInfo | None:
         """Retrouve le véhicule ou le crée s'il est inconnu (règle 3.2 :
         Vehicles « recherche ou crée » l'identifiant pseudonymisé).
+
+        `declared` : type choisi par le conducteur à la borne. Il ne sert qu'à
+        créer un véhicule inconnu avec les bonnes caractéristiques (électrique,
+        XL, deux-roues) ; un véhicule connu n'est jamais modifié. PMR n'est
+        jamais enregistré sur simple déclaration.
 
         `None` seulement si Vehicles est indisponible ou répond hors contrat.
         """

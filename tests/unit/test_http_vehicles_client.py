@@ -11,6 +11,7 @@ import logging
 
 import httpx
 
+from src.domain.value_objects.dto import VehicleType
 from src.domain.value_objects.enums import VehicleCategory
 from src.infrastructure.external.http_vehicles_client import HttpVehiclesClient
 
@@ -213,3 +214,31 @@ def test_plate_never_appears_in_logs(caplog):
 
     assert caplog.records
     assert all(_PLATE not in record.getMessage() for record in caplog.records)
+
+
+# --- Type déclaré à la borne -----------------------------------------------------
+
+
+def test_type_declare_envoye_a_identify_sans_jamais_pmr():
+    vehicles = _FakeVehicles(known=False)
+    declared = VehicleType(
+        category=VehicleCategory.FOUR_WHEELER, is_electric=True, is_handicap=True
+    )
+    _client(vehicles).identify_vehicle(_PLATE, declared=declared)
+    assert vehicles.identified == [
+        {"licensePlate": _PLATE, "isElectric": True, "isXl": False, "isTwoWheels": False}
+    ]
+
+
+def test_deux_roues_declare():
+    vehicles = _FakeVehicles(known=False)
+    _client(vehicles).identify_vehicle(
+        _PLATE, declared=VehicleType(category=VehicleCategory.TWO_WHEELER)
+    )
+    assert vehicles.identified[0]["isTwoWheels"] is True
+
+
+def test_sans_type_declare_seule_la_plaque_est_envoyee():
+    vehicles = _FakeVehicles(known=False)
+    _client(vehicles).identify_vehicle(_PLATE)
+    assert vehicles.identified == [{"licensePlate": _PLATE}]

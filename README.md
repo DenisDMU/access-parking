@@ -20,7 +20,7 @@
 | | |
 |---|---|
 | **Rôle** | Décide si un véhicule peut entrer/sortir du parking et coordonne les échanges avec Vehicles, Booking, Parking, Pricing, Payment (aucune donnée métier des autres services). |
-| **Version actuelle** | `4.6.1` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
+| **Version actuelle** | `4.7.0` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
 | **Dernière mise à jour** | 24 novembre 2026 (plaques de tous pays ; Parking 1.5.0 : catégories et occupation ; borne client ; Vehicles par plaque) |
 | **URL du service déployé** | https://access-api-a1u7.onrender.com |
 | **Documentation Swagger/OpenAPI** | https://access-api-a1u7.onrender.com/docs (ReDoc : `/redoc`, spec brute : `/openapi.json`) |
@@ -69,11 +69,11 @@
 | **API** | ✅ REST documentée (`/docs`), entrées/sorties validées, erreurs normalisées, `/health` | [section 11](#11-endpoints) |
 | **Intégration** | ✅ Les 5 services réels (Vehicles, Booking, Parking, Pricing, Payment, en REST) ; événements publiés sur RabbitMQ (bus d'équipe) | [section 5](#5-brancher-un-vrai-microservice-à-la-place-dun-mock), [section 6](#6-publication-dévénements--webhook-ou-rabbitmq) |
 | **UI** | ✅ Borne client `/borne` (entrée/sortie, clavier à l'écran, ticket, clair/sombre, mobile) et dashboard servi par Access : borne d'entrée/sortie, état du parking (présences, occupation vue par Parking, décisions, santé), journal d'événements, recherche | [section 12](#12-borne-et-journal-de-bord-dashboard) |
-| **Qualité** | ✅ 303 tests (unitaires + intégration), entrées invalides et cas limites couverts, `ruff` (lint + format), script de vérification reproductible | [section 9](#9-tests-et-qualité) |
+| **Qualité** | ✅ 315 tests (unitaires + intégration), entrées invalides et cas limites couverts, `ruff` (lint + format), script de vérification reproductible | [section 9](#9-tests-et-qualité) |
 | **Observabilité** | ✅ Correlation ID propagé à tous les services et événements, logs par décision, `/metrics` Prometheus (techniques + métier + intégration), config Prometheus fournie, `/health` avec version et commit | [section 9](#métriques-prometheus) |
 | **CI/CD et déploiement** | ✅ GitHub Actions (lint → tests → bandit → pip-audit → gitleaks), déploiement Render après CI verte, smoke test de l'instance déployée (version vérifiée), CHANGELOG, Dependabot | [section 9](#intégration-continue-cicd), [section 14](#14-déploiement-sur-render) |
 | **Sécurité** | ✅ Clé API (comparaison en temps constant) sur toutes les routes sauf `/health`, clé borne limitée au passage d'un véhicule, refus de démarrer en production avec une clé faible, validation stricte, erreurs sans stack trace, en-têtes de sécurité, CORS restreint, rate limiting, secrets hors Git, plaque jamais stockée/publiée/renvoyée/loggée (test dédié) | [section 10](#10-sécurité) |
-| **Version** | `4.6.1` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
+| **Version** | `4.7.0` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
 | **Dernière mise à jour** | 24 novembre 2026 | |
 
 ### Suivi des jalons
@@ -489,7 +489,7 @@ ACCESS_TEST_DATABASE_URL=<url Postgres> pytest tests/integration   # idem contre
 pytest -v            # détail de chaque cas
 ```
 
-Couverture (303 tests) :
+Couverture (315 tests) :
 
 - **Unitaires** — matrice complète de la règle de compatibilité
   véhicule/place, règle de présence, règle d'accessibilité ; chaque use case
@@ -532,7 +532,7 @@ précédente, `needs:` dans le workflow) et doivent **tous** passer — si une
 | Job | Outil | Ce qu'il vérifie |
 |---|---|---|
 | Lint | `ruff` | Erreurs, imports, bugs probables, règles de sécurité, **formatage homogène** (config : `ruff.toml`) |
-| Tests | `pytest` | Les 303 tests unitaires + intégration, sans aucun secret |
+| Tests | `pytest` | Les 315 tests unitaires + intégration, sans aucun secret |
 | Sécurité du code | `bandit` | Analyse statique (SAST) : injections, appels dangereux, secrets en dur… |
 | Dépendances | `pip-audit` | Vulnérabilités connues (CVE) dans `requirements.txt` |
 | Secrets | `gitleaks` | Aucun secret (clé API, URL CloudAMQP…) dans tout l'historique git |
@@ -731,12 +731,12 @@ Préfixe `/api/v1` (sauf `/health` et `/metrics`).
 
 | Méthode | Route | Auth | Description |
 |---|---|---|---|
-| POST | `/access/requests` | Oui (clé API ou clé borne) | Crée et traite une demande d'accès (entrée ou sortie). Si le passage est autorisé, la réponse indique aussi `placeType`, `placeLabel` et `reservation` (entrée) ou `enteredAt` et `durationMinutes` (sortie) |
+| POST | `/access/requests` | Oui (clé API ou clé borne) | Crée et traite une demande d'accès (entrée ou sortie) ; `vehicleType` facultatif à l'entrée (type choisi à la borne). Si le passage est autorisé, la réponse indique aussi `placeType`, `placeLabel` et `reservation` (entrée) ou `enteredAt` et `durationMinutes` (sortie) |
 | GET | `/access/requests/{id}` | Oui | Détail d'une demande + décision |
 | GET | `/access/requests?vehicleId=&type=&from=&to=&limit=` | Oui | Liste/filtre (audit), plus récentes d'abord, avec la décision (`result`, `reason`, `paymentAmount`) |
 | GET | `/access/presences` | Oui | Véhicules actuellement présents (heure d'entrée, place attribuée, réservation) |
 | GET | `/borne/status` | Non | `{"publicAccess": true}` si la borne publique est ouverte (lu par `/borne` au démarrage) |
-| POST | `/borne/passages` | Non (borne publique) | Passage d'un véhicule depuis la borne : `{"licensePlate", "type"}` ; date imposée par le serveur, 10/min par adresse, réponse sans identifiants ; 403 si `BORNE_PUBLIC=false` |
+| POST | `/borne/passages` | Non (borne publique) | Passage d'un véhicule depuis la borne : `{"licensePlate", "type", "vehicleType"}` (`vehicleType` facultatif, entrée seulement : `STANDARD`, `ELECTRIC`, `XL`, `HANDICAPPED`, `TWO_WHEELS`) ; date imposée par le serveur, 10/min par adresse, réponse sans identifiants ; 403 si `BORNE_PUBLIC=false` |
 | GET | `/access/borne/key` | Oui (clé API seulement) | Clé des bornes client, pour leur mise en service depuis le dashboard ; 404 si `BORNE_API_KEY` n'est pas définie. Refusée (401) avec la clé borne |
 | GET | `/access/parking` | Oui (clé API) | Occupation par catégorie vue par Parking (libellé, prises, mises de côté, capacité) et catégories utilisées par Access mais absentes chez Parking ; `available: false` si Parking ne répond pas |
 | POST | `/access/vehicles/known` | Oui | Vérifie si une plaque (`{"licensePlate": …}`) est connue de Vehicles, sans la créer ni rien persister |
@@ -846,16 +846,32 @@ que voit le conducteur à l'entrée ou à la sortie du parking :
 
 1. **Accueil** : « Entrer » ou « Sortir ». Une borne installée à un endroit
    précis saute ce choix (`/borne?mode=entree` ou `/borne?mode=sortie`).
-2. **Plaque** : saisie libre au clavier à l'écran (ou au clavier
+2. **Votre véhicule** (entrée seulement) : cinq grandes tuiles avec icône —
+   Voiture, Électrique (place avec recharge), Grand gabarit (utilitaire,
+   fourgon, camping-car), Mobilité réduite (place PMR), Deux-roues (moto,
+   scooter). Le choix est envoyé à Access (`vehicleType`) :
+   - pour un véhicule **inconnu**, Vehicles le crée avec ces caractéristiques
+     (électrique, XL, deux-roues) ; pour un véhicule **connu**, sa fiche
+     Vehicles fait foi (vérifié : `identify` ne modifie jamais un véhicule
+     existant) ;
+   - **Mobilité réduite** : si Vehicles connaît le véhicule comme PMR, entrée
+     normale ; sinon une place PMR est demandée mais **un agent vérifie la
+     carte** avant d'ouvrir (« Un agent arrive »). PMR n'est jamais
+     enregistré chez Vehicles sur simple déclaration ;
+   - une réservation Booking impose son propre type de place.
+
+   L'écran suivant rappelle le type choisi, avec « Modifier ».
+3. **Plaque** : saisie libre au clavier à l'écran (ou au clavier
    physique) : lettres, chiffres et espace, pour les plaques françaises
    (SIV ou ancien format) comme étrangères, 2 à 10 caractères. Une plaque
    SIV est mise en forme `AB-123-CD` et marquée « F » ; les autres
    s'affichent telles que saisies.
-3. **Traitement** : étapes affichées (identification, place ou montant,
+4. **Traitement** : étapes affichées (identification, place ou montant,
    paiement ; jusqu'à ~40 s pour un paiement).
-4. **Résultat** :
-   - entrée autorisée : « La barrière s'ouvre », type de place (libellé
-     fourni par Parking, sinon standard, électrique, XL, PMR, deux-roues),
+5. **Résultat** :
+   - entrée autorisée : « La barrière s'ouvre », type de place en français
+     (place standard, avec recharge, grand gabarit, PMR, deux-roues : les
+     libellés techniques de Parking ne sont jamais affichés au client),
      réservation reconnue ;
    - sortie autorisée : ticket avec heure d'entrée, heure de sortie, durée et
      montant payé (« Gratuit » pendant la première heure) ;

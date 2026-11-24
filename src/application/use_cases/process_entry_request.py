@@ -23,6 +23,7 @@ Déroulé (section 8 de la spec) :
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 from datetime import datetime
 from uuid import uuid4
 
@@ -101,17 +102,31 @@ class ProcessEntryRequest:
         date: datetime,
         source: DetectionSource,
         photo: bytes | None = None,
+        declared_type: VehicleType | None = None,
     ) -> EntryDecision:
         request_id = str(uuid4())
 
         ai_check = self._analyze_photo(photo)
-        vehicle_info = self._vehicles_port.identify_vehicle(plate)
+        vehicle_info = self._vehicles_port.identify_vehicle(plate, declared=declared_type)
         del plate  # RGPD : la plaque ne sert qu'à interroger Vehicles
 
         if vehicle_info is None:
             return self._reject_unknown_vehicle(request_id, date, source, ai_check)
 
         vehicle_id = vehicle_info.vehicle_id
+        if (
+            declared_type is not None
+            and declared_type.is_handicap
+            and not vehicle_info.vehicle_type.is_handicap
+        ):
+            # PMR choisi à la borne mais inconnu de Vehicles : place PMR
+            # demandée, justificatif non vérifié → un agent confirme
+            # (règle d'accessibilité : confirmation, jamais refus direct).
+            vehicle_info = replace(
+                vehicle_info,
+                vehicle_type=replace(vehicle_info.vehicle_type, is_handicap=True),
+                disability_permit=False,
+            )
 
         presence_status = self._presence_repo.get_status(vehicle_id)
         if not can_enter(presence_status):

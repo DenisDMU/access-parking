@@ -4,6 +4,25 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.7.0] — 2026-11-24 — Type de véhicule à la borne
+
+### Ajouté
+- Borne, à l'entrée : écran « Votre véhicule » avant la plaque, cinq tuiles
+  avec icône (Voiture, Électrique, Grand gabarit, Mobilité réduite,
+  Deux-roues) ; rappel du choix sur l'écran de la plaque, avec « Modifier ».
+  La sortie va directement à la plaque.
+- `vehicleType` (facultatif, entrée seulement) sur `POST /access/requests`
+  et `POST /borne/passages` : `STANDARD`, `ELECTRIC`, `XL`, `HANDICAPPED`,
+  `TWO_WHEELS`. Transmis à Vehicles pour créer un véhicule inconnu avec ses
+  caractéristiques ; un véhicule connu garde sa fiche (vérifié en réel).
+- Mobilité réduite déclarée sur un véhicule que Vehicles ne connaît pas
+  comme PMR : place PMR demandée, carte vérifiée par un agent
+  (confirmation requise) ; PMR jamais enregistré sur simple déclaration.
+
+### Modifié
+- Borne : libellés de place toujours en français (« Place avec recharge »,
+  « Place PMR »…), jamais le libellé technique de Parking.
+
 ## [4.6.1] — 2026-11-24 — Vehicles : identification puis consultation par identifiant
 
 ### Corrigé

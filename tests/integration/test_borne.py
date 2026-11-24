@@ -143,7 +143,14 @@ def test_page_borne_autonome_et_sans_donnees_d_exploitation(client):
     response = client.get("/borne")
     assert response.status_code == 200
     html = response.text
-    for screen in ("screen-home", "screen-plate", "screen-wait", "screen-result", "screen-config"):
+    for screen in (
+        "screen-home",
+        "screen-type",
+        "screen-plate",
+        "screen-wait",
+        "screen-result",
+        "screen-config",
+    ):
         assert f'id="{screen}"' in html
     # Aucune ressource externe.
     assert "https://" not in html.replace("http://www.w3.org/2000/svg", "")
@@ -203,3 +210,17 @@ def test_bouton_de_mise_en_service_dans_le_dashboard(client):
     assert 'id="borneLaunch" hidden' in html  # caché tant que la clé n'est pas validée
     assert "/api/v1/access/borne/key" in html
     assert "access.borne.key" in html  # même emplacement que celui lu par la borne
+
+
+def test_ecran_type_de_vehicule_en_francais(client):
+    html = client.get("/borne").text
+    for code, label in [
+        ("STANDARD", "Voiture"),
+        ("ELECTRIC", "Électrique"),
+        ("XL", "Grand gabarit"),
+        ("HANDICAPPED", "Mobilité réduite"),
+        ("TWO_WHEELS", "Deux-roues"),
+    ]:
+        assert f'code: "{code}", name: "{label}"' in html
+    # Jamais de libellé technique de Parking à l'écran.
+    assert "data.placeLabel ||" not in html

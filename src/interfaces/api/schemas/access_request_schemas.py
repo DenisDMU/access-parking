@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 from datetime import UTC, datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -28,6 +29,16 @@ from src.domain.value_objects.enums import (
 _SEPARATORS = re.compile(r"[\s.\-]+")
 _SIV = re.compile(r"^([A-Z]{2})(\d{3})([A-Z]{2})$")
 _ANY_PLATE = re.compile(r"^[A-Z0-9]{2,10}$")
+# Type de véhicule choisi par le conducteur à la borne (entrée) : mêmes
+# codes que Parking et Booking. Sert à créer un véhicule inconnu avec les
+# bonnes caractéristiques ; pour un véhicule connu, Vehicles fait foi.
+VehicleTypeCode = Literal["STANDARD", "ELECTRIC", "XL", "HANDICAPPED", "TWO_WHEELS"]
+VEHICLE_TYPE_DESCRIPTION = (
+    "Entrée seulement, facultatif : type choisi à la borne (STANDARD, ELECTRIC, XL, "
+    "HANDICAPPED, TWO_WHEELS). Crée un véhicule inconnu avec ces caractéristiques ; "
+    "pour un véhicule connu, Vehicles fait foi. HANDICAPPED sur un véhicule que "
+    "Vehicles ne connaît pas comme PMR : place PMR, justificatif vérifié par un agent."
+)
 PLATE_FORMAT_ERROR = "Plaque attendue : 2 à 10 lettres (A-Z) ou chiffres, séparateurs acceptés"
 
 
@@ -78,6 +89,9 @@ class AccessRequestIn(BaseModel):
     type: RequestType = Field(description="1=ENTRY, 2=EXIT")
     date: datetime
     source: DetectionSource = Field(description="1=CAMERA, 2=TERMINAL, 3=LPR, 4=MOBILE_APP")
+    vehicle_type: VehicleTypeCode | None = Field(
+        default=None, alias="vehicleType", description=VEHICLE_TYPE_DESCRIPTION
+    )
     photo_base64: str | None = Field(
         default=None, alias="photoBase64", max_length=MAX_PHOTO_BASE64_LENGTH
     )
@@ -254,11 +268,16 @@ class BornePassageIn(BaseModel):
 
     model_config = ConfigDict(
         populate_by_name=True,
-        json_schema_extra={"examples": [{"licensePlate": "AB-123-CD", "type": 1}]},
+        json_schema_extra={
+            "examples": [{"licensePlate": "AB-123-CD", "type": 1, "vehicleType": "ELECTRIC"}]
+        },
     )
 
     license_plate: str = Field(alias="licensePlate", max_length=20)
     type: RequestType = Field(description="1=ENTRY, 2=EXIT")
+    vehicle_type: VehicleTypeCode | None = Field(
+        default=None, alias="vehicleType", description=VEHICLE_TYPE_DESCRIPTION
+    )
 
     @field_validator("license_plate")
     @classmethod
@@ -338,7 +357,7 @@ class HealthOut(BaseModel):
         description="Moteur de base utilisé (sqlite ou postgresql) — jamais l'URL",
     )
     uptime_seconds: int = Field(alias="uptimeSeconds", examples=[1234])
-    version: str = Field(examples=["4.6.1"])
+    version: str = Field(examples=["4.7.0"])
     commit: str = Field(examples=["b742756d0c1e9f4a8b3c2d1e0f9a8b7c6d5e4f3a"])
     booking: str = Field(
         examples=["réel"],

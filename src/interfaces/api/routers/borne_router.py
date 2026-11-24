@@ -39,6 +39,7 @@ from src.interfaces.api.schemas.access_request_schemas import (
     BorneStatusOut,
 )
 from src.interfaces.api.schemas.error_schemas import ErrorOut
+from src.interfaces.api.vehicle_types import declared_vehicle_type
 
 router = APIRouter(prefix="/borne", tags=["Borne publique"])
 
@@ -84,7 +85,10 @@ def borne_passage(
     now = datetime.now(UTC)
     if body.type == RequestType.ENTRY:
         decision = entry_use_case.execute(
-            plate=body.license_plate, date=now, source=DetectionSource.TERMINAL
+            plate=body.license_plate,
+            date=now,
+            source=DetectionSource.TERMINAL,
+            declared_type=declared_vehicle_type(body.vehicle_type),
         )
         record_decision(decision.type, decision.result, decision.reason)
         return BornePassageOut(
