@@ -150,6 +150,7 @@ Instrumentator(excluded_handlers=["/health", "/metrics", "/static.*"]).instrumen
     summary="Métriques Prometheus du service",
     dependencies=[Depends(verify_api_key)],
 )
+app.include_router(access_router.passage_router, prefix="/api/v1")
 app.include_router(access_router.router, prefix="/api/v1")
 app.include_router(events_router.router, prefix="/api/v1")
 
@@ -163,3 +164,11 @@ app.mount("/static", StaticFiles(directory=_STATIC_DIR), name="static")
 @app.get("/", include_in_schema=False)
 async def root() -> RedirectResponse:
     return RedirectResponse(url="/static/dashboard.html")
+
+
+@app.get("/borne", include_in_schema=False)
+async def borne(request: Request) -> RedirectResponse:
+    """Borne client (écran public). `?mode=entree|sortie` fixe son emplacement."""
+
+    query = f"?{request.url.query}" if request.url.query else ""
+    return RedirectResponse(url=f"/static/borne.html{query}")

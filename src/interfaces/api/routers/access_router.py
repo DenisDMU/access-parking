@@ -20,11 +20,11 @@ from src.application.use_cases.list_access_requests import ListAccessRequests
 from src.application.use_cases.list_present_vehicles import ListPresentVehicles
 from src.application.use_cases.process_entry_request import ProcessEntryRequest
 from src.application.use_cases.process_exit_request import ProcessExitRequest
-from src.domain.value_objects.dto import AccessFilters
+from src.domain.value_objects.dto import AccessFilters, PlaceType
 from src.domain.value_objects.enums import RequestType
 from src.infrastructure.config import get_settings
 from src.infrastructure.metrics import record_decision
-from src.infrastructure.security.api_key_auth import verify_api_key
+from src.infrastructure.security.api_key_auth import verify_api_key, verify_passage_key
 from src.interfaces.api import deps
 from src.interfaces.api.rate_limit import limiter
 from src.interfaces.api.schemas.access_request_schemas import (
@@ -45,12 +45,30 @@ router = APIRouter(
     tags=["Access"],
     dependencies=[Depends(verify_api_key)],
 )
+# Passage d'un véhicule : seule route ouverte aussi à la clé des bornes client
+# (`BORNE_API_KEY`). Toutes les autres routes exigent la clé d'exploitation.
+passage_router = APIRouter(
+    prefix="/access",
+    tags=["Access"],
+    dependencies=[Depends(verify_passage_key)],
+)
 
 
 def _as_utc(value: datetime) -> datetime:
     """Date sans fuseau = UTC (même convention que `AccessRequestIn`)."""
 
     return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+
+
+def _place_type_out(place_type: PlaceType | None) -> PlaceTypeOut | None:
+    if place_type is None:
+        return None
+    return PlaceTypeOut(
+        category=int(place_type.category),
+        isXl=place_type.is_xl,
+        isElectric=place_type.is_electric,
+        isHandicap=place_type.is_handicap,
+    )
 
 
 _COMMON_ERROR_RESPONSES = {
@@ -60,7 +78,7 @@ _COMMON_ERROR_RESPONSES = {
 }
 
 
-@router.post(
+@passage_router.post(
     "/requests",
     response_model=AccessRequestOut,
     status_code=status.HTTP_200_OK,
@@ -70,7 +88,8 @@ _COMMON_ERROR_RESPONSES = {
         "Booking ou attribution Parking, compatibilité véhicule/place, "
         "accessibilité PMR) ou de sortie (Pricing puis Payment) et retourne "
         "la décision. La plaque est transmise à Vehicles puis oubliée : elle "
-        "n'est jamais persistée, publiée ni renvoyée."
+        "n'est jamais persistée, publiée ni renvoyée. Accepte la clé "
+        "d'exploitation ou la clé des bornes client (`BORNE_API_KEY`)."
     ),
     responses={
         200: {"description": "Décision rendue (autorisée, refusée, ou confirmation requise)"},
@@ -111,6 +130,8 @@ def create_access_request(
                 disabilityCheckOk=decision.disability_check_ok,
                 paymentAmount=None,
             ),
+            placeType=_place_type_out(decision.place_type),
+            reservation=decision.reservation,
         )
 
     decision = exit_use_case.execute(plate=body.license_plate, date=body.date, source=body.source)
@@ -128,6 +149,8 @@ def create_access_request(
             disabilityCheckOk=None,
             paymentAmount=amount,
         ),
+        enteredAt=decision.entered_at,
+        durationMinutes=decision.duration_minutes,
     )
 
 
@@ -247,16 +270,7 @@ def list_present_vehicles(
             entryRequestId=v.entry_request_id,
             enteredAt=v.entered_at,
             placeId=v.place_id,
-            placeType=(
-                PlaceTypeOut(
-                    category=int(v.place_type.category),
-                    isXl=v.place_type.is_xl,
-                    isElectric=v.place_type.is_electric,
-                    isHandicap=v.place_type.is_handicap,
-                )
-                if v.place_type
-                else None
-            ),
+            placeType=_place_type_out(v.place_type),
             reservation=v.is_reservation,
         )
         for v in use_case.execute()

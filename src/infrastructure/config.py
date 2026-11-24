@@ -33,6 +33,11 @@ class Settings:
     # `or` : une variable définie mais vide (Render, sync: false) retombe sur SQLite.
     database_url: str = os.getenv("DATABASE_URL") or "sqlite:///./access.db"
     api_key: str = os.getenv("API_KEY", "change-me")  # voir check_secrets()
+    # Clé des bornes client (écran public) : elle ne permet QUE de faire passer
+    # un véhicule (`POST /access/requests`), jamais de consulter l'historique,
+    # les présences, les événements ou les métriques. Vide = pas de clé borne
+    # (seule API_KEY est acceptée partout).
+    borne_api_key: str = os.getenv("BORNE_API_KEY", "")
     log_level: str = os.getenv("LOG_LEVEL", "INFO")
     # SHA du commit déployé, fourni automatiquement par Render à chaque
     # build — permet de prouver quel code tourne réellement en ligne
@@ -120,6 +125,11 @@ def check_secrets(settings: Settings, *, production: bool) -> list[str]:
         problems.append("API_KEY vaut la valeur par défaut 'change-me'")
     elif len(settings.api_key) < MIN_API_KEY_LENGTH:
         problems.append(f"API_KEY fait moins de {MIN_API_KEY_LENGTH} caractères")
+    if settings.borne_api_key:
+        if len(settings.borne_api_key) < MIN_API_KEY_LENGTH:
+            problems.append(f"BORNE_API_KEY fait moins de {MIN_API_KEY_LENGTH} caractères")
+        elif settings.borne_api_key == settings.api_key:
+            problems.append("BORNE_API_KEY doit être différente d'API_KEY")
     if problems and production:
         raise InsecureConfigurationError("; ".join(problems))
     return problems

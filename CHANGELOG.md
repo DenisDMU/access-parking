@@ -4,6 +4,26 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.1.0] — 2026-11-24 — Borne client
+
+Aucun champ existant modifié ni retiré : les autres services et la borne du
+dashboard fonctionnent comme avant.
+
+### Ajouté
+- Borne client `/borne` (écran public, entrée et sortie) : saisie guidée de
+  la plaque (clavier à l'écran ou physique), étapes du traitement, place
+  attribuée, ticket de sortie (entrée, sortie, durée, montant), messages
+  clairs en cas de refus, « Un agent arrive » si besoin, retour automatique
+  à l'accueil. `?mode=entree|sortie` pour une borne fixe, réglages par appui
+  long sur le logo ou `?config`. Thème clair/sombre, mobile, aucune
+  ressource externe ; la plaque n'est conservée nulle part.
+- Clé borne `BORNE_API_KEY` : n'autorise que `POST /access/requests` (401
+  sur toutes les autres routes). Access refuse de démarrer en production si
+  elle fait moins de 16 caractères ou vaut `API_KEY`. Générée par Render.
+- Réponse de `POST /access/requests` quand le passage est autorisé :
+  `placeType` et `reservation` (entrée), `enteredAt` et `durationMinutes`
+  (sortie). `null` sinon.
+
 ## [4.0.0] — 2026-11-24 — Vehicles par plaque
 
 Vehicles a changé de contrat le 24/11 : plus de `code`, les véhicules sont

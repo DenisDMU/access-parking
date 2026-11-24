@@ -51,7 +51,7 @@ Vérifiable : aucun `import` de `infrastructure`/`interfaces` dans `domain` ni
 
 - Logs : README [section 9](../README.md#logs-exploitables) — correlation ID,
   une ligne par décision, log d'accès, avertissements des appels sortants.
-- Tests : 191 (unitaires + intégration ; clés étrangères appliquées en SQLite comme en Postgres ; suite d'intégration validée aussi contre la base Neon de production, dans un schéma jetable), aucun réseau ; CI en 5 étapes.
+- Tests : 223 (unitaires + intégration ; clés étrangères appliquées en SQLite comme en Postgres ; suite d'intégration validée aussi contre la base Neon de production, dans un schéma jetable), aucun réseau ; CI en 5 étapes.
 - Dépendances (`requirements.txt`) : FastAPI, SQLAlchemy, Pydantic, httpx
   (appels sortants), pika (RabbitMQ), slowapi (rate limiting),
   prometheus-fastapi-instrumentator (métriques). Surveillées par Dependabot et
@@ -68,11 +68,21 @@ Principaux choix techniques à savoir justifier :
 
 - Architecture hexagonale plutôt qu'un CRUD FastAPI direct (règles testables
   sans réseau, services réels branchés un par un sans toucher au métier).
-- SQLite (simplicité, un seul service) — limite : disque éphémère sur Render.
+- Postgres (Neon) en production depuis 3.6.0, SQLite en local et dans les
+  tests : le disque de Render est éphémère, la base effaçait tout à chaque
+  redémarrage.
 - Publication d'événements **best-effort** après persistance (outbox) : une
   panne du bus ne bloque jamais une barrière.
 - Paiement idempotent (clé `access:{stationnement}:exit`) + polling borné.
-- Clé API simple plutôt qu'OAuth2 (périmètre du jalon 15).
+- Clé API simple plutôt qu'OAuth2 (périmètre du jalon 15), avec une **clé
+  borne séparée** (4.1.0) : la borne client est un écran public, sa clé
+  n'ouvre que le passage d'un véhicule (401 partout ailleurs), jamais
+  l'historique ni les présences.
+- La plaque ne fait que traverser Access (4.0.0) : transmise à Vehicles puis
+  oubliée, jamais stockée, publiée, renvoyée ni loggée (test dédié).
+- Borne client (`/borne`) servie par Access lui-même : pas de front séparé à
+  déployer, pas de CORS ; champs de ticket ajoutés à la réponse sans en
+  modifier aucun (aucun consommateur cassé).
 
 ---
 

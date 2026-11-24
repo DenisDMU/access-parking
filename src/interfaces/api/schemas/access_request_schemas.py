@@ -98,6 +98,15 @@ class AuthorizationOut(BaseModel):
     payment_amount: float | None = Field(default=None, alias="paymentAmount")
 
 
+class PlaceTypeOut(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    category: int = Field(description="1=TWO_WHEELER, 2=FOUR_WHEELER")
+    is_xl: bool = Field(alias="isXl")
+    is_electric: bool = Field(alias="isElectric")
+    is_handicap: bool = Field(alias="isHandicap")
+
+
 class AccessRequestOut(BaseModel):
     """Réponse de `POST /access/requests`."""
 
@@ -126,6 +135,22 @@ class AccessRequestOut(BaseModel):
     type: RequestType
     status: RequestStatus = Field(description="1=IN_PROGRESS, 2=PROCESSED, 3=REJECTED")
     authorization: AuthorizationOut | None = None
+    # Champs ajoutés en 4.1.0 (borne client), renseignés seulement quand le
+    # passage est autorisé ; absents (null) sinon. Aucun champ existant modifié.
+    place_type: PlaceTypeOut | None = Field(
+        default=None, alias="placeType", description="Entrée : type de la place attribuée"
+    )
+    reservation: bool | None = Field(
+        default=None, description="Entrée : une réservation a été reconnue"
+    )
+    entered_at: datetime | None = Field(
+        default=None, alias="enteredAt", description="Sortie : heure d'entrée (UTC)"
+    )
+    duration_minutes: int | None = Field(
+        default=None,
+        alias="durationMinutes",
+        description="Sortie : durée de stationnement (minutes entamées)",
+    )
 
 
 class AccessRequestDetailOut(AccessRequestOut):
@@ -152,15 +177,6 @@ class AccessRequestListItemOut(BaseModel):
     )
     reason: str | None = None
     payment_amount: float | None = Field(default=None, alias="paymentAmount")
-
-
-class PlaceTypeOut(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
-    category: int = Field(description="1=TWO_WHEELER, 2=FOUR_WHEELER")
-    is_xl: bool = Field(alias="isXl")
-    is_electric: bool = Field(alias="isElectric")
-    is_handicap: bool = Field(alias="isHandicap")
 
 
 class PresentVehicleOut(BaseModel):
@@ -223,7 +239,7 @@ class HealthOut(BaseModel):
         description="Moteur de base utilisé (sqlite ou postgresql) — jamais l'URL",
     )
     uptime_seconds: int = Field(alias="uptimeSeconds", examples=[1234])
-    version: str = Field(examples=["4.0.0"])
+    version: str = Field(examples=["4.1.0"])
     commit: str = Field(examples=["b742756d0c1e9f4a8b3c2d1e0f9a8b7c6d5e4f3a"])
 
     model_config = ConfigDict(populate_by_name=True)
