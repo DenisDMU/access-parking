@@ -599,6 +599,40 @@ BASE_URL=https://access-api-a1u7.onrender.com API_KEY=<clé Render> VEHICLE_PLAT
 Toutes ses requêtes portent le même `X-Correlation-ID` (affiché en tête) :
 il suffit de le chercher dans les logs Render pour retrouver tout le passage.
 
+### Batterie de tests en ligne (borne publique)
+
+[`scripts/tests_en_ligne.py`](scripts/tests_en_ligne.py) fait 59 contrôles
+contre le service en ligne, sans clé : santé et version, pages, routes
+protégées (401), en-têtes de sécurité, erreurs de saisie, puis de **vrais
+passages** avec les cinq services (un par type de véhicule, refus attendus,
+plaques française et italienne identiques). Toujours dans la première heure
+gratuite : 0 €, aucun paiement. Environ 3 minutes (10 passages par minute
+au plus sur la borne publique).
+
+```bash
+python3 scripts/tests_en_ligne.py
+```
+
+Avec `VEHICLES_API_KEY`, les véhicules de test sont ensuite supprimés chez
+Vehicles (son `DELETE` exige une clé depuis le 24/11).
+
+### Agents Claude Code du projet
+
+Le dossier [`.claude/agents/`](.claude/agents) contient quatre agents
+spécialisés, à lancer depuis Claude Code en le demandant simplement
+(« lance l'agent veille-api », « check les API des autres ») :
+
+| Agent | Rôle |
+|---|---|
+| [`veille-api`](.claude/agents/veille-api.md) | Relit les Swagger de Vehicles, Booking, Parking, Pricing et Payment, les compare champ par champ à ce qu'Access envoie et lit, confirme par des appels réels en lecture seule, et dit quoi corriger |
+| [`tests-complets`](.claude/agents/tests-complets.md) | Lint, tests locaux, version déployée et batterie en ligne ; diagnostique chaque échec (bug d'Access ou changement d'un autre service) |
+| [`securite`](.claude/agents/securite.md) | Revue sécurité et RGPD : plaque jamais stockée, loggée ni renvoyée, routes protégées, secrets, dépendances, en-têtes, contrôles en ligne |
+| [`doc-sharepoint`](.claude/agents/doc-sharepoint.md) | Vérifie que README, CHANGELOG et REVUE collent au code et au service en ligne (version, tests, routes, contrats), et corrige la doc |
+
+Aucun agent ne crée de réservation ni de paiement réels, n'appelle la route
+de Vehicles qui renvoie la plaque, ni ne tente de contourner une
+authentification.
+
 ### Logs exploitables
 
 Format : `date niveau module [cid=<correlation ID>] message`. Exemple réel
