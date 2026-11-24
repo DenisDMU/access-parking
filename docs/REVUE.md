@@ -51,7 +51,7 @@ Vérifiable : aucun `import` de `infrastructure`/`interfaces` dans `domain` ni
 
 - Logs : README [section 9](../README.md#logs-exploitables) — correlation ID,
   une ligne par décision, log d'accès, avertissements des appels sortants.
-- Tests : 269 (unitaires + intégration ; clés étrangères appliquées en SQLite comme en Postgres ; suite d'intégration validée aussi contre la base Neon de production, dans un schéma jetable), aucun réseau ; CI en 5 étapes.
+- Tests : 274 (unitaires + intégration ; clés étrangères appliquées en SQLite comme en Postgres ; suite d'intégration validée aussi contre la base Neon de production, dans un schéma jetable), aucun réseau ; CI en 5 étapes.
 - Dépendances (`requirements.txt`) : FastAPI, SQLAlchemy, Pydantic, httpx
   (appels sortants), pika (RabbitMQ), slowapi (rate limiting),
   prometheus-fastapi-instrumentator (métriques). Surveillées par Dependabot et
@@ -77,7 +77,10 @@ Principaux choix techniques à savoir justifier :
 - Clé API simple plutôt qu'OAuth2 (périmètre du jalon 15), avec une **clé
   borne séparée** (4.1.0) : la borne client est un écran public, sa clé
   n'ouvre que le passage d'un véhicule (401 partout ailleurs), jamais
-  l'historique ni les présences.
+  l'historique ni les présences. Mise en service d'un clic depuis le
+  dashboard (4.4.0) : seul l'exploitant (clé d'exploitation) peut obtenir la
+  clé borne, rangée dans le navigateur pour la borne ; jamais servie à une
+  page publique.
 - La plaque ne fait que traverser Access (4.0.0) : transmise à Vehicles puis
   oubliée, jamais stockée, publiée, renvoyée ni loggée (test dédié).
 - Borne client (`/borne`) servie par Access lui-même : pas de front séparé à
