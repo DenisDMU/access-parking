@@ -20,8 +20,8 @@
 | | |
 |---|---|
 | **Rôle** | Décide si un véhicule peut entrer/sortir du parking et coordonne les échanges avec Vehicles, Booking, Parking, Pricing, Payment (aucune donnée métier des autres services). |
-| **Version actuelle** | `3.6.2` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
-| **Dernière mise à jour** | 18 novembre 2026 (jalons 8 à 15, base Postgres persistante, nouveau contrat Parking) |
+| **Version actuelle** | `4.0.0` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
+| **Dernière mise à jour** | 24 novembre 2026 (nouveau contrat Vehicles : identification par plaque) |
 | **URL du service déployé** | https://access-api-a1u7.onrender.com |
 | **Documentation Swagger/OpenAPI** | https://access-api-a1u7.onrender.com/docs (ReDoc : `/redoc`, spec brute : `/openapi.json`) |
 | **Dépendances (services appelés)** | **Vehicles** *(réel)*, Booking *(mocké)*, **Parking** *(réel)*, **Pricing** *(réel)*, **Payment** *(réel)* |
@@ -29,7 +29,7 @@
 
 ### Fonctionnalités
 
-- [x] Identifier un véhicule par son code Vehicles, sans jamais recevoir sa plaque (seul l'identifiant pseudonymisé circule).
+- [x] Identifier un véhicule par sa plaque auprès de Vehicles, qui le retrouve ou le crée ; la plaque n'est ni stockée, ni publiée, ni renvoyée, ni loggée (seul l'identifiant pseudonymisé circule).
 - [x] Autoriser l'entrée d'un véhicule sans réservation (place attribuée automatiquement).
 - [x] Autoriser l'entrée d'un véhicule avec réservation active.
 - [x] Refuser l'entrée d'un véhicule déjà présent.
@@ -66,12 +66,12 @@
 | **API** | ✅ REST documentée (`/docs`), entrées/sorties validées, erreurs normalisées, `/health` | [section 11](#11-endpoints) |
 | **Intégration** | ✅ Vehicles, Parking, Pricing, Payment réels (REST) ; événements publiés sur RabbitMQ (bus d'équipe) · ⏳ Booking encore mocké | [section 5](#5-brancher-un-vrai-microservice-à-la-place-dun-mock), [section 6](#6-publication-dévénements--webhook-ou-rabbitmq) |
 | **UI** | ✅ Dashboard servi par Access : borne d'entrée/sortie, état du parking (présences, décisions, santé), journal d'événements, recherche | [section 12](#12-borne-et-journal-de-bord-dashboard) |
-| **Qualité** | ✅ 191 tests (unitaires + intégration), entrées invalides et cas limites couverts, `ruff` (lint + format), script de vérification reproductible | [section 9](#9-tests-et-qualité) |
+| **Qualité** | ✅ 205 tests (unitaires + intégration), entrées invalides et cas limites couverts, `ruff` (lint + format), script de vérification reproductible | [section 9](#9-tests-et-qualité) |
 | **Observabilité** | ✅ Correlation ID propagé à tous les services et événements, logs par décision, `/metrics` Prometheus (techniques + métier + intégration), config Prometheus fournie, `/health` avec version et commit | [section 9](#métriques-prometheus) |
 | **CI/CD et déploiement** | ✅ GitHub Actions (lint → tests → bandit → pip-audit → gitleaks), déploiement Render après CI verte, smoke test de l'instance déployée (version vérifiée), CHANGELOG, Dependabot | [section 9](#intégration-continue-cicd), [section 14](#14-déploiement-sur-render) |
-| **Sécurité** | ✅ Clé API (comparaison en temps constant) sur toutes les routes sauf `/health`, refus de démarrer en production avec une clé faible, validation stricte, erreurs sans stack trace, en-têtes de sécurité, CORS restreint, rate limiting, secrets hors Git, jamais de plaque | [section 10](#10-sécurité) |
-| **Version** | `3.6.2` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
-| **Dernière mise à jour** | 18 novembre 2026 | |
+| **Sécurité** | ✅ Clé API (comparaison en temps constant) sur toutes les routes sauf `/health`, refus de démarrer en production avec une clé faible, validation stricte, erreurs sans stack trace, en-têtes de sécurité, CORS restreint, rate limiting, secrets hors Git, plaque jamais stockée/publiée/renvoyée/loggée (test dédié) | [section 10](#10-sécurité) |
+| **Version** | `4.0.0` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
+| **Dernière mise à jour** | 24 novembre 2026 | |
 
 ### Suivi des jalons
 
@@ -132,8 +132,12 @@ sequenceDiagram
     participant Pr as Pricing
     participant Pa as Payment
 
-    V->>A: Entrée (code véhicule)
-    A->>Ve: GET /api/vehicles/{code}
+    V->>A: Entrée (plaque)
+    A->>Ve: GET /api/vehicles/{plaque}
+    alt plaque inconnue (404)
+        A->>Ve: POST /api/vehicles/identify (crée le véhicule)
+        A->>Ve: GET /api/vehicles/{plaque}
+    end
     Ve-->>A: pseudoId (= vehicleId) + attributs
     A->>B: get_reservation(vehicleId)
     alt pas de réservation
@@ -142,8 +146,8 @@ sequenceDiagram
     A-->>V: Autorisation (AUTHORIZED / REFUSED / CONFIRMATION_REQUIRED)
     A--)A: Publie VEHICLE_ENTERED / ACCESS_REFUSED
 
-    V->>A: Sortie (code véhicule)
-    A->>Ve: GET /api/vehicles/{code}
+    V->>A: Sortie (plaque)
+    A->>Ve: GET /api/vehicles/{plaque} (consultation seule)
     A->>Pr: calculate_price(...)
     Pr-->>A: amount
     A->>Pa: POST /payments (clé d'idempotence = stationnement)
@@ -155,14 +159,19 @@ sequenceDiagram
     A--)A: Publie VEHICLE_EXITED / ACCESS_REFUSED
 ```
 
-**Règle absolue (RGPD) : Access ne voit jamais la plaque.** C'est Vehicles
-qui identifie la plaque et lui associe un `code` ; Access reçoit uniquement
-ce code et consulte la donnée anonymisée correspondante
-(`VehiclesServicePort.get_vehicle_info(vehicle_code)`, depuis
-`ProcessEntryRequest` / `ProcessExitRequest` / `CheckVehicleKnown`). Seul le
+**Règle absolue (RGPD) : la plaque ne fait que traverser Access.** La borne
+envoie la plaque lue ; Access la transmet à Vehicles (règle 3.7 : Access
+*demande* l'identifiant à Vehicles), seul service qui la conserve, puis
+l'oublie (`del plate` dans `ProcessEntryRequest` / `ProcessExitRequest` /
+`CheckVehicleKnown`). À l'entrée, `identify_vehicle` retrouve le véhicule ou
+le fait créer par Vehicles s'il est inconnu (règle 3.2) ; à la sortie et
+pour la vérification, `get_vehicle_info` ne fait que consulter. Seul le
 `pseudoId` renvoyé par Vehicles (le `vehicleId`) est persisté, publié et
-renvoyé. Un filtre de logging masque en plus toute sous-chaîne au format
-plaque, en défense en profondeur (voir [section 10](#10-sécurité)).
+renvoyé. La plaque n'apparaît dans aucune table, aucun événement, aucune
+réponse (y compris les erreurs 422, dont la valeur reçue est retirée) ni
+aucun log : `tests/integration/test_no_plate_leak.py` le vérifie, et un
+filtre de logging masque en plus toute sous-chaîne au format plaque, en
+défense en profondeur (voir [section 10](#10-sécurité)).
 
 ---
 
@@ -204,12 +213,14 @@ Toutes les autres routes exigent l'en-tête `X-API-Key` (valeur de `API_KEY`
 dans `.env`, `change-me` par défaut). Dans Swagger, cliquez sur **Authorize**
 et collez la clé.
 
-Les véhicules sont ceux du vrai service Vehicles : pour tester un passage,
-enregistrez d'abord un véhicule chez Vehicles (`POST /api/vehicles/identify`,
-voir son [Swagger](https://parking-vehicles.onrender.com/swagger-ui/index.html)),
-puis utilisez le `code` choisi dans les demandes d'Access. Un code inconnu de
-Vehicles donne un rejet "véhicule inconnu". Les tests automatisés utilisent
-un registre déterministe de codes 1 à 8 (`DEMO_VEHICLES`, dans
+Les véhicules sont ceux du vrai service Vehicles (voir son
+[Swagger](https://parking-vehicles.onrender.com/swagger-ui/index.html)) : il
+suffit d'envoyer une plaque au format `AB-123-CD` (minuscules et espaces
+acceptés). Une plaque inconnue est créée chez Vehicles à l'entrée, comme un
+4 roues standard ; pour tester un profil précis (PMR, électrique, XL, 2
+roues), enregistrez-le d'abord chez Vehicles (`POST /api/vehicles/identify`).
+Les tests automatisés utilisent un registre déterministe de plaques
+`AA-111-AA` à `HH-888-HH` (`DEMO_VEHICLES`, dans
 [`tests/unit/fakes.py`](tests/unit/fakes.py)) qui couvre chaque profil
 (2 roues, XL, électrique, PMR avec/sans justificatif, réservation...).
 
@@ -353,7 +364,7 @@ même fichier `deps.py`) — chaque squelette liste ses propres `TODO` :
 
 | Service  | Fichier squelette                      | Points ouverts principaux |
 |----------|------------------------------------------|----------------------------|
-| **Vehicles** | `http_vehicles_client.py` | **✅ Branché** (`GET /api/vehicles/{code}`) — `pseudoId` devient le `vehicleId`, `disabled` vaut type PMR **et** justificatif, toute réponse non-200 = véhicule inconnu, voir section 16 |
+| **Vehicles** | `http_vehicles_client.py` | **✅ Branché** (`GET /api/vehicles/{plaque}`, et `POST /api/vehicles/identify` à l'entrée sur un 404) — `pseudoId` devient le `vehicleId`, `disabled` vaut type PMR **et** justificatif, toute autre réponse = véhicule non identifié, voir section 16 |
 | Booking  | `http_booking_client.py`   | Route/méthode, code "pas de réservation", `placeId` déjà assigné ou non |
 | **Parking** | `http_parking_client.py` | **✅ Branché** (`hold` → `confirm_entry` avec le `hold_id` reçu, place mise de côté 30 s → `free` ; catégories STANDARD/XL/ELECTRIC/HANDICAPPED/TWO_WHEELS ; en-tête `X-API-Key` = `PARKING_API_KEY`) — pas de `placeId` réel, encodage synthétique `"CATEGORIE:walkin\|booking"`, voir section 16 |
 | **Pricing** | `http_pricing_client.py` | **✅ Branché** (`PRICING_USE_MOCK=false`) contre le vrai service (`POST /quote`) — mapping `PlaceType → zone` et arrondi de durée pour les réservations restent des hypothèses documentées dans le fichier, voir aussi section 16 |
@@ -440,7 +451,7 @@ Toutes les valeurs sont définies dans
 **RequestType** — `1=ENTRY` · `2=EXIT`
 
 **RequestStatus** — `1=IN_PROGRESS` · `2=PROCESSED` · `3=REJECTED` (réservé
-au cas "véhicule inconnu de Vehicles")
+au cas "véhicule non identifié par Vehicles")
 
 **AuthorizationResult** — `1=AUTHORIZED` · `2=REFUSED` · `3=CONFIRMATION_REQUIRED`
 
@@ -466,7 +477,7 @@ ACCESS_TEST_DATABASE_URL=<url Postgres> pytest tests/integration   # idem contre
 pytest -v            # détail de chaque cas
 ```
 
-Couverture (191 tests) :
+Couverture (205 tests) :
 
 - **Unitaires** — matrice complète de la règle de compatibilité
   véhicule/place, règle de présence, règle d'accessibilité ; chaque use case
@@ -474,16 +485,18 @@ Couverture (191 tests) :
   comportement best-effort de `RabbitMQEventPublisher` (broker injoignable) ;
   clients Payment et Vehicles contre un faux serveur (`httpx.MockTransport`) :
   contrat du payload, polling, refus définitif, rejeu idempotent, délai
-  dépassé, erreurs serveur ; mapping de la réponse Vehicles, code inconnu
-  (500/404), panne réseau, réponse inattendue ; règle `stay_rule` (sortie
+  dépassé, erreurs serveur ; mapping de la réponse Vehicles, plaque inconnue
+  (404) créée seulement à l'entrée, jamais sur une panne, panne réseau,
+  réponse inattendue, plaque absente des logs ; règle `stay_rule` (sortie
   avant l'entrée) ; vue des véhicules présents (`ListPresentVehicles`).
 - **Intégration** — entrée autorisée (sans/avec réservation), entrée refusée
   (déjà présent, type incompatible), entrée en confirmation requise
-  (accessibilité), entrée rejetée (véhicule inconnu), sortie autorisée,
+  (accessibilité), plaque inconnue créée puis autorisée, Vehicles en panne
+  (agent requis), plaque normalisée, sortie autorisée,
   sortie refusée (paiement échoué, véhicule non présent), `/health`,
-  `/access/vehicles/.../known`, `/access/presences` (suit entrée puis
+  `/access/vehicles/known`, `/access/presences` (suit entrée puis
   sortie). `test_quality.py` couvre les **entrées invalides** (corps vide,
-  code négatif ou hors bornes, type/source inconnus, date illisible, JSON
+  plaque mal formée, vide ou trop longue, type/source inconnus, date illisible, JSON
   mal formé, photo corrompue, période inversée, `limit` hors bornes, clé
   invalide), les **cas limites** (sortie datée avant l'entrée, date sans
   fuseau) et les **logs** (correlation ID reçu/généré/assaini, décision
@@ -491,9 +504,9 @@ Couverture (191 tests) :
   vérifie la transmission du correlation ID (HTTP et RabbitMQ) et les
   métriques des appels sortants ; `test_observability.py` les métriques
   métier, la jauge des présences et les en-têtes de sécurité ;
-  `test_security.py` la gestion des secrets au démarrage. L'ancien test anti-fuite de plaque
-  (`test_no_plate_leak.py`) a été retiré : Access ne reçoit plus de plaque,
-  il n'y a plus rien à faire fuiter.
+  `test_security.py` la gestion des secrets au démarrage ;
+  `test_no_plate_leak.py` rejoue des passages variés et vérifie qu'aucune
+  plaque n'apparaît dans les réponses, la base, les événements ni les logs.
 
 ### Intégration continue (CI/CD)
 
@@ -506,7 +519,7 @@ précédente, `needs:` dans le workflow) et doivent **tous** passer — si une
 | Job | Outil | Ce qu'il vérifie |
 |---|---|---|
 | Lint | `ruff` | Erreurs, imports, bugs probables, règles de sécurité, **formatage homogène** (config : `ruff.toml`) |
-| Tests | `pytest` | Les 191 tests unitaires + intégration, sans aucun secret |
+| Tests | `pytest` | Les 205 tests unitaires + intégration, sans aucun secret |
 | Sécurité du code | `bandit` | Analyse statique (SAST) : injections, appels dangereux, secrets en dur… |
 | Dépendances | `pip-audit` | Vulnérabilités connues (CVE) dans `requirements.txt` |
 | Secrets | `gitleaks` | Aucun secret (clé API, URL CloudAMQP…) dans tout l'historique git |
@@ -544,7 +557,7 @@ ruff check src tests && ruff format --check src tests && pytest && bandit -r src
 essentiels contre n'importe quelle instance (locale ou Render) et sort en
 erreur si l'un d'eux échoue : santé et version, authentification (401),
 validation des entrées (422/400/404), `/metrics`, `/access/presences`.
-Avec `VEHICLE_CODE` (un code enregistré chez Vehicles), il enchaîne en plus
+Avec `VEHICLE_PLATE` (une plaque de test, créée chez Vehicles si besoin), il enchaîne en plus
 un vrai passage entrée → présence → sortie payée — ⚠️ ce mode appelle
 réellement Parking, Pricing et Payment.
 
@@ -553,7 +566,7 @@ BASE_URL=http://localhost:8000 API_KEY=change-me ./scripts/smoke_test.sh
 ```
 
 ```bash
-BASE_URL=https://access-api-a1u7.onrender.com API_KEY=<clé Render> VEHICLE_CODE=<code> ./scripts/smoke_test.sh
+BASE_URL=https://access-api-a1u7.onrender.com API_KEY=<clé Render> VEHICLE_PLATE=<plaque de test> ./scripts/smoke_test.sh
 ```
 
 Toutes ses requêtes portent le même `X-Correlation-ID` (affiché en tête) :
@@ -565,8 +578,8 @@ Format : `date niveau module [cid=<correlation ID>] message`. Exemple réel
 d'une entrée refusée :
 
 ```
-2026-11-18 08:52:40,216 WARNING src.infrastructure.external.http_vehicles_client [cid=febf097b-…] Service Vehicles indisponible : ConnectError('[Errno 61] Connection refused')
-2026-11-18 08:52:40,219 WARNING src.application.use_cases.process_entry_request [cid=febf097b-…] Entrée rejetée : véhicule inconnu de Vehicles (request=a8e81710-…)
+2026-11-18 08:52:40,216 WARNING src.infrastructure.external.http_vehicles_client [cid=febf097b-…] Service Vehicles indisponible (ConnectError)
+2026-11-18 08:52:40,219 WARNING src.application.use_cases.process_entry_request [cid=febf097b-…] Entrée rejetée : véhicule non identifié par Vehicles (request=a8e81710-…)
 2026-11-18 08:52:40,221 INFO access.http [cid=febf097b-…] POST /api/v1/access/requests -> 200 (77 ms)
 ```
 
@@ -646,9 +659,10 @@ Puis http://localhost:9090 — requêtes utiles :
 - **En-têtes de sécurité** : `X-Content-Type-Options: nosniff`,
   `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`,
   `Cache-Control: no-store` sur `/api/*`, HSTS derrière le proxy HTTPS.
-- **Validation stricte** : Pydantic, y compris le code véhicule (entier
-  entre 0 et 2 147 483 647) dans le corps des demandes et dans le path param
-  de `/access/vehicles/{vehicle_code}/known`, la taille de `photoBase64`
+- **Validation stricte** : Pydantic, y compris la plaque (format
+  `AB-123-CD`, normalisée avant l'appel à Vehicles) dans le corps de
+  `POST /access/requests` et de `POST /access/vehicles/known` (jamais dans
+  une URL, qui finirait dans les journaux des proxys), la taille de `photoBase64`
   (4 Mo max), les filtres d'audit (`limit` 1-500, `from` ≤ `to`, longueur des
   identifiants). Toute entrée invalide → 422 (400 pour une photo non
   décodable), sans rien persister ni appeler d'autre service.
@@ -668,7 +682,8 @@ Puis http://localhost:9090 — requêtes utiles :
 - **RGPD / minimisation des données** : voir la règle absolue en
   [section 1](#1-présentation). En complément de la discipline de code, un
   `logging.Filter` (`RedactPlateFilter`) masque toute sous-chaîne au format
-  plaque dans les logs, en défense en profondeur.
+  plaque dans les logs, en défense en profondeur, et les erreurs 422 ne
+  recopient jamais la valeur reçue.
 
 ---
 
@@ -682,7 +697,7 @@ Préfixe `/api/v1` (sauf `/health` et `/metrics`).
 | GET | `/access/requests/{id}` | Oui | Détail d'une demande + décision |
 | GET | `/access/requests?vehicleId=&type=&from=&to=&limit=` | Oui | Liste/filtre (audit), plus récentes d'abord, avec la décision (`result`, `reason`, `paymentAmount`) |
 | GET | `/access/presences` | Oui | Véhicules actuellement présents (heure d'entrée, place attribuée, réservation) |
-| GET | `/access/vehicles/{vehicle_code}/known` | Oui | Vérifie si un code véhicule est connu de Vehicles, sans rien persister |
+| POST | `/access/vehicles/known` | Oui | Vérifie si une plaque (`{"licensePlate": …}`) est connue de Vehicles, sans la créer ni rien persister |
 | GET | `/access/events` | Oui | Liste les événements publiés (outbox, démo/observabilité) |
 | GET | `/health` | Non | Healthcheck (API + DB) + moteur de base, version et SHA du commit déployé |
 | GET | `/metrics` | Oui | Métriques Prometheus (requêtes, latences, codes HTTP par route) |
@@ -695,7 +710,7 @@ Documentation interactive complète (schémas, exemples, codes d'erreur) sur
 
 ```json
 {
-  "vehicleCode": 1,
+  "licensePlate": "AB-123-CD",
   "type": 1,
   "date": "2026-09-02T10:15:00Z",
   "source": 3,
@@ -733,8 +748,8 @@ automatiquement) ou http://localhost:8000/static/dashboard.html.
 Renseignez votre `X-API-Key` dans le champ prévu (stockée uniquement dans le
 `localStorage` de votre navigateur). Quatre onglets :
 
-- **Borne** (par défaut) : simule une borne d'entrée/sortie. On saisit le
-  code véhicule attribué par Vehicles, on choisit l'heure
+- **Borne** (par défaut) : simule une borne d'entrée/sortie. On saisit la
+  plaque lue par la borne, on choisit l'heure
   de passage, puis **Entrée** ou **Sortie** : la décision d'Access s'affiche
   en direct (barrière ouverte / fermée / intervention requise, motif,
   véhicule pseudonymisé, montant, identifiant du paiement réel). Pendant une
@@ -754,7 +769,8 @@ Renseignez votre `X-API-Key` dans le champ prévu (stockée uniquement dans le
   (intervalle configurable), avec un badge coloré par type d'événement et le
   détail JSON dépliable.
 - **Recherche** : une demande par `requestId`, l'historique d'un
-  `vehicleId`, ou d'un code véhicule (résolu d'abord en `vehicleId`).
+  `vehicleId`, ou d'une plaque (résolue d'abord en `vehicleId` auprès de
+  Vehicles, sans la créer).
 
 **Design** : thème [Catppuccin](https://catppuccin.com) — **Latte** (clair)
 par défaut, **Mocha** (sombre) en un clic, choix mémorisé dans le navigateur ;
@@ -807,7 +823,7 @@ clé Access. ⏱️ Une sortie prend désormais ~15-30 s : Access attend le stat
 final du paiement (polling), c'est normal.
 
 Le dossier **"Errors — edge cases"** contient volontairement des requêtes
-invalides (pas de clé API, code véhicule invalide, type invalide, champ manquant,
+invalides (pas de clé API, plaque invalide, type invalide, champ manquant,
 `photoBase64` corrompu, id inexistant, rate limit) — chacune avec un script
 de test Postman qui vérifie le code HTTP attendu, pour voir concrètement à
 quoi ressemblent les erreurs de l'API.
@@ -874,7 +890,7 @@ le reste de l'API fonctionne normalement (best-effort : la publication
    ci-dessous). Access crée ses tables tout seul au démarrage.
 4. Vérifiez `GET /health` : `version` attendue, `databaseEngine: postgresql`.
 5. Lancez `scripts/smoke_test.sh` (section 9) avec la clé de l'étape 2 et un
-   code véhicule enregistré chez Vehicles (section 3) — ou le workflow GitHub
+   plaque de test (section 3) — ou le workflow GitHub
    « Smoke test ». La collection Postman locale (section 13) reste utilisable.
 
 ### ⚠️ Points d'attention et limites connues
@@ -1014,20 +1030,25 @@ non intrusives** ont été ajoutées :
   refusée avec "réessayez", ce qui est sans risque puisque rejouer la sortie
   renvoie le même paiement (jamais de double encaissement). Un stationnement
   à 0 € ne déclenche aucun paiement (Payment refuse un montant nul).
-- `VehiclesServicePort.get_vehicle_info(vehicle_code)` (au lieu de
-  `(plate)`) : Vehicles identifie la plaque et lui attribue un `code` ;
-  Access ne reçoit plus que ce code (`vehicleCode` dans
-  `POST /access/requests`, route `/access/vehicles/{vehicle_code}/known` au
-  lieu de `/access/plates/{plate}/known`) et consulte
-  `GET /api/vehicles/{code}`. Changement de contrat de l'API Access, d'où la
-  version `3.0.0`. Le `pseudoId` renvoyé devient le `vehicleId`.
+- `VehiclesServicePort.get_vehicle_info(plate)` / `identify_vehicle(plate)` :
+  depuis sa mise à jour du 24/11, Vehicles ne connaît plus de `code` et
+  identifie les véhicules par leur plaque (`GET /api/vehicles/{plaque}`, 404
+  si inconnue ; `POST /api/vehicles/identify` retrouve ou crée). Access reçoit
+  donc de nouveau la plaque (`licensePlate` dans `POST /access/requests`,
+  `POST /access/vehicles/known` au lieu de `GET /access/vehicles/{code}/known`)
+  et la transmet à Vehicles sans la conserver. Changement de contrat de l'API
+  Access, d'où la version `4.0.0`. Le `pseudoId` renvoyé devient le
+  `vehicleId`. À l'entrée, une plaque inconnue est créée chez Vehicles comme
+  un 4 roues standard (Access ne connaît pas ses caractéristiques) ; à la
+  sortie, elle ne l'est jamais.
   Vehicles n'expose pas de justificatif PMR distinct : `disabled` sert à la
   fois de type de véhicule (`is_handicap`) et de justificatif
   (`disability_permit`), donc un véhicule PMR est toujours autorisé sur une
   place PMR (plus de `CONFIRMATION_REQUIRED` pour justificatif manquant avec
-  le vrai service). Vehicles renvoie 500 (et non 404) pour un code inconnu :
-  toute réponse non-200 ou erreur réseau est traitée comme "véhicule
-  inconnu" (procédure alternative), jamais comme un plantage d'Access.
+  le vrai service). Une panne de Vehicles (erreur réseau, 5xx, réponse
+  hors contrat) n'entraîne jamais de création : elle est traitée comme
+  « véhicule non identifié » (procédure alternative), jamais comme un
+  plantage d'Access.
 
 **Nommage anglais vs. contenu français** : tous les identifiants de code
 (classes d'entités, champs, colonnes SQL, clés JSON) sont en anglais — la
@@ -1043,4 +1064,4 @@ toutes centralisées dans les deux use cases `Process*Request`).
 
 Toutes ces extensions sont documentées dans le code (docstrings des ports
 concernés) et n'affaiblissent aucune des garanties de la spec — notamment la
-règle RGPD de non-circulation de la plaque brute, qu'Access ne reçoit même plus.
+règle RGPD de non-circulation de la plaque brute, qu'Access transmet à Vehicles sans jamais la conserver.

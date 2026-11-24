@@ -1,12 +1,14 @@
 """Schémas Pydantic des endpoints `/access/*`.
 
-Access ne reçoit jamais la plaque : `AccessRequestIn` porte le code
-véhicule attribué par Vehicles (qui a identifié la plaque), et seul
-`vehicleId` (pseudonymisé, le `pseudoId` de Vehicles) circule ensuite.
+⚠️ RGPD : `AccessRequestIn` et `VehicleKnownIn` reçoivent la plaque lue par
+la borne, transmise telle quelle à Vehicles. Aucun schéma de réponse ne
+l'expose : seul `vehicleId` (pseudonymisé, le `pseudoId` de Vehicles)
+circule au-delà de la requête entrante.
 """
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -18,22 +20,37 @@ from src.domain.value_objects.enums import (
     RequestType,
 )
 
-# Borne haute du code véhicule (entier 32 bits signé) : rejette en 422 les
-# valeurs absurdes avant tout appel à Vehicles.
-MAX_VEHICLE_CODE = 2_147_483_647
+# Plaque française (SIV). Acceptée en minuscules, avec espaces ou sans
+# séparateur, puis normalisée en `AB-123-CD` : Vehicles reçoit toujours la
+# même forme pour un même véhicule.
+_PLATE_INPUT = re.compile(r"^([A-Z]{2})[\s-]?(\d{3})[\s-]?([A-Z]{2})$")
+PLATE_FORMAT_ERROR = "Plaque attendue au format AB-123-CD"
+
+
+def normalize_plate(value: str) -> str:
+    """`ab 123 cd` → `AB-123-CD`. Le message d'erreur ne reprend jamais la
+    valeur reçue."""
+
+    match = _PLATE_INPUT.match(value.strip().upper())
+    if match is None:
+        raise ValueError(PLATE_FORMAT_ERROR)
+    return "-".join(match.groups())
+
+
 # Taille max d'une photo encodée en base64 (~3 Mo de photo une fois décodée).
 MAX_PHOTO_BASE64_LENGTH = 4_000_000
 
 
 class AccessRequestIn(BaseModel):
-    """Requête entrante, identifiée par le code véhicule de Vehicles."""
+    """Requête entrante. La plaque n'existe que le temps de cette requête :
+    elle n'est jamais persistée, publiée, loggée ni renvoyée."""
 
     model_config = ConfigDict(
         populate_by_name=True,
         json_schema_extra={
             "examples": [
                 {
-                    "vehicleCode": 1,
+                    "licensePlate": "AB-123-CD",
                     "type": 1,
                     "date": "2026-09-02T10:15:00Z",
                     "source": 3,
@@ -43,11 +60,10 @@ class AccessRequestIn(BaseModel):
         },
     )
 
-    vehicle_code: int = Field(
-        alias="vehicleCode",
-        ge=0,
-        le=MAX_VEHICLE_CODE,
-        description="Code du véhicule attribué par Vehicles (entier ≥ 0)",
+    license_plate: str = Field(
+        alias="licensePlate",
+        max_length=20,
+        description="Plaque lue par la borne, format AB-123-CD (transmise à Vehicles uniquement)",
     )
     type: RequestType = Field(description="1=ENTRY, 2=EXIT")
     date: datetime
@@ -55,6 +71,11 @@ class AccessRequestIn(BaseModel):
     photo_base64: str | None = Field(
         default=None, alias="photoBase64", max_length=MAX_PHOTO_BASE64_LENGTH
     )
+
+    @field_validator("license_plate")
+    @classmethod
+    def _normalize_plate(cls, value: str) -> str:
+        return normalize_plate(value)
 
     @field_validator("date")
     @classmethod
@@ -155,8 +176,25 @@ class PresentVehicleOut(BaseModel):
     reservation: bool
 
 
+class VehicleKnownIn(BaseModel):
+    """Corps de `POST /access/vehicles/known` : la plaque voyage dans le corps
+    et non dans l'URL, qui finit dans les journaux des proxys et de Render."""
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+        json_schema_extra={"examples": [{"licensePlate": "AB-123-CD"}]},
+    )
+
+    license_plate: str = Field(alias="licensePlate", max_length=20)
+
+    @field_validator("license_plate")
+    @classmethod
+    def _normalize_plate(cls, value: str) -> str:
+        return normalize_plate(value)
+
+
 class VehicleKnownOut(BaseModel):
-    """Réponse de `GET /access/vehicles/{vehicle_code}/known`."""
+    """Réponse de `POST /access/vehicles/known` — ne renvoie jamais la plaque."""
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -185,7 +223,7 @@ class HealthOut(BaseModel):
         description="Moteur de base utilisé (sqlite ou postgresql) — jamais l'URL",
     )
     uptime_seconds: int = Field(alias="uptimeSeconds", examples=[1234])
-    version: str = Field(examples=["3.6.2"])
+    version: str = Field(examples=["4.0.0"])
     commit: str = Field(examples=["b742756d0c1e9f4a8b3c2d1e0f9a8b7c6d5e4f3a"])
 
     model_config = ConfigDict(populate_by_name=True)

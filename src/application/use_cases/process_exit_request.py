@@ -1,7 +1,8 @@
 """Use case `ProcessExitRequest` — workflow "Sortie".
 
 Déroulé (section 8 de la spec) :
-1. Résolution Vehicles du code véhicule → identifiant pseudonymisé.
+1. Consultation Vehicles de la plaque (sans création) → identifiant
+   pseudonymisé. La plaque ne quitte pas cette méthode.
 2. Création de la demande d'accès (EXIT).
 3. Règle de présence → refus si le véhicule n'est pas `IN`.
 4. Récupération du stationnement en cours (demande d'entrée associée) ;
@@ -90,13 +91,14 @@ class ProcessExitRequest:
 
     def execute(
         self,
-        vehicle_code: int,
+        plate: str,
         date: datetime,
         source: DetectionSource,
     ) -> ExitDecision:
         request_id = str(uuid4())
 
-        vehicle_info = self._vehicles_port.get_vehicle_info(vehicle_code)
+        vehicle_info = self._vehicles_port.get_vehicle_info(plate)
+        del plate  # RGPD : la plaque ne sert qu'à interroger Vehicles
 
         if vehicle_info is None:
             return self._reject_unknown_vehicle(request_id, date, source)

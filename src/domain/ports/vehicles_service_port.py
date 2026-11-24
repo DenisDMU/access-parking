@@ -1,9 +1,10 @@
 """Port vers le service Vehicles.
 
-Access ne reçoit jamais la plaque : c'est Vehicles qui l'identifie et
-l'associe à un `code` véhicule. Access consulte uniquement la donnée
-anonymisée correspondant à ce code (identifiant pseudonymisé +
-caractéristiques du véhicule).
+Access reçoit la plaque lue par la borne et la transmet à Vehicles, seul
+service qui la conserve (règle 3.7 : Access *demande* l'identifiant à
+Vehicles). En retour, Access ne garde que l'identifiant pseudonymisé et les
+caractéristiques du véhicule : la plaque n'existe que le temps de la
+requête, elle n'est jamais persistée, publiée, renvoyée ni loggée.
 """
 
 from __future__ import annotations
@@ -14,6 +15,15 @@ from src.domain.value_objects.dto import VehicleInfo
 
 
 class VehiclesServicePort(Protocol):
-    def get_vehicle_info(self, vehicle_code: int) -> VehicleInfo | None:
-        """Résout un code véhicule en identité pseudonymisée, ou `None` si inconnu."""
+    def get_vehicle_info(self, plate: str) -> VehicleInfo | None:
+        """Consultation seule : identité pseudonymisée du véhicule, ou `None`
+        s'il est inconnu (ou si Vehicles est indisponible)."""
+        ...
+
+    def identify_vehicle(self, plate: str) -> VehicleInfo | None:
+        """Retrouve le véhicule ou le crée s'il est inconnu (règle 3.2 :
+        Vehicles « recherche ou crée » l'identifiant pseudonymisé).
+
+        `None` seulement si Vehicles est indisponible ou répond hors contrat.
+        """
         ...

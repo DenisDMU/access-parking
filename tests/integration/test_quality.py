@@ -13,8 +13,8 @@ from tests.integration.conftest import AUTH_HEADERS
 URL = "/api/v1/access/requests"
 
 
-def _payload(code: int, type_: int, date: str, source: int = 3) -> dict:
-    return {"vehicleCode": code, "type": type_, "date": date, "source": source}
+def _payload(plate: str, type_: int, date: str, source: int = 3) -> dict:
+    return {"licensePlate": plate, "type": type_, "date": date, "source": source}
 
 
 # --- Entrées invalides --------------------------------------------------------
@@ -24,12 +24,13 @@ def _payload(code: int, type_: int, date: str, source: int = 3) -> dict:
     "body",
     [
         {},  # tout manque
-        _payload(-1, 1, "2026-09-02T10:00:00Z"),  # code négatif
-        _payload(2_147_483_648, 1, "2026-09-02T10:00:00Z"),  # code hors bornes
-        _payload(1, 3, "2026-09-02T10:00:00Z"),  # type inconnu
-        _payload(1, 1, "2026-09-02T10:00:00Z", source=9),  # source inconnue
-        _payload(1, 1, "pas-une-date"),  # date illisible
-        {**_payload(1, 1, "2026-09-02T10:00:00Z"), "vehicleCode": "abc"},  # code non entier
+        _payload("ZZ-0-ZZZ", 1, "2026-09-02T10:00:00Z"),  # plaque mal formée
+        _payload("A" * 21, 1, "2026-09-02T10:00:00Z"),  # plaque trop longue
+        _payload("", 1, "2026-09-02T10:00:00Z"),  # plaque vide
+        _payload("AA-111-AA", 3, "2026-09-02T10:00:00Z"),  # type inconnu
+        _payload("AA-111-AA", 1, "2026-09-02T10:00:00Z", source=9),  # source inconnue
+        _payload("AA-111-AA", 1, "pas-une-date"),  # date illisible
+        {**_payload("AA-111-AA", 1, "2026-09-02T10:00:00Z"), "licensePlate": 123},  # non texte
     ],
 )
 def test_corps_invalide_renvoie_422_sans_rien_persister(client, body):
@@ -49,15 +50,18 @@ def test_json_mal_forme_renvoie_422(client):
 
 
 def test_photo_base64_invalide_renvoie_400(client):
-    body = {**_payload(1, 1, "2026-09-02T10:00:00Z"), "photoBase64": "%%%"}
+    body = {**_payload("AA-111-AA", 1, "2026-09-02T10:00:00Z"), "photoBase64": "%%%"}
     response = client.post(URL, json=body, headers=AUTH_HEADERS)
     assert response.status_code == 400
     assert response.json() == {"detail": "photoBase64 invalide"}
 
 
-def test_code_vehicule_hors_bornes_sur_known(client):
-    response = client.get("/api/v1/access/vehicles/99999999999/known", headers=AUTH_HEADERS)
+def test_plaque_invalide_sur_known(client):
+    response = client.post(
+        "/api/v1/access/vehicles/known", json={"licensePlate": "ZZ-0-ZZZ"}, headers=AUTH_HEADERS
+    )
     assert response.status_code == 422
+    assert "ZZ-0-ZZZ" not in response.text
 
 
 def test_filtre_periode_inversee_renvoie_422(client):
@@ -86,10 +90,10 @@ def test_cle_api_invalide_renvoie_401_sans_detail_technique(client):
 
 
 def test_sortie_datee_avant_lentree_est_refusee(client):
-    client.post(URL, json=_payload(1, 1, "2026-09-02T10:00:00Z"), headers=AUTH_HEADERS)
+    client.post(URL, json=_payload("AA-111-AA", 1, "2026-09-02T10:00:00Z"), headers=AUTH_HEADERS)
 
     body = client.post(
-        URL, json=_payload(1, 2, "2026-09-02T09:00:00Z", source=2), headers=AUTH_HEADERS
+        URL, json=_payload("AA-111-AA", 2, "2026-09-02T09:00:00Z", source=2), headers=AUTH_HEADERS
     ).json()
 
     assert body["authorization"]["result"] == 2
@@ -99,16 +103,16 @@ def test_sortie_datee_avant_lentree_est_refusee(client):
 
 
 def test_date_sans_fuseau_consideree_comme_utc(client):
-    client.post(URL, json=_payload(1, 1, "2026-09-02T10:00:00"), headers=AUTH_HEADERS)
+    client.post(URL, json=_payload("AA-111-AA", 1, "2026-09-02T10:00:00"), headers=AUTH_HEADERS)
     body = client.post(
-        URL, json=_payload(1, 2, "2026-09-02T12:00:00Z", source=2), headers=AUTH_HEADERS
+        URL, json=_payload("AA-111-AA", 2, "2026-09-02T12:00:00Z", source=2), headers=AUTH_HEADERS
     ).json()
     assert body["authorization"]["result"] == 1
 
 
 def test_liste_daudit_inclut_la_decision_plus_recente_dabord(client):
-    client.post(URL, json=_payload(1, 1, "2026-09-02T10:00:00Z"), headers=AUTH_HEADERS)
-    client.post(URL, json=_payload(1, 1, "2026-09-02T10:05:00Z"), headers=AUTH_HEADERS)
+    client.post(URL, json=_payload("AA-111-AA", 1, "2026-09-02T10:00:00Z"), headers=AUTH_HEADERS)
+    client.post(URL, json=_payload("AA-111-AA", 1, "2026-09-02T10:05:00Z"), headers=AUTH_HEADERS)
 
     items = client.get(URL, headers=AUTH_HEADERS).json()
 
@@ -143,7 +147,7 @@ def test_decision_loggee_avec_le_correlation_id(client, caplog):
     caplog.set_level(logging.INFO)
     response = client.post(
         URL,
-        json=_payload(1, 1, "2026-09-02T10:00:00Z"),
+        json=_payload("AA-111-AA", 1, "2026-09-02T10:00:00Z"),
         headers={**AUTH_HEADERS, "X-Correlation-ID": "test-cid-1"},
     )
     request_id = response.json()["requestId"]

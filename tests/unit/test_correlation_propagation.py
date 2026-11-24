@@ -55,13 +55,13 @@ def test_client_vehicles_propage_le_correlation_id_et_compte_lappel():
 
     def handler(request: httpx.Request) -> httpx.Response:
         seen["cid"] = request.headers.get("X-Correlation-ID")
-        return httpx.Response(200, json={"pseudoId": "p1", "code": 1})
+        return httpx.Response(200, json={"pseudoId": "p1"})
 
     before = _sample("access_outgoing_requests_total", service="vehicles", outcome="2xx")
     token = correlation_id_var.set("cid-vehicles")
     try:
         info = HttpVehiclesClient("http://vehicles.test", transport=httpx.MockTransport(handler))
-        assert info.get_vehicle_info(1).vehicle_id == "p1"
+        assert info.get_vehicle_info("AB-123-CD").vehicle_id == "p1"
     finally:
         correlation_id_var.reset(token)
 
@@ -76,7 +76,7 @@ def test_echec_reseau_compte_comme_erreur():
 
     before = _sample("access_outgoing_requests_total", service="vehicles", outcome="error")
     client = HttpVehiclesClient("http://vehicles.test", transport=httpx.MockTransport(handler))
-    assert client.get_vehicle_info(1) is None
+    assert client.get_vehicle_info("AB-123-CD") is None
     after = _sample("access_outgoing_requests_total", service="vehicles", outcome="error")
     assert after == before + 1
 
