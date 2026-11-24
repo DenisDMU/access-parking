@@ -1,48 +1,52 @@
 """Client HTTP réel vers le service **Vehicles** de l'équipe.
 
-Implémente `VehiclesServicePort`. Contrat vérifié le 2026-11-24 (fin
-d'après-midi) par des appels réels contre https://parking-vehicles.onrender.com
+Implémente `VehiclesServicePort`. Contrat vérifié le 2026-11-24 (4ᵉ version
+de la journée) par des appels réels contre https://parking-vehicles.onrender.com
 (swagger `/v3/api-docs`) :
 
-  POST /api/identify  { licensePlate }
+  POST /api/vehicles/create  { licensePlate, isElectric, isXl, isTwoWheels,
+                               isHandicaped }
     → 200 "pseudoId" (uuid) ; retrouve le véhicule ou le crée (même uuid
-      pour une plaque déjà connue, casse et espaces ignorés). Un véhicule
-      connu n'est PAS réécrit (ses caractéristiques sont conservées).
-  GET  /api/getvehicles/{vehicleId}
-    → 200 { pseudoId, electric, disabled, xl, twoWheels } ; 404 si inconnu
+      pour une plaque déjà connue). Un véhicule connu n'est PAS réécrit
+      (ses caractéristiques sont conservées). La plaque est comparée telle
+      quelle (casse et espaces comptent) : Access envoie toujours la forme
+      normalisée, donc une même plaque donne toujours le même véhicule.
+  GET  /api/vehicles/{vehicleId}
+    → 200 { pseudoId, electric, handicaped, xl, twoWheels } ; 404 si inconnu
 
-Parcours (mode « par identifiant », par défaut) : plaque → `identify` →
-pseudoId → `getvehicles/{pseudoId}` → caractéristiques.
+Parcours (mode « par identifiant », par défaut) : plaque → `create` →
+pseudoId → `vehicles/{pseudoId}` → caractéristiques.
 
-Revérifié le 24/11 au soir : `licensePlate` désormais obligatoire et
-caractéristiques à `false` par défaut (déjà ce qu'envoie Access). Vehicles
-expose aussi `GET /api/getplate/{vehicleId}` (identifiant → plaque en
-clair, sans clé), utile aux services de facturation : Access ne l'appelle
-JAMAIS (RGPD : Access n'a pas à retrouver la plaque à partir de
+Vehicles expose aussi `GET /api/vehicles/{vehicleId}/plate` (identifiant →
+plaque en clair, sans clé), utile aux services de facturation : Access ne
+l'appelle JAMAIS (RGPD : Access n'a pas à retrouver la plaque à partir de
 l'identifiant ; recommandation à Vehicles : la protéger par une clé).
 
-⚠️ Vehicles a changé son contrat trois fois le 24/11 :
+⚠️ Vehicles a changé son contrat quatre fois le 24/11 :
   1. `GET /api/vehicles/{plate}` + `POST /api/vehicles/identify` (matin) ;
   2. `GET /api/getvehicles/{plate}` + `POST /api/identify` (après-midi) ;
-  3. `GET /api/getvehicles/{vehicleId}` + `POST /api/identify` (soir).
+  3. `GET /api/getvehicles/{vehicleId}` + `POST /api/identify` (soir) ;
+  4. `GET /api/vehicles/{vehicleId}` + `POST /api/vehicles/create` (soir),
+     avec `disabled` renommé `handicaped`.
 Les routes sont donc réglables sans toucher au code (`VEHICLES_LOOKUP_PATH`,
-`VEHICLES_IDENTIFY_PATH`). Si la route de consultation contient `{plate}`,
-le client repasse en mode « par plaque » (contrats 1 et 2 : consultation
-d'abord, `identify` seulement sur un vrai 404).
+`VEHICLES_IDENTIFY_PATH`) et les deux noms du champ PMR sont acceptés. Si la
+route de consultation contient `{plate}`, le client repasse en mode « par
+plaque » (contrats 1 et 2 : consultation d'abord, création seulement sur un
+vrai 404).
 
-Conséquence du contrat 3 : Vehicles n'offre plus de consultation par plaque
-sans création. À la sortie (ou pour la vérification), une plaque jamais vue
-est donc enregistrée par Vehicles ; pour Access, rien ne change (refus
+Depuis le contrat 3, Vehicles n'offre plus de consultation par plaque sans
+création. À la sortie (ou pour la vérification), une plaque jamais vue est
+donc enregistrée par Vehicles ; pour Access, rien ne change (refus
 « véhicule non présent »).
 
-- Un 404 sur `identify` ne peut venir que d'une route renommée : il est
+- Un 404 sur la création ne peut venir que d'une route renommée : il est
   loggé en ERREUR, avec la route appelée, pour être repéré tout de suite.
 - `pseudoId` devient le `vehicle_id` pseudonymisé qui circule dans tout le
   reste du système. La plaque ne sort jamais de ce client : elle n'apparaît
   dans aucun log (seul le type d'erreur est loggé, jamais l'URL appelée).
-- `disabled` alimente à la fois le type de véhicule (`is_handicap`) et le
-  justificatif PMR : Vehicles n'expose pas de justificatif distinct (voir
-  README section 16).
+- `handicaped` (`disabled` avant le contrat 4) alimente à la fois le type de
+  véhicule (`is_handicap`) et le justificatif PMR : Vehicles n'expose pas de
+  justificatif distinct (voir README section 16).
 - Toute autre réponse ou erreur réseau → `None`, soit « véhicule non
   identifié » → procédure alternative à la barrière, jamais un plantage
   d'Access.
@@ -61,8 +65,8 @@ from src.infrastructure.external.outgoing_http import outgoing_client
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_LOOKUP_PATH = "/api/getvehicles/{vehicleId}"
-DEFAULT_IDENTIFY_PATH = "/api/identify"
+DEFAULT_LOOKUP_PATH = "/api/vehicles/{vehicleId}"
+DEFAULT_IDENTIFY_PATH = "/api/vehicles/create"
 
 
 class _NotFound:
@@ -142,8 +146,8 @@ class HttpVehiclesClient:
         """Plaque → pseudoId (création si inconnue). `None` si échec.
 
         Le type déclaré à la borne n'est utilisé par Vehicles qu'à la création
-        (vérifié : un véhicule connu n'est jamais modifié). `isDisabled` n'est
-        jamais envoyé : PMR n'est pas enregistré sur simple déclaration.
+        (vérifié : un véhicule connu n'est jamais modifié). `isHandicaped`
+        n'est jamais envoyé : PMR n'est pas enregistré sur simple déclaration.
         """
 
         body: dict = {"licensePlate": plate}
@@ -157,7 +161,7 @@ class HttpVehiclesClient:
             with self._client() as client:
                 response = client.post(f"{self._base_url}{self._identify_path}", json=body)
             if response.status_code == 404:
-                # `identify` ne renvoie jamais 404 : la route a changé chez Vehicles.
+                # La création ne renvoie jamais 404 : la route a changé chez Vehicles.
                 logger.error(
                     "Vehicles : route d'identification introuvable (POST %s → 404). "
                     "Contrat changé ? Vérifier son Swagger et VEHICLES_IDENTIFY_PATH",
@@ -202,7 +206,8 @@ class HttpVehiclesClient:
 
 
 def _to_vehicle_info(data: dict) -> VehicleInfo:
-    disabled = bool(data.get("disabled", False))
+    # `handicaped` depuis le contrat 4, `disabled` avant : les deux sont lus.
+    disabled = bool(data.get("handicaped", data.get("disabled", False)))
     return VehicleInfo(
         vehicle_id=str(data["pseudoId"]),
         vehicle_type=VehicleType(

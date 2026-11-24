@@ -4,6 +4,17 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.8.1] — 2026-11-24 — 4ᵉ contrat Vehicles
+
+### Corrigé
+- Vehicles a renommé ses routes (4ᵉ fois le 24/11) : `POST /api/identify`
+  → `POST /api/vehicles/create`, `GET /api/getvehicles/{id}` →
+  `GET /api/vehicles/{id}`. L'ancienne route répondait 404 : chaque entrée
+  à la borne finissait en « Un agent va arriver » et aucun véhicule n'était
+  créé. Nouvelles routes par défaut (`VEHICLES_IDENTIFY_PATH`,
+  `VEHICLES_LOOKUP_PATH` toujours réglables).
+- Champ PMR renommé `disabled` → `handicaped` : les deux noms sont lus.
+
 ## [4.8.0] — 2026-11-24 — Pays de la plaque
 
 ### Ajouté

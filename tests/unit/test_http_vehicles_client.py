@@ -1,8 +1,8 @@
 """Tests unitaires — `http_vehicles_client.py` contre un faux serveur Vehicles
 (`httpx.MockTransport`), sans appel réseau au vrai service.
 
-Deux contrats : celui en vigueur (plaque → `POST /api/identify` → pseudoId →
-`GET /api/getvehicles/{vehicleId}`) et l'ancien (consultation par plaque),
+Deux contrats : celui en vigueur (plaque → `POST /api/vehicles/create` →
+pseudoId → `GET /api/vehicles/{vehicleId}`) et l'ancien (consultation par plaque),
 encore sélectionnable par `VEHICLES_LOOKUP_PATH` si Vehicles y revenait.
 """
 
@@ -25,7 +25,7 @@ def _vehicle(**overrides) -> dict:
     body = {
         "pseudoId": _PSEUDO_ID,
         "electric": False,
-        "disabled": False,
+        "handicaped": False,
         "xl": False,
         "twoWheels": False,
     }
@@ -51,7 +51,7 @@ class _FakeVehicles:
             self.identified.append(json.loads(request.content))
             self.known = True
             return httpx.Response(200, json=_PSEUDO_ID)
-        if request.url.path == f"/api/getvehicles/{_PSEUDO_ID}" and self.known:
+        if request.url.path == f"/api/vehicles/{_PSEUDO_ID}" and self.known:
             return httpx.Response(200, json=self.vehicle)
         return httpx.Response(404)
 
@@ -68,8 +68,8 @@ def test_identify_puis_consultation_par_identifiant():
     info = _client(vehicles).identify_vehicle(_PLATE)
     assert info is not None and info.vehicle_id == _PSEUDO_ID
     assert vehicles.requests == [
-        ("POST", "/api/identify"),
-        ("GET", f"/api/getvehicles/{_PSEUDO_ID}"),
+        ("POST", "/api/vehicles/create"),
+        ("GET", f"/api/vehicles/{_PSEUDO_ID}"),
     ]
     # Seule la plaque est envoyée : un véhicule connu n'est jamais réécrit.
     assert vehicles.identified == [{"licensePlate": _PLATE}]
@@ -85,15 +85,24 @@ def test_consultation_passe_aussi_par_identify():
 
     vehicles = _FakeVehicles(known=True)
     assert _client(vehicles).get_vehicle_info(_PLATE).vehicle_id == _PSEUDO_ID
-    assert vehicles.requests[0] == ("POST", "/api/identify")
+    assert vehicles.requests[0] == ("POST", "/api/vehicles/create")
 
 
 def test_caracteristiques_traduites():
-    vehicles = _FakeVehicles(known=True, twoWheels=True, xl=True, electric=True, disabled=True)
+    vehicles = _FakeVehicles(known=True, twoWheels=True, xl=True, electric=True, handicaped=True)
     info = _client(vehicles).identify_vehicle(_PLATE)
     assert info.vehicle_type.category is VehicleCategory.TWO_WHEELER
     assert info.vehicle_type.is_xl and info.vehicle_type.is_electric
-    # Pas de justificatif distinct côté Vehicles : `disabled` vaut les deux.
+    # Pas de justificatif distinct côté Vehicles : `handicaped` vaut les deux.
+    assert info.vehicle_type.is_handicap and info.disability_permit is True
+
+
+def test_ancien_nom_du_champ_pmr_encore_lu():
+    """`disabled` (contrats 1 à 3) reste compris si Vehicles y revenait."""
+
+    vehicles = _FakeVehicles(known=True)
+    vehicles.vehicle = {"pseudoId": _PSEUDO_ID, "disabled": True}
+    info = _client(vehicles).identify_vehicle(_PLATE)
     assert info.vehicle_type.is_handicap and info.disability_permit is True
 
 
@@ -108,7 +117,7 @@ def test_identify_404_signale_une_route_changee_en_erreur(caplog):
     with caplog.at_level(logging.ERROR):
         assert _client(_FakeVehicles(identify_status=404)).identify_vehicle(_PLATE) is None
     errors = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
-    assert len(errors) == 1 and "/api/identify" in errors[0]
+    assert len(errors) == 1 and "/api/vehicles/create" in errors[0]
     assert _PLATE not in errors[0]
 
 
@@ -183,7 +192,7 @@ def test_ancien_contrat_entree_cree_sur_404_seulement():
     assert info is not None
     assert vehicles.requests == [
         ("GET", f"/api/getvehicles/{_PLATE}"),
-        ("POST", "/api/identify"),
+        ("POST", "/api/vehicles/create"),
         ("GET", f"/api/getvehicles/{_PLATE}"),
     ]
 
