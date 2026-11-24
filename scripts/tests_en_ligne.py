@@ -27,7 +27,7 @@ A = os.getenv("ACCESS_URL", "https://access-api-a1u7.onrender.com").rstrip("/")
 V = os.getenv("VEHICLES_URL", "https://parking-vehicles.onrender.com").rstrip("/")
 VEHICLES_KEY = os.getenv("VEHICLES_API_KEY", "")
 _INIT = os.path.join(os.path.dirname(__file__), "..", "src", "__init__.py")
-VERSION = re.search(r'"(.+)"', open(_INIT, encoding="utf-8").read()).group(1)
+VERSION = re.search(r'__version__ = "([^"]+)"', open(_INIT, encoding="utf-8").read()).group(1)
 results = []
 
 
