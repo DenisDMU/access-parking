@@ -12,7 +12,8 @@ de la journée) par des appels réels contre https://parking-vehicles.onrender.c
       quelle (casse et espaces comptent) : Access envoie toujours la forme
       normalisée, donc une même plaque donne toujours le même véhicule.
   GET  /api/vehicle/{vehicleId}
-    → 200 { pseudoId, electric, handicaped, xl, twoWheels } ; 404 si inconnu
+    → 200 { pseudoId, isElectric, isHandicaped, isXl, isTwoWheels } ; 404
+      si inconnu (avant le 24/11, 14 h : electric, handicaped, xl, twoWheels)
 
 Parcours (mode « par identifiant », par défaut) : plaque → `create` →
 pseudoId → `vehicle/{pseudoId}` → caractéristiques.
@@ -28,7 +29,11 @@ l'identifiant ; recommandation à Vehicles : la protéger par une clé).
   3. `GET /api/getvehicles/{vehicleId}` + `POST /api/identify` (soir) ;
   4. `GET /api/vehicles/{vehicleId}` + `POST /api/vehicles/create` (soir),
      avec `disabled` renommé `handicaped` ;
-  5. `GET /api/vehicle/{vehicleId}` + `POST /api/vehicle/create` (soir).
+  5. `GET /api/vehicle/{vehicleId}` + `POST /api/vehicle/create` (soir) ;
+  6. mêmes routes, mais la réponse prend les noms du corps de création
+     (`isElectric`, `isXl`, `isTwoWheels`, `isHandicaped`) : tous les
+     véhicules étaient lus comme des voitures standard.
+Chaque caractéristique est donc lue sous tous ses noms connus (`_FIELDS`).
 
 D'où la **découverte automatique des routes** : si la route de création ou
 de consultation répond 404 (route renommée), le client lit le Swagger de
@@ -56,7 +61,7 @@ donc enregistrée par Vehicles ; pour Access, rien ne change (refus
 - `pseudoId` devient le `vehicle_id` pseudonymisé qui circule dans tout le
   reste du système. La plaque ne sort jamais de ce client : elle n'apparaît
   dans aucun log (seul le type d'erreur est loggé, jamais l'URL appelée).
-- `handicaped` (`disabled` avant le contrat 4) alimente à la fois le type de
+- `isHandicaped` (`handicaped`, `disabled` avant) alimente à la fois le type de
   véhicule (`is_handicap`) et le justificatif PMR : Vehicles n'expose pas de
   justificatif distinct (voir README section 16).
 - Toute autre réponse ou erreur réseau → `None`, soit « véhicule non
@@ -339,19 +344,36 @@ def discover_routes(openapi: dict) -> tuple[str, str] | None:
     return identify, lookup
 
 
+# Noms successifs de chaque caractéristique dans les réponses de Vehicles
+# (le plus récent d'abord) : contrat 6 (`isXl`…), 4-5 (`xl`, `handicaped`),
+# 1-3 (`disabled`).
+_FIELDS: dict[str, tuple[str, ...]] = {
+    "electric": ("isElectric", "electric"),
+    "xl": ("isXl", "xl"),
+    "two_wheels": ("isTwoWheels", "twoWheels"),
+    "handicap": ("isHandicaped", "handicaped", "isDisabled", "disabled"),
+}
+
+
+def _flag(data: dict, name: str) -> bool:
+    for key in _FIELDS[name]:
+        if key in data:
+            return bool(data[key])
+    return False
+
+
 def _to_vehicle_info(data: dict) -> VehicleInfo:
-    # `handicaped` depuis le contrat 4, `disabled` avant : les deux sont lus.
-    disabled = bool(data.get("handicaped", data.get("disabled", False)))
+    disabled = _flag(data, "handicap")
     return VehicleInfo(
         vehicle_id=str(data["pseudoId"]),
         vehicle_type=VehicleType(
             category=(
                 VehicleCategory.TWO_WHEELER
-                if data.get("twoWheels")
+                if _flag(data, "two_wheels")
                 else VehicleCategory.FOUR_WHEELER
             ),
-            is_xl=bool(data.get("xl", False)),
-            is_electric=bool(data.get("electric", False)),
+            is_xl=_flag(data, "xl"),
+            is_electric=_flag(data, "electric"),
             is_handicap=disabled,
         ),
         disability_permit=disabled,
