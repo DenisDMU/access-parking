@@ -21,6 +21,8 @@ import os
 # dependency overrides dédiés.
 os.environ["API_KEY"] = "test-api-key"
 os.environ["BORNE_API_KEY"] = "test-borne-key-0001"
+os.environ["BORNE_PUBLIC"] = "true"
+os.environ["RATE_LIMIT_BORNE"] = "10/minute"
 os.environ["USE_MOCKS"] = "true"
 os.environ["BOOKING_USE_MOCK"] = "true"
 os.environ["PAYMENT_API_KEY"] = ""

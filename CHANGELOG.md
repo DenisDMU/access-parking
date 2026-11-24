@@ -4,6 +4,24 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.5.0] — 2026-11-24 — Borne publique, sans réglage
+
+### Ajouté
+- Le lien `/borne` marche pour tout le monde, sans saisir de clé : la
+  borne sans clé passe par `POST /api/v1/borne/passages`, route publique
+  réduite au passage d'un véhicule (mêmes règles métier) ; date imposée
+  par le serveur, source « borne », réponse sans identifiant de demande
+  ni de véhicule, 10 passages/min par adresse (`RATE_LIMIT_BORNE`,
+  adresse réelle derrière le proxy de Render).
+- `GET /api/v1/borne/status` : la borne sait si l'accès public est ouvert.
+- `BORNE_PUBLIC` (true par défaut) : `false` ferme la route publique
+  (403) ; la borne exige alors sa clé, comme en 4.4.
+
+### Modifié
+- Une borne configurée avec une clé devenue invalide repasse d'elle-même
+  par la route publique au lieu d'afficher « hors service ».
+- Tout le reste de l'API (y compris `POST /access/requests`) garde sa clé.
+
 ## [4.4.1] — 2026-11-24 — Adresse courte de la borne
 
 ### Modifié

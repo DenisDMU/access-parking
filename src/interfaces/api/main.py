@@ -37,7 +37,12 @@ from src.interfaces.api.middleware import (
     security_headers_middleware,
 )
 from src.interfaces.api.rate_limit import limiter
-from src.interfaces.api.routers import access_router, events_router, health_router
+from src.interfaces.api.routers import (
+    access_router,
+    borne_router,
+    events_router,
+    health_router,
+)
 
 configure_logging()
 logger = logging.getLogger(__name__)
@@ -153,6 +158,7 @@ Instrumentator(excluded_handlers=["/health", "/metrics", "/static.*"]).instrumen
 app.include_router(access_router.passage_router, prefix="/api/v1")
 app.include_router(access_router.router, prefix="/api/v1")
 app.include_router(events_router.router, prefix="/api/v1")
+app.include_router(borne_router.router, prefix="/api/v1")
 
 # Journal de bord (dashboard) — servi par Access lui-même, sans port
 # supplémentaire : simple page statique appelant GET /api/v1/access/events

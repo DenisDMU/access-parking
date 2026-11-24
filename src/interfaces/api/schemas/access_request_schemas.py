@@ -244,6 +244,49 @@ class BorneKeyOut(BaseModel):
     borne_key: str = Field(alias="borneKey", description="Valeur de BORNE_API_KEY")
 
 
+class BornePassageIn(BaseModel):
+    """Corps de `POST /borne/passages` : la plaque et le sens, rien d'autre
+    (date et source sont imposées par le serveur)."""
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+        json_schema_extra={"examples": [{"licensePlate": "AB-123-CD", "type": 1}]},
+    )
+
+    license_plate: str = Field(alias="licensePlate", max_length=20)
+    type: RequestType = Field(description="1=ENTRY, 2=EXIT")
+
+    @field_validator("license_plate")
+    @classmethod
+    def _normalize_plate(cls, value: str) -> str:
+        return normalize_plate(value)
+
+
+class BornePassageOut(BaseModel):
+    """Réponse de `POST /borne/passages` : ce qu'affiche la borne, sans
+    identifiant de demande ni identifiant du véhicule."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    result: AuthorizationResult = Field(
+        description="1=AUTHORIZED, 2=REFUSED, 3=CONFIRMATION_REQUIRED"
+    )
+    reason: str | None = None
+    vehicle_identified: bool = Field(alias="vehicleIdentified")
+    place_type: PlaceTypeOut | None = Field(default=None, alias="placeType")
+    place_label: str | None = Field(default=None, alias="placeLabel")
+    reservation: bool | None = None
+    payment_amount: float | None = Field(default=None, alias="paymentAmount")
+    entered_at: datetime | None = Field(default=None, alias="enteredAt")
+    duration_minutes: int | None = Field(default=None, alias="durationMinutes")
+
+
+class BorneStatusOut(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    public_access: bool = Field(alias="publicAccess")
+
+
 class VehicleKnownIn(BaseModel):
     """Corps de `POST /access/vehicles/known` : la plaque voyage dans le corps
     et non dans l'URL, qui finit dans les journaux des proxys et de Render."""
@@ -291,7 +334,7 @@ class HealthOut(BaseModel):
         description="Moteur de base utilisé (sqlite ou postgresql) — jamais l'URL",
     )
     uptime_seconds: int = Field(alias="uptimeSeconds", examples=[1234])
-    version: str = Field(examples=["4.4.1"])
+    version: str = Field(examples=["4.5.0"])
     commit: str = Field(examples=["b742756d0c1e9f4a8b3c2d1e0f9a8b7c6d5e4f3a"])
 
     model_config = ConfigDict(populate_by_name=True)

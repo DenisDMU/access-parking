@@ -51,7 +51,7 @@ Vérifiable : aucun `import` de `infrastructure`/`interfaces` dans `domain` ni
 
 - Logs : README [section 9](../README.md#logs-exploitables) — correlation ID,
   une ligne par décision, log d'accès, avertissements des appels sortants.
-- Tests : 276 (unitaires + intégration ; clés étrangères appliquées en SQLite comme en Postgres ; suite d'intégration validée aussi contre la base Neon de production, dans un schéma jetable), aucun réseau ; CI en 5 étapes.
+- Tests : 286 (unitaires + intégration ; clés étrangères appliquées en SQLite comme en Postgres ; suite d'intégration validée aussi contre la base Neon de production, dans un schéma jetable), aucun réseau ; CI en 5 étapes.
 - Dépendances (`requirements.txt`) : FastAPI, SQLAlchemy, Pydantic, httpx
   (appels sortants), pika (RabbitMQ), slowapi (rate limiting),
   prometheus-fastapi-instrumentator (métriques). Surveillées par Dependabot et
@@ -81,6 +81,13 @@ Principaux choix techniques à savoir justifier :
   dashboard (4.4.0) : seul l'exploitant (clé d'exploitation) peut obtenir la
   clé borne, rangée dans le navigateur pour la borne ; jamais servie à une
   page publique.
+- **Borne publique** (4.5.0) : le lien `/borne` devait marcher pour tous,
+  sans réglage. Une page publique ne pouvant pas cacher de clé, plutôt que
+  de publier la clé borne (qui ouvrirait `POST /access/requests` en
+  entier), une route publique dédiée ne fait que le passage : date imposée
+  par le serveur, source forcée, réponse sans identifiants, 10/min par
+  adresse. Contrepartie assumée pour la démo, réversible par
+  `BORNE_PUBLIC=false`.
 - La plaque ne fait que traverser Access (4.0.0) : transmise à Vehicles puis
   oubliée, jamais stockée, publiée, renvoyée ni loggée (test dédié).
 - Borne client (`/borne`) servie par Access lui-même : pas de front séparé à
@@ -181,4 +188,5 @@ toujours avec un refus explicite et loggé, jamais un plantage.
 | 18 | 24/11 : **nouveau contrat Vehicles**, sans prévenir : plus de `code`, consultation par plaque (`GET /api/vehicles/{plaque}`). Access envoyait un code → tous les véhicules auraient été « inconnus » | ✅ 4.0.0 : Access reçoit la plaque (`licensePlate`), la transmet à Vehicles sans la conserver, vérification déplacée en `POST /access/vehicles/known` (plaque hors des URL) ; testé contre le vrai service. 📌 à signaler à Vehicles : la plaque figure dans l'URL de `GET /api/vehicles/{plaque}`, donc dans les journaux de leur hébergeur |
 | 19 | 24/11 : **Parking 1.5.0** : `GET /parking/categories`, `label` dans ses réponses, `spot_held` dans l'occupation (champs uniquement ajoutés, rien de cassé) | ✅ 4.2.0 : catégories vérifiées avant chaque `hold` (motif précis si Parking renomme une catégorie), libellés affichés (borne, dashboard), occupation par catégorie dans le dashboard (`GET /access/parking`). Contrat lu sur le Swagger de Parking : leurs routes exigent la clé Parking, non disponible en local, donc à revérifier en ligne après déploiement |
 | 20 | Borne et API n'acceptaient que les plaques françaises SIV (`AB-123-CD`) : ancien format français et plaques étrangères refusés | ✅ 4.3.0 : 2 à 10 lettres ou chiffres, séparateurs acceptés ; SIV gardée en `AB-123-CD` (véhicules déjà connus de Vehicles retrouvés), autres plaques sans séparateurs pour qu'une même plaque donne toujours le même véhicule. 📄 Le filtre de logs ne masque que le format SIV : les autres formats ne sont jamais loggés par le code (test anti-fuite étendu aux plaques étrangères) |
+| 21 | Le lien de la borne envoyé à l'équipe affichait « Borne hors service » : chacun devait saisir la clé (`?config`) | ✅ 4.5.0 : borne publique (`POST /borne/passages`, sans clé, limitée au passage) ; le lien marche tel quel. 📄 Le débit de `POST /access/requests` (20/min) était compté sur l'adresse du proxy de Render, donc partagé par tous ; la route publique compte, elle, par adresse réelle |
 | 9 | Propagation du correlation ID par les autres services | 📌 à vérifier en revue d'intégration (Access le transmet partout) |
