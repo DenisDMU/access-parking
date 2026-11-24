@@ -64,6 +64,11 @@ donc enregistrée par Vehicles ; pour Access, rien ne change (refus
 - `isHandicaped` (`handicaped`, `disabled` avant) alimente à la fois le type de
   véhicule (`is_handicap`) et le justificatif PMR : Vehicles n'expose pas de
   justificatif distinct (voir README section 16).
+- Délai de 45 s (et non 20) : Vehicles est sur l'offre gratuite de Render,
+  qui l'endort après 15 min sans trafic ; son réveil prend 30 à 50 s. Avec
+  20 s, la première entrée après une pause finissait en « Un agent arrive ».
+- `PUT` et `DELETE` exigent une authentification depuis le 24/11 (14 h 30) ;
+  Access envoie `X-API-Key` si `VEHICLES_API_KEY` est renseignée.
 - Toute autre réponse ou erreur réseau → `None`, soit « véhicule non
   identifié » → procédure alternative à la barrière, jamais un plantage
   d'Access.
@@ -117,7 +122,7 @@ class HttpVehiclesClient:
     def __init__(
         self,
         base_url: str,
-        timeout_s: float = 20.0,
+        timeout_s: float = 45.0,
         transport: httpx.BaseTransport | None = None,
         api_key: str = "",
         lookup_path: str = DEFAULT_LOOKUP_PATH,

@@ -8,7 +8,10 @@ la carte mobilité inclusion, puis saisit son code sur la borne :
 1. Le véhicule est identifié auprès de Vehicles (jamais créé PMR sur simple
    déclaration : c'est l'étape 2 qui l'enregistre, après vérification).
 2. Le justificatif est enregistré chez Vehicles (`confirm_disability`) : aux
-   passages suivants, le véhicule entre directement sur une place PMR.
+   passages suivants, le véhicule entre directement sur une place PMR. Si
+   Vehicles refuse (route protégée par une clé qu'Access n'a pas, panne),
+   l'entrée n'est pas bloquée : la carte a été vérifiée par l'agent, elle
+   vaut pour ce passage ; seule la mémorisation est perdue (avertissement).
 3. L'entrée est rejouée par le parcours normal (`ProcessEntryRequest`), avec
    toutes ses règles (déjà présent, réservation, place PMR libre…).
 
@@ -31,10 +34,6 @@ logger = logging.getLogger(__name__)
 PMR = VehicleType(category=VehicleCategory.FOUR_WHEELER, is_handicap=True)
 
 
-class DisabilityNotRecordedError(Exception):
-    """Vehicles n'a pas enregistré le justificatif PMR : rien n'est autorisé."""
-
-
 @dataclass
 class ConfirmDisabilityByAgent:
     vehicles_port: VehiclesServicePort
@@ -43,9 +42,20 @@ class ConfirmDisabilityByAgent:
     def execute(self, plate: str, date: datetime, source: DetectionSource):
         info = self.vehicles_port.identify_vehicle(plate, declared=PMR)
         if info is not None and not info.disability_permit:
-            if not self.vehicles_port.confirm_disability(info.vehicle_id):
-                raise DisabilityNotRecordedError
-            logger.info("Justificatif PMR validé par un agent (vehicle=%s)", info.vehicle_id)
+            if self.vehicles_port.confirm_disability(info.vehicle_id):
+                logger.info("Justificatif PMR validé par un agent (vehicle=%s)", info.vehicle_id)
+            else:
+                logger.warning(
+                    "Justificatif PMR validé par un agent mais non enregistré chez "
+                    "Vehicles (vehicle=%s) : valable pour ce passage seulement",
+                    info.vehicle_id,
+                )
         # Véhicule non identifié (Vehicles en panne) : le parcours normal rend
         # « véhicule non identifié », comme à une entrée ordinaire.
-        return self.entry_use_case.execute(plate=plate, date=date, source=source, declared_type=PMR)
+        return self.entry_use_case.execute(
+            plate=plate,
+            date=date,
+            source=source,
+            declared_type=PMR,
+            disability_verified=True,
+        )
