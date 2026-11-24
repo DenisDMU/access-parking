@@ -1,7 +1,11 @@
 """Tests unitaires — fonctions pures de `http_pricing_client.py`
 (mapping zone + calcul de durée), sans appel réseau au vrai service Pricing."""
 
+import json
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
+
+import httpx
 
 from src.domain.value_objects.dto import PlaceType
 from src.domain.value_objects.enums import VehicleCategory
@@ -32,19 +36,20 @@ def test_map_zone_electric():
     assert _map_zone(PlaceType(category=FOUR, is_electric=True)) == "electric"
 
 
-def test_map_zone_disabled():
-    assert _map_zone(PlaceType(category=FOUR, is_handicap=True)) == "disabled"
+def test_map_zone_handicapped():
+    # Grille Pricing v2 (24/11) : la zone PMR s'appelle `handicapped`.
+    assert _map_zone(PlaceType(category=FOUR, is_handicap=True)) == "handicapped"
 
 
 def test_map_zone_two_wheels():
     assert _map_zone(PlaceType(category=TWO)) == "two_wheels"
 
 
-def test_map_zone_priority_disabled_over_everything_else():
+def test_map_zone_priority_handicapped_over_everything_else():
     # Un cumul d'attributs ne doit jamais produire une zone invalide : la
-    # priorité "disabled" documentée dans http_pricing_client.py l'emporte.
+    # priorité PMR documentée dans http_pricing_client.py l'emporte.
     place = PlaceType(category=FOUR, is_xl=True, is_electric=True, is_handicap=True)
-    assert _map_zone(place) == "disabled"
+    assert _map_zone(place) == "handicapped"
 
 
 def test_duration_minutes_walk_in_arrondie_a_la_minute_superieure():
@@ -102,3 +107,67 @@ def test_calculate_price_returns_none_when_pricing_unreachable():
     exit_ = datetime(2026, 1, 1, 11, 0, tzinfo=UTC)
     result = client.calculate_price("v1", entry, exit_, PlaceType(category=FOUR))
     assert result is None  # ne doit jamais lever, ni inventer un montant
+
+
+# --- Zones (faux Pricing, httpx.MockTransport) ------------------------------------
+
+_ENTRY = datetime(2026, 1, 1, 10, 0, tzinfo=UTC)
+_EXIT = _ENTRY + timedelta(minutes=90)
+_PMR = PlaceType(category=FOUR, is_handicap=True)
+
+
+class _FakePricing:
+    def __init__(self, zones: set[str]) -> None:
+        self.zones = zones
+        self.sent: list[str] = []
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        zone = json.loads(request.content)["zone"]
+        self.sent.append(zone)
+        if zone not in self.zones:
+            return httpx.Response(404, json={"code": "ZONE_NOT_FOUND", "message": zone})
+        return httpx.Response(201, json={"amount_eur": "0.75", "currency": "EUR"})
+
+
+def _pricing(handler) -> HttpPricingClient:
+    return HttpPricingClient("https://pricing.test", transport=httpx.MockTransport(handler))
+
+
+def test_sortie_pmr_tarifee_avec_la_zone_handicapped():
+    pricing = _FakePricing({"standard", "handicapped"})
+    assert _pricing(pricing).calculate_price("v1", _ENTRY, _EXIT, _PMR) == Decimal("0.75")
+    assert pricing.sent == ["handicapped"]
+
+
+def test_ancien_nom_de_zone_essaye_si_pricing_revient_en_arriere():
+    pricing = _FakePricing({"standard", "disabled"})
+    assert _pricing(pricing).calculate_price("v1", _ENTRY, _EXIT, _PMR) == Decimal("0.75")
+    assert pricing.sent == ["handicapped", "disabled"]
+
+
+def test_zone_inconnue_sous_tous_ses_noms():
+    pricing = _FakePricing({"standard"})
+    assert _pricing(pricing).calculate_price("v1", _ENTRY, _EXIT, _PMR) is None
+    assert pricing.sent == ["handicapped", "disabled"]
+
+
+def test_zone_sans_alias_un_seul_appel():
+    pricing = _FakePricing({"handicapped"})
+    assert _pricing(pricing).calculate_price("v1", _ENTRY, _EXIT, PlaceType(category=FOUR)) is None
+    assert pricing.sent == ["standard"]
+
+
+def test_autre_404_pas_de_nouvel_essai():
+    sent = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent.append(request)
+        return httpx.Response(404, text="Not Found")
+
+    assert _pricing(handler).calculate_price("v1", _ENTRY, _EXIT, _PMR) is None
+    assert len(sent) == 1
+
+
+def test_reponse_sans_montant():
+    client = _pricing(lambda r: httpx.Response(201, json={"currency": "EUR"}))
+    assert client.calculate_price("v1", _ENTRY, _EXIT, _PMR) is None

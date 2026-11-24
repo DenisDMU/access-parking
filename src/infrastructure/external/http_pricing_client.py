@@ -5,12 +5,18 @@ Contrat confirmé le 2026-09-02 contre le déploiement réel
 end-to-end (`POST /quote`, `GET /rates`, `GET /grids/current`) :
 
     POST {base_url}/quote
-    { "zone": "standard"|"xl"|"disabled"|"electric"|"two_wheels",
+    { "zone": "standard"|"xl"|"handicapped"|"electric"|"two_wheels",
       "mode": "walk_in"|"reserved",
       "duration_min": <entier, minutes> }
     -> 201 { quote_id, grid_id, grid_version, amount_eur (string décimal),
              currency, breakdown, computed_at }
     -> 404 { code: "ZONE_NOT_FOUND", message: ... } si zone inconnue
+
+Grille v2 (24/11, 10 h 29) : la zone PMR `disabled` est devenue
+`handicapped`. Access envoyait encore `disabled` : chaque sortie d'un
+véhicule PMR était refusée (« service de tarification indisponible »).
+Access envoie désormais `handicapped` et, sur un `ZONE_NOT_FOUND`, réessaie
+avec l'ancien nom (`ZONE_ALIASES`) au cas où Pricing reviendrait en arrière.
     -> 422 si `duration_min` vaut 0 ou dépasse 10 080 (7 jours) — d'où le
        bornage fait par `_duration_minutes` (vérifié le 2026-11-18).
     -> 400 { code: "INVALID_DURATION", message: ... } si `mode="reserved"`
@@ -22,7 +28,7 @@ end-to-end (`POST /quote`, `GET /rates`, `GET /grids/current`) :
 comportement inattendu apparaît) :
   - TODO[PRICING-1] Mapping `PlaceType` → `zone` : priorité déduite des 5
     zones réellement configurées (`GET /rates`) — handicap d'abord (zone
-    "disabled" a un tarif préférentiel), puis 2 roues, électrique, XL,
+    "handicapped" a un tarif préférentiel), puis 2 roues, électrique, XL,
     standard en dernier recours. Une place cumulant plusieurs attributs
     (ex. XL + électrique) ne peut être envoyée que sous UNE zone : à
     valider avec l'équipe si ce cas doit exister dans le vrai parking.
@@ -65,7 +71,7 @@ def _map_zone(place_type: PlaceType) -> str:
     priorité choisi et ses limites."""
 
     if place_type.is_handicap:
-        return "disabled"
+        return "handicapped"
     if place_type.category is VehicleCategory.TWO_WHEELER:
         return "two_wheels"
     if place_type.is_electric:
@@ -73,6 +79,11 @@ def _map_zone(place_type: PlaceType) -> str:
     if place_type.is_xl:
         return "xl"
     return "standard"
+
+
+# Noms successifs d'une même zone chez Pricing, essayés dans l'ordre sur un
+# `ZONE_NOT_FOUND` (la zone PMR a été renommée le 24/11).
+ZONE_ALIASES: dict[str, tuple[str, ...]] = {"handicapped": ("handicapped", "disabled")}
 
 
 # Règle métier 2.4 : « la durée du stationnement est plafonnée à sept jours ».
@@ -103,8 +114,15 @@ def _duration_minutes(entry_date: datetime, exit_date: datetime, is_reservation:
 class HttpPricingClient:
     """Implémente `PricingServicePort` via un vrai appel HTTP à Pricing."""
 
-    def __init__(self, base_url: str, timeout_s: float = 20.0, api_key: str = "") -> None:
+    def __init__(
+        self,
+        base_url: str,
+        timeout_s: float = 20.0,
+        api_key: str = "",
+        transport: httpx.BaseTransport | None = None,
+    ) -> None:
         self._base_url = base_url.rstrip("/")
+        self._transport = transport  # injecté par les tests (httpx.MockTransport)
         self._timeout_s = timeout_s
         # Envoyé seulement si PRICING_API_KEY est renseignée (authentification
         # pas encore activée côté Pricing au 2026-11-18).
@@ -118,23 +136,43 @@ class HttpPricingClient:
         place_type: PlaceType,
         is_reservation: bool = False,
     ) -> Decimal | None:
+        zone = _map_zone(place_type)
         payload = {
-            "zone": _map_zone(place_type),
+            "zone": zone,
             "mode": "reserved" if is_reservation else "walk_in",
             "duration_min": _duration_minutes(entry_date, exit_date, is_reservation),
         }
         try:
             with outgoing_client(
-                "pricing", timeout=self._timeout_s, headers=self._headers
+                "pricing",
+                timeout=self._timeout_s,
+                headers=self._headers,
+                transport=self._transport,
             ) as client:
-                response = client.post(f"{self._base_url}/quote", json=payload)
+                for name in ZONE_ALIASES.get(zone, (zone,)):
+                    payload["zone"] = name
+                    response = client.post(f"{self._base_url}/quote", json=payload)
+                    if not _zone_not_found(response):
+                        break
+                    logger.warning("Pricing ne connaît pas la zone %r", name)
             response.raise_for_status()
-        except httpx.HTTPError as exc:
+            return Decimal(str(response.json()["amount_eur"]))
+        except (httpx.HTTPError, KeyError, TypeError, ValueError, ArithmeticError) as exc:
             # Panne/429/timeout Pricing : hors périmètre MVP. On ne fabrique
             # jamais un montant inventé — None fait refuser la sortie
             # proprement côté ProcessExitRequest (jamais de 500 brute).
-            logger.warning("Pricing indisponible sur calculate_price (%s) : %s", vehicle_id, exc)
+            logger.warning(
+                "Pricing indisponible sur calculate_price (%s) : %s",
+                vehicle_id,
+                type(exc).__name__,
+            )
             return None
 
-        data = response.json()
-        return Decimal(str(data["amount_eur"]))
+
+def _zone_not_found(response: httpx.Response) -> bool:
+    if response.status_code != 404:
+        return False
+    try:
+        return response.json().get("code") == "ZONE_NOT_FOUND"
+    except (ValueError, AttributeError):
+        return False
