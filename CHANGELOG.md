@@ -4,6 +4,14 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.10.2] — 2026-11-24 — Création Vehicles en 201
+
+### Corrigé
+- Vehicles a annoncé qu'il renverrait `201 Created` à la création d'un
+  véhicule : Access accepte désormais 200 et 201 (il n'acceptait que 200,
+  toute entrée serait repartie en « Un agent arrive »). L'enregistrement
+  PMR accepte 200 et 204.
+
 ## [4.10.1] — 2026-11-24 — Vehicles protège PUT et DELETE
 
 ### Corrigé
