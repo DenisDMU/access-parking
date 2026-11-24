@@ -351,6 +351,28 @@ class BornePassageOut(BaseModel):
     duration_minutes: int | None = Field(default=None, alias="durationMinutes")
 
 
+class BorneParkingCategoryOut(BaseModel):
+    """Occupation d'une catégorie, telle que la montre le plan 3D de la borne."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    name: str = Field(description="Nom technique chez Parking (ex. ELECTRIC)")
+    label: str = Field(description="Libellé fourni par Parking")
+    total_capacity: int = Field(alias="totalCapacity")
+    spot_taken: int = Field(alias="spotTaken")
+    spot_held: int = Field(alias="spotHeld", description="Places mises de côté (hold de 30 s)")
+
+
+class BorneParkingOut(BaseModel):
+    """Réponse de `GET /borne/parking` : des compteurs par catégorie, rien
+    d'autre (aucun véhicule, aucun identifiant, aucune demande)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    available: bool = Field(description="false si Parking n'a pas répondu")
+    categories: list[BorneParkingCategoryOut]
+
+
 class BorneStatusOut(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
@@ -411,7 +433,7 @@ class HealthOut(BaseModel):
         description="Moteur de base utilisé (sqlite ou postgresql) — jamais l'URL",
     )
     uptime_seconds: int = Field(alias="uptimeSeconds", examples=[1234])
-    version: str = Field(examples=["4.11.0"])
+    version: str = Field(examples=["4.12.0"])
     commit: str = Field(examples=["b742756d0c1e9f4a8b3c2d1e0f9a8b7c6d5e4f3a"])
     booking: str = Field(
         examples=["réel"],

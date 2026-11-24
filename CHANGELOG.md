@@ -4,6 +4,18 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.12.0] — 2026-11-24 — Plan 3D sur la borne publique
+
+### Ajouté
+- Borne : dock sur le côté (en bas sur mobile), comme celui de macOS. La
+  maison ramène à la borne (entrer, sortir), la voiture ouvre « Le parking
+  en direct » : le plan 3D en plein écran, pour tout le monde, sans clé.
+- `GET /borne/parking` (publique) : occupation par catégorie pour ce plan
+  (`totalCapacity`, `spotTaken`, `spotHeld`, libellé). Aucun véhicule ni
+  identifiant. Réponse de Parking gardée 10 s (`BORNE_PARKING_CACHE_S`),
+  30 demandes par minute et par adresse (`RATE_LIMIT_BORNE_PARKING`), 403
+  si `BORNE_PUBLIC=false`.
+
 ## [4.11.0] — 2026-11-24 — Plan 3D du parking
 
 ### Ajouté

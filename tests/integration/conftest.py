@@ -47,6 +47,7 @@ from src.infrastructure.db.session import (  # noqa: E402
 from src.interfaces.api import deps  # noqa: E402
 from src.interfaces.api.main import app  # noqa: E402
 from src.interfaces.api.rate_limit import limiter  # noqa: E402
+from src.interfaces.api.routers import borne_router  # noqa: E402
 from tests.unit.fakes import (  # noqa: E402
     DEMO_VEHICLES,
     FakeParkingPort,
@@ -62,6 +63,7 @@ BORNE_HEADERS = {"X-API-Key": "test-borne-key-0001"}
 @pytest.fixture()
 def client():
     limiter.reset()  # isole chaque test du rate limiting (état global partagé)
+    borne_router.reset_parking_cache()  # et de l'occupation gardée pour la borne
     pg_url = os.getenv("ACCESS_TEST_DATABASE_URL")
     pg_schema = None
     if pg_url:
