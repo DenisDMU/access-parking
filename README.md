@@ -616,6 +616,19 @@ python3 scripts/tests_en_ligne.py
 Avec `VEHICLES_API_KEY`, les véhicules de test sont ensuite supprimés chez
 Vehicles (son `DELETE` exige une clé depuis le 24/11).
 
+### Bilan du journal après un test
+
+[`scripts/bilan_journal.py`](scripts/bilan_journal.py) résume ce qui s'est
+passé pendant un test, avec la clé d'exploitation (gardée sur votre
+machine) : décisions par sens, motifs de refus du plus fréquent au plus
+rare, activité minute par minute (pour repérer un pic ou une panne), et
+véhicules restés dans le parking avec leur ancienneté. Aucune plaque : les
+véhicules sont désignés par le début de leur identifiant pseudonymisé.
+
+```bash
+API_KEY=<clé Render> python3 scripts/bilan_journal.py --depuis 2026-11-24T14:00:00Z
+```
+
 ### Agents Claude Code du projet
 
 Le dossier [`.claude/agents/`](.claude/agents) contient quatre agents
