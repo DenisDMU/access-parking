@@ -20,3 +20,8 @@ def test_health_expose_version_et_commit(client):
     assert body["version"] == __version__
     # Hors Render, RENDER_GIT_COMMIT n'est pas défini
     assert body["commit"] == "local"
+
+
+def test_health_indique_si_booking_est_reel_ou_simule(client):
+    # Les tests simulent Booking (BOOKING_USE_MOCK=true dans conftest).
+    assert client.get("/health").json()["booking"] == "simulé"

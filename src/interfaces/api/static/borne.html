@@ -644,12 +644,17 @@
       if (data.enteredAt) rows2.push(["Entrée", fmtTime(data.enteredAt)]);
       rows2.push(["Sortie", fmtTime(Date.now())]);
       if (data.durationMinutes != null) rows2.push(["Durée", fmtDuration(data.durationMinutes)]);
-      rows2.push(["Montant", amount ? fmtEuro(amount) : "Gratuit", "total"]);
-      return {
-        kind: "ok", title: "Merci, bonne route !",
-        lead: amount ? "Paiement accepté. La barrière s'ouvre." : "Première heure offerte. La barrière s'ouvre.",
-        rows: rows2, delay: 20,
-      };
+      var lead;
+      if (data.reservation) {
+        // Créneau payé d'avance à la réservation : seul un dépassement est facturé.
+        rows2.push(["Réservation", "Déjà réglée"]);
+        rows2.push([amount ? "Dépassement" : "À payer", amount ? fmtEuro(amount) : "Rien", "total"]);
+        lead = amount ? "Dépassement du créneau réglé. La barrière s'ouvre." : "Votre réservation est réglée. La barrière s'ouvre.";
+      } else {
+        rows2.push(["Montant", amount ? fmtEuro(amount) : "Gratuit", "total"]);
+        lead = amount ? "Paiement accepté. La barrière s'ouvre." : "Première heure offerte. La barrière s'ouvre.";
+      }
+      return { kind: "ok", title: "Merci, bonne route !", lead: lead, rows: rows2, delay: 20 };
     }
     if (auth.result === 3) {
       if (!data.vehicleIdentified) {

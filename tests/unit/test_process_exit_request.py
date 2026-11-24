@@ -30,7 +30,9 @@ ENTRY_AT = datetime(2026, 9, 2, 10, 0, tzinfo=UTC)
 EXIT_AT = ENTRY_AT + timedelta(hours=1)
 
 
-def _seed_vehicle_present(access_repo, presence_repo, vehicle_id="v1", place_id="P-1"):
+def _seed_vehicle_present(
+    access_repo, presence_repo, vehicle_id="v1", place_id="P-1", extra_payload=None
+):
     """Simule qu'un véhicule est entré : demande d'entrée + événement
     VEHICLE_ENTERED (porteur du placeId/placeType, cf. process_exit_request)
     + présence IN."""
@@ -52,6 +54,7 @@ def _seed_vehicle_present(access_repo, presence_repo, vehicle_id="v1", place_id=
             type=EventType.VEHICLE_ENTERED,
             request_id=request_id,
             payload={
+                **(extra_payload or {}),
                 "vehicleId": vehicle_id,
                 "placeId": place_id,
                 "placeType": {
@@ -343,3 +346,53 @@ def test_evenement_de_sortie_donne_heure_entree_et_duree():
     assert exit_event.payload["enteredAt"] == ENTRY_AT.isoformat()
     assert exit_event.payload["durationMinutes"] == 151  # 2 h 30 min 10 s : minute entamée
     assert exit_event.payload["amount"] == "7.50"
+
+
+# --- Réservation Booking : créneau payé d'avance ---------------------------------
+
+
+def _reserved_exit(exit_at, reservation_end, amount=Decimal("3.00")):
+    vehicles = FakeVehiclesPort(
+        {
+            "AA-111-AA": VehicleInfo(
+                vehicle_id="v1", vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER)
+            )
+        }
+    )
+    presence = FakePresenceRepo()
+    access_repo = FakeAccessRepo()
+    _seed_vehicle_present(
+        access_repo,
+        presence,
+        extra_payload={
+            "reservation": True,
+            "reservationId": "482913",
+            "reservationEnd": reservation_end.isoformat(),
+        },
+    )
+    pricing = FakePricingPort(amount=amount)
+    payment = FakePaymentPort(success=True)
+    use_case = make_use_case(vehicles, FakeParkingPort(), pricing, payment, presence, access_repo)
+    decision = use_case.execute("AA-111-AA", exit_at, DetectionSource.TERMINAL)
+    return decision, pricing, payment
+
+
+def test_sortie_dans_le_creneau_reserve_ne_fait_rien_payer():
+    end = ENTRY_AT + timedelta(hours=3)
+    decision, pricing, payment = _reserved_exit(ENTRY_AT + timedelta(hours=2), end)
+    assert decision.result is AuthorizationResult.AUTHORIZED
+    assert decision.payment_amount == Decimal("0")
+    assert decision.reservation is True
+    assert pricing.calls == [] and payment.calls == []
+
+
+def test_sortie_apres_le_creneau_facture_seulement_le_depassement():
+    end = ENTRY_AT + timedelta(hours=2)
+    exit_at = end + timedelta(minutes=40)
+    decision, pricing, payment = _reserved_exit(exit_at, end, amount=Decimal("3.00"))
+    assert decision.result is AuthorizationResult.AUTHORIZED
+    # Pricing reçoit le dépassement (fin du créneau → sortie), au tarif sans réservation.
+    (_, start, stop, _, is_reservation) = pricing.calls[0]
+    assert (start, stop, is_reservation) == (end, exit_at, False)
+    assert payment.calls == [("entry-request-1", Decimal("3.00"))]
+    assert decision.payment_amount == Decimal("3.00")

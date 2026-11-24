@@ -102,8 +102,10 @@ class FakeVehiclesPort:
 class FakeBookingPort:
     def __init__(self, reservations: dict[str, Reservation] | None = None) -> None:
         self.reservations = reservations or {}
+        self.calls: list[tuple[str, datetime | None]] = []
 
-    def get_reservation(self, vehicle_id: str) -> Reservation | None:
+    def get_reservation(self, vehicle_id: str, at: datetime | None = None) -> Reservation | None:
+        self.calls.append((vehicle_id, at))
         return self.reservations.get(vehicle_id)
 
 

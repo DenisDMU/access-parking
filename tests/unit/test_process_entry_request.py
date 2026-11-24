@@ -1,6 +1,6 @@
 """Tests unitaires du use case `ProcessEntryRequest` — tous les ports mockés."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from src.application.use_cases.process_entry_request import ProcessEntryRequest
 from src.domain.value_objects.dto import (
@@ -299,3 +299,47 @@ def test_le_libelle_de_parking_est_remonte():
         "AA-111-AA", datetime(2026, 9, 2, 10, 0, tzinfo=UTC), DetectionSource.LPR
     )
     assert decision.place_label == "Place de test"
+
+
+# --- Réservation Booking (réelle) ---------------------------------------------
+
+
+def test_reservation_cherchee_a_l_heure_du_passage_et_place_du_type_reserve():
+    vehicles = FakeVehiclesPort(
+        {
+            "AA-111-AA": VehicleInfo(
+                vehicle_id="v1",
+                vehicle_type=VehicleType(category=VehicleCategory.FOUR_WHEELER, is_electric=True),
+            )
+        }
+    )
+    reservation = Reservation(
+        id="482913",
+        vehicle_id="v1",
+        reserved_place_type=PlaceType(category=VehicleCategory.FOUR_WHEELER, is_electric=True),
+        start_date=NOW,
+        end_date=NOW + timedelta(hours=2),
+    )
+    booking = FakeBookingPort({"v1": reservation})
+    parking = FakeParkingPort()
+    publisher = FakeEventPublisher()
+    use_case = ProcessEntryRequest(
+        vehicles_port=vehicles,
+        booking_port=booking,
+        parking_port=parking,
+        presence_repo=FakePresenceRepo(),
+        access_repo=FakeAccessRepo(),
+        event_publisher=publisher,
+        ai_vision_port=FakeAIVisionPort(),
+    )
+
+    decision = use_case.execute("AA-111-AA", NOW, DetectionSource.TERMINAL)
+
+    assert decision.result is AuthorizationResult.AUTHORIZED
+    assert decision.reservation is True
+    assert booking.calls == [("v1", NOW)]
+    requested_type, is_reservation = parking.calls[0]
+    assert requested_type.is_electric and is_reservation is True
+    payload = publisher.published[0].payload
+    assert payload["reservationId"] == "482913"
+    assert payload["reservationEnd"] == (NOW + timedelta(hours=2)).isoformat()

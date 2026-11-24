@@ -156,7 +156,11 @@ class AccessRequestOut(BaseModel):
         description="Entrée : libellé de la catégorie fourni par Parking (4.2.0)",
     )
     reservation: bool | None = Field(
-        default=None, description="Entrée : une réservation a été reconnue"
+        default=None,
+        description=(
+            "Entrée : une réservation Booking a été reconnue. Sortie : le "
+            "stationnement relevait d'une réservation (créneau déjà payé)"
+        ),
     )
     entered_at: datetime | None = Field(
         default=None, alias="enteredAt", description="Sortie : heure d'entrée (UTC)"
@@ -334,7 +338,11 @@ class HealthOut(BaseModel):
         description="Moteur de base utilisé (sqlite ou postgresql) — jamais l'URL",
     )
     uptime_seconds: int = Field(alias="uptimeSeconds", examples=[1234])
-    version: str = Field(examples=["4.5.1"])
+    version: str = Field(examples=["4.6.0"])
     commit: str = Field(examples=["b742756d0c1e9f4a8b3c2d1e0f9a8b7c6d5e4f3a"])
+    booking: str = Field(
+        examples=["réel"],
+        description="Service Booking utilisé : « réel » ou « simulé » (jamais l'URL)",
+    )
 
     model_config = ConfigDict(populate_by_name=True)
