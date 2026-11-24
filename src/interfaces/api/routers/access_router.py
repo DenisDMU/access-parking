@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import logging
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, status
@@ -34,6 +35,7 @@ from src.interfaces.api.schemas.access_request_schemas import (
     AccessRequestListItemOut,
     AccessRequestOut,
     AuthorizationOut,
+    BorneKeyOut,
     ParkingCategoryOut,
     ParkingOverviewOut,
     PlaceTypeOut,
@@ -42,6 +44,8 @@ from src.interfaces.api.schemas.access_request_schemas import (
     VehicleKnownOut,
 )
 from src.interfaces.api.schemas.error_schemas import ErrorOut
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/access",
@@ -332,3 +336,30 @@ def get_parking_overview(
         ],
         missingCategories=overview.missing_categories,
     )
+
+
+@router.get(
+    "/borne/key",
+    response_model=BorneKeyOut,
+    summary="Clé des bornes client (mise en service depuis le dashboard)",
+    description=(
+        "Renvoie `BORNE_API_KEY` à qui présente la clé d'exploitation : le "
+        "dashboard s'en sert pour configurer et ouvrir la borne client d'un "
+        "clic, sans saisie. Jamais accessible avec la clé borne elle-même. "
+        "404 si `BORNE_API_KEY` n'est pas définie."
+    ),
+    responses={
+        **_COMMON_ERROR_RESPONSES,
+        404: {"model": ErrorOut, "description": "BORNE_API_KEY non définie"},
+    },
+)
+def get_borne_key() -> BorneKeyOut:
+    borne_key = get_settings().borne_api_key
+    if not borne_key:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="BORNE_API_KEY n'est pas définie (Render > Environment)",
+        )
+    # Jamais la valeur dans les logs : seulement le fait qu'elle a été remise.
+    logger.info("Clé borne remise au dashboard d'exploitation")
+    return BorneKeyOut(borneKey=borne_key)

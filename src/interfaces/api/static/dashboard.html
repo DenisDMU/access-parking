@@ -260,6 +260,10 @@
   .tab-panel.active { display: block; animation: rise 0.4s var(--ease); }
   @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
   .panel { border-radius: var(--r-xl); padding: 20px; min-width: 0; }
+  .panel[hidden] { display: none; }
+  .launch-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .launch-row .btn { height: 44px; }
+  .launch-msg.error { color: var(--red); }
   .panel-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
   h2 { margin: 0; font-size: 14.5px; font-weight: 700; }
   .panel-head .muted { margin-left: auto; }
@@ -490,6 +494,7 @@
   <!-- ======================= Borne ======================= -->
   <section id="tab-borne" class="tab-panel active" role="tabpanel">
     <div class="borne">
+      <div class="stack">
       <div class="panel glass stack">
         <div>
           <div class="kicker">Simulation</div>
@@ -525,6 +530,30 @@
           <button id="borneExit" class="btn btn-exit" type="button">Sortie</button>
         </div>
         <p class="hint"><kbd>Entrée ↵</kbd> dans le champ lance une entrée.</p>
+      </div>
+
+      <!-- Visible seulement avec une clé d'exploitation valide. -->
+      <div class="panel glass stack" id="borneLaunch" hidden>
+        <div>
+          <div class="kicker">Écran public</div>
+          <h2>Borne client</h2>
+        </div>
+        <div class="field">
+          <span id="launchLabel">Emplacement de la borne</span>
+          <div class="chips" id="launchMode" role="radiogroup" aria-labelledby="launchLabel">
+            <button class="chip" type="button" role="radio" aria-checked="true" data-value="libre">Entrée et sortie</button>
+            <button class="chip" type="button" role="radio" aria-checked="false" data-value="entree">Entrée</button>
+            <button class="chip" type="button" role="radio" aria-checked="false" data-value="sortie">Sortie</button>
+          </div>
+        </div>
+        <div class="launch-row">
+          <button id="openBorne" class="btn" type="button">Ouvrir la borne client</button>
+        </div>
+        <p class="hint launch-msg" id="launchMsg" role="status">
+          Configure la borne de ce navigateur avec sa propre clé (<code>BORNE_API_KEY</code>), sans
+          saisie, puis l'ouvre dans un nouvel onglet. La clé d'exploitation n'est jamais transmise à la borne.
+        </p>
+      </div>
       </div>
 
       <div class="stack">
@@ -870,6 +899,8 @@
     }[state];
     keyState.textContent = meta[0];
     keyState.className = "badge dotted " + meta[1];
+    // Le bouton de mise en service de la borne n'existe que pour l'exploitant connecté.
+    $("borneLaunch").hidden = state !== "ok";
   }
 
   function setStatus(text, isError) {
@@ -1286,6 +1317,53 @@
     if (!chip) return;
     offsetMinutes = Number(chip.dataset.value);
     this.querySelectorAll(".chip").forEach(function (c) { c.setAttribute("aria-checked", String(c === chip)); });
+  });
+
+  // --- Mise en service de la borne client ---------------------------------
+  // Dashboard et borne sont servis par Access : même origine, donc même
+  // stockage du navigateur. Le dashboard (clé d'exploitation) récupère la
+  // clé borne et la range là où la borne la lit, puis ouvre /borne.
+  const BORNE_KEY_STORAGE = "access.borne.key";
+  let launchMode = "libre";
+  $("launchMode").addEventListener("click", function (e) {
+    const chip = e.target.closest(".chip");
+    if (!chip) return;
+    launchMode = chip.dataset.value;
+    this.querySelectorAll(".chip").forEach(function (c) { c.setAttribute("aria-checked", String(c === chip)); });
+  });
+
+  function setLaunchMsg(text, isError) {
+    const msg = $("launchMsg");
+    msg.textContent = text;
+    msg.classList.toggle("error", Boolean(isError));
+  }
+
+  $("openBorne").addEventListener("click", async function () {
+    const key = getKey();
+    if (!key) return;
+    // Onglet ouvert tout de suite (sinon bloqué comme pop-up), rempli ensuite.
+    const tab = window.open("about:blank", "_blank");
+    try {
+      const res = await fetch("/api/v1/access/borne/key", { headers: { "X-API-Key": key } });
+      if (res.status === 404) {
+        if (tab) tab.close();
+        setLaunchMsg("BORNE_API_KEY n'est pas définie : ajoute-la dans Render > Environment.", true);
+        return;
+      }
+      if (!res.ok) {
+        if (tab) tab.close();
+        setLaunchMsg("Clé borne indisponible (erreur " + res.status + ").", true);
+        return;
+      }
+      const data = await res.json();
+      try { localStorage.setItem(BORNE_KEY_STORAGE, data.borneKey); } catch (e) { /* voir ci-dessous */ }
+      const url = "/borne?mode=" + encodeURIComponent(launchMode);
+      if (tab) tab.location.href = url; else window.location.href = url;
+      setLaunchMsg("Borne configurée et ouverte (" + { libre: "entrée et sortie", entree: "entrée", sortie: "sortie" }[launchMode] + ").");
+    } catch (err) {
+      if (tab) tab.close();
+      setLaunchMsg("Access injoignable (" + err.message + ").", true);
+    }
   });
 
   let gateTitleEl = null;

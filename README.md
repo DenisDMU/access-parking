@@ -20,7 +20,7 @@
 | | |
 |---|---|
 | **Rôle** | Décide si un véhicule peut entrer/sortir du parking et coordonne les échanges avec Vehicles, Booking, Parking, Pricing, Payment (aucune donnée métier des autres services). |
-| **Version actuelle** | `4.3.0` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
+| **Version actuelle** | `4.4.0` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
 | **Dernière mise à jour** | 24 novembre 2026 (plaques de tous pays ; Parking 1.5.0 : catégories et occupation ; borne client ; Vehicles par plaque) |
 | **URL du service déployé** | https://access-api-a1u7.onrender.com |
 | **Documentation Swagger/OpenAPI** | https://access-api-a1u7.onrender.com/docs (ReDoc : `/redoc`, spec brute : `/openapi.json`) |
@@ -69,11 +69,11 @@
 | **API** | ✅ REST documentée (`/docs`), entrées/sorties validées, erreurs normalisées, `/health` | [section 11](#11-endpoints) |
 | **Intégration** | ✅ Vehicles, Parking, Pricing, Payment réels (REST) ; événements publiés sur RabbitMQ (bus d'équipe) · ⏳ Booking encore mocké | [section 5](#5-brancher-un-vrai-microservice-à-la-place-dun-mock), [section 6](#6-publication-dévénements--webhook-ou-rabbitmq) |
 | **UI** | ✅ Borne client `/borne` (entrée/sortie, clavier à l'écran, ticket, clair/sombre, mobile) et dashboard servi par Access : borne d'entrée/sortie, état du parking (présences, occupation vue par Parking, décisions, santé), journal d'événements, recherche | [section 12](#12-borne-et-journal-de-bord-dashboard) |
-| **Qualité** | ✅ 269 tests (unitaires + intégration), entrées invalides et cas limites couverts, `ruff` (lint + format), script de vérification reproductible | [section 9](#9-tests-et-qualité) |
+| **Qualité** | ✅ 274 tests (unitaires + intégration), entrées invalides et cas limites couverts, `ruff` (lint + format), script de vérification reproductible | [section 9](#9-tests-et-qualité) |
 | **Observabilité** | ✅ Correlation ID propagé à tous les services et événements, logs par décision, `/metrics` Prometheus (techniques + métier + intégration), config Prometheus fournie, `/health` avec version et commit | [section 9](#métriques-prometheus) |
 | **CI/CD et déploiement** | ✅ GitHub Actions (lint → tests → bandit → pip-audit → gitleaks), déploiement Render après CI verte, smoke test de l'instance déployée (version vérifiée), CHANGELOG, Dependabot | [section 9](#intégration-continue-cicd), [section 14](#14-déploiement-sur-render) |
 | **Sécurité** | ✅ Clé API (comparaison en temps constant) sur toutes les routes sauf `/health`, clé borne limitée au passage d'un véhicule, refus de démarrer en production avec une clé faible, validation stricte, erreurs sans stack trace, en-têtes de sécurité, CORS restreint, rate limiting, secrets hors Git, plaque jamais stockée/publiée/renvoyée/loggée (test dédié) | [section 10](#10-sécurité) |
-| **Version** | `4.3.0` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
+| **Version** | `4.4.0` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
 | **Dernière mise à jour** | 24 novembre 2026 | |
 
 ### Suivi des jalons
@@ -494,7 +494,7 @@ ACCESS_TEST_DATABASE_URL=<url Postgres> pytest tests/integration   # idem contre
 pytest -v            # détail de chaque cas
 ```
 
-Couverture (269 tests) :
+Couverture (274 tests) :
 
 - **Unitaires** — matrice complète de la règle de compatibilité
   véhicule/place, règle de présence, règle d'accessibilité ; chaque use case
@@ -537,7 +537,7 @@ précédente, `needs:` dans le workflow) et doivent **tous** passer — si une
 | Job | Outil | Ce qu'il vérifie |
 |---|---|---|
 | Lint | `ruff` | Erreurs, imports, bugs probables, règles de sécurité, **formatage homogène** (config : `ruff.toml`) |
-| Tests | `pytest` | Les 269 tests unitaires + intégration, sans aucun secret |
+| Tests | `pytest` | Les 274 tests unitaires + intégration, sans aucun secret |
 | Sécurité du code | `bandit` | Analyse statique (SAST) : injections, appels dangereux, secrets en dur… |
 | Dépendances | `pip-audit` | Vulnérabilités connues (CVE) dans `requirements.txt` |
 | Secrets | `gitleaks` | Aucun secret (clé API, URL CloudAMQP…) dans tout l'historique git |
@@ -673,7 +673,10 @@ Puis http://localhost:9090 — requêtes utiles :
   publics, la clé d'exploitation n'y est donc jamais saisie. La clé borne
   n'ouvre **que** `POST /access/requests` (faire passer un véhicule) : elle
   est refusée (401) sur l'historique, les présences, les événements,
-  l'occupation Parking, la vérification de plaque et `/metrics`. Elle doit faire 16 caractères au
+  l'occupation Parking, la vérification de plaque, `/access/borne/key` et
+  `/metrics`. Seule la clé d'exploitation permet d'obtenir la clé borne
+  (`GET /access/borne/key`, jamais loggée), pour mettre une borne en
+  service depuis le dashboard. Elle doit faire 16 caractères au
   moins et différer d'`API_KEY` (sinon Access refuse de démarrer en
   production). Vide = pas de clé borne.
 - **Gestion des secrets** : aucun secret dans Git (`gitleaks` en CI) ; clé API
@@ -722,6 +725,7 @@ Préfixe `/api/v1` (sauf `/health` et `/metrics`).
 | GET | `/access/requests/{id}` | Oui | Détail d'une demande + décision |
 | GET | `/access/requests?vehicleId=&type=&from=&to=&limit=` | Oui | Liste/filtre (audit), plus récentes d'abord, avec la décision (`result`, `reason`, `paymentAmount`) |
 | GET | `/access/presences` | Oui | Véhicules actuellement présents (heure d'entrée, place attribuée, réservation) |
+| GET | `/access/borne/key` | Oui (clé API seulement) | Clé des bornes client, pour leur mise en service depuis le dashboard ; 404 si `BORNE_API_KEY` n'est pas définie. Refusée (401) avec la clé borne |
 | GET | `/access/parking` | Oui (clé API) | Occupation par catégorie vue par Parking (libellé, prises, mises de côté, capacité) et catégories utilisées par Access mais absentes chez Parking ; `available: false` si Parking ne répond pas |
 | POST | `/access/vehicles/known` | Oui | Vérifie si une plaque (`{"licensePlate": …}`) est connue de Vehicles, sans la créer ni rien persister |
 | GET | `/access/events` | Oui | Liste les événements publiés (outbox, démo/observabilité) |
@@ -847,11 +851,22 @@ que voit le conducteur à l'entrée ou à la sortie du parking :
 
    Retour automatique à l'accueil après quelques secondes.
 
-**Mise en service** : appui long (3 s) sur le logo, ou `/borne?config`. On
-y saisit la **clé borne** (`BORNE_API_KEY`, voir [section 10](#10-sécurité))
-et l'emplacement (entrée, sortie, ou les deux) ; « Tester la clé » la vérifie
-sans rien enregistrer côté Access. Sans clé, la borne affiche « Borne hors
-service ».
+**Mise en service, le plus simple : depuis le dashboard.** Onglet
+« Borne » du dashboard, panneau **Borne client** (affiché seulement une fois
+la clé d'exploitation validée) : choisir l'emplacement (entrée et sortie,
+entrée, sortie) puis **Ouvrir la borne client**. Le dashboard demande la clé
+borne à Access (`GET /access/borne/key`, clé d'exploitation exigée), la
+range dans le navigateur à l'endroit où la borne la lit (même site, même
+stockage) et ouvre `/borne` dans un nouvel onglet : aucune saisie. La clé
+d'exploitation, elle, n'est jamais transmise à la borne.
+
+**Mise en service manuelle** (appareil sans dashboard) : appui long (3 s)
+sur le logo, ou `/borne?config`. On y saisit la **clé borne**
+(`BORNE_API_KEY`, voir [section 10](#10-sécurité)) et l'emplacement ;
+« Tester la clé » la vérifie sans rien enregistrer côté Access. Dans les deux
+cas, la borne s'en souvient ensuite (à refaire seulement sur un autre
+appareil ou navigateur, en navigation privée, ou si les données du site sont
+effacées). Sans clé, la borne affiche « Borne hors service ».
 
 **Données** : la borne ne garde que sa clé et son emplacement (stockage du
 navigateur). La plaque n'est conservée nulle part : elle disparaît de
@@ -959,8 +974,12 @@ le reste de l'API fonctionne normalement (best-effort : la publication
    pour le jour où ces services activeront leur authentification.
 2quinquies. **`BORNE_API_KEY`** (bornes client) : générée par Render
    (`generateValue: true`) ; sinon, ajoutez-la à la main avec une valeur
-   d'au moins 16 caractères, différente d'`API_KEY`. Saisissez-la ensuite
-   dans les réglages de chaque borne (`/borne?config`, section 12).
+   d'au moins 16 caractères, différente d'`API_KEY` (par exemple
+   `openssl rand -hex 24`). Sa valeur se lit dans **access-api →
+   Environment → `BORNE_API_KEY`** (icône œil). Inutile de la recopier :
+   le bouton « Ouvrir la borne client » du dashboard la récupère tout seul
+   (section 12) ; `/borne?config` reste possible sur un appareil sans
+   dashboard.
 3. Récupérez l'URL publique du service (en haut de la page `access-api`,
    type `https://access-api-xxxx.onrender.com`).
 2quinquies. **`DATABASE_URL`** : collez l'URL de connexion de la base

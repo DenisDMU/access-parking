@@ -236,6 +236,14 @@ class ParkingOverviewOut(BaseModel):
     )
 
 
+class BorneKeyOut(BaseModel):
+    """Réponse de `GET /access/borne/key` (exploitation uniquement)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    borne_key: str = Field(alias="borneKey", description="Valeur de BORNE_API_KEY")
+
+
 class VehicleKnownIn(BaseModel):
     """Corps de `POST /access/vehicles/known` : la plaque voyage dans le corps
     et non dans l'URL, qui finit dans les journaux des proxys et de Render."""
@@ -283,7 +291,7 @@ class HealthOut(BaseModel):
         description="Moteur de base utilisé (sqlite ou postgresql) — jamais l'URL",
     )
     uptime_seconds: int = Field(alias="uptimeSeconds", examples=[1234])
-    version: str = Field(examples=["4.3.0"])
+    version: str = Field(examples=["4.4.0"])
     commit: str = Field(examples=["b742756d0c1e9f4a8b3c2d1e0f9a8b7c6d5e4f3a"])
 
     model_config = ConfigDict(populate_by_name=True)

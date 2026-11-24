@@ -143,3 +143,48 @@ def test_page_borne_autonome_et_sans_donnees_d_exploitation(client):
     # La plaque n'est jamais mémorisée dans le navigateur.
     assert "access.borne.plate" not in html
     assert html.count("localStorage.setItem") == 1
+
+
+# --- Mise en service depuis le dashboard ---------------------------------------
+
+KEY_URL = "/api/v1/access/borne/key"
+
+
+def test_dashboard_recupere_la_cle_borne_avec_la_cle_d_exploitation(client):
+    response = client.get(KEY_URL, headers=AUTH_HEADERS)
+    assert response.status_code == 200
+    assert response.json() == {"borneKey": "test-borne-key-0001"}
+    assert response.headers["cache-control"] == "no-store"
+
+
+def test_cle_borne_jamais_remise_sans_cle_d_exploitation(client):
+    assert client.get(KEY_URL).status_code == 401
+    # La clé borne ne permet pas de se la faire redonner (ni d'en savoir plus).
+    assert client.get(KEY_URL, headers=BORNE_HEADERS).status_code == 401
+
+
+def test_cle_borne_non_definie(client, monkeypatch):
+    from dataclasses import replace
+
+    from src.interfaces.api.routers import access_router
+
+    settings = access_router.get_settings()
+    monkeypatch.setattr(access_router, "get_settings", lambda: replace(settings, borne_api_key=""))
+    response = client.get(KEY_URL, headers=AUTH_HEADERS)
+    assert response.status_code == 404
+    assert "BORNE_API_KEY" in response.json()["detail"]
+
+
+def test_cle_borne_absente_des_logs(client, caplog):
+    import logging
+
+    with caplog.at_level(logging.DEBUG):
+        client.get(KEY_URL, headers=AUTH_HEADERS)
+    assert all("test-borne-key-0001" not in r.getMessage() for r in caplog.records)
+
+
+def test_bouton_de_mise_en_service_dans_le_dashboard(client):
+    html = client.get("/static/dashboard.html").text
+    assert 'id="borneLaunch" hidden' in html  # caché tant que la clé n'est pas validée
+    assert "/api/v1/access/borne/key" in html
+    assert "access.borne.key" in html  # même emplacement que celui lu par la borne

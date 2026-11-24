@@ -4,6 +4,16 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.4.0] — 2026-11-24 — Mise en service de la borne depuis le dashboard
+
+### Ajouté
+- Dashboard, onglet « Borne » : panneau « Borne client » (visible seulement
+  avec une clé d'exploitation valide). Choix de l'emplacement puis « Ouvrir
+  la borne client » : la borne de ce navigateur reçoit sa clé et s'ouvre,
+  sans passer par `/borne?config`.
+- `GET /access/borne/key` (clé d'exploitation seulement, 401 avec la clé
+  borne, 404 si `BORNE_API_KEY` n'est pas définie) ; valeur jamais loggée.
+
 ## [4.3.0] — 2026-11-24 — Plaques de tous pays
 
 ### Modifié
