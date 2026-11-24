@@ -6,7 +6,9 @@ __pycache__/
 .env
 .DS_Store
 *.egg-info/
-.claude/
+# Réglages locaux de Claude Code ignorés, sauf les agents du projet
+.claude/*
+!.claude/agents/
 postman/
 JOURNAL.md
 reponse.md
