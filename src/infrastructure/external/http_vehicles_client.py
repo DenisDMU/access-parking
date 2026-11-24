@@ -17,8 +17,9 @@ pseudoId → `getvehicles/{pseudoId}` → caractéristiques.
 Revérifié le 24/11 au soir : `licensePlate` désormais obligatoire et
 caractéristiques à `false` par défaut (déjà ce qu'envoie Access). Vehicles
 expose aussi `GET /api/getplate/{vehicleId}` (identifiant → plaque en
-clair, sans clé) : Access ne l'appelle JAMAIS (RGPD : Access ne doit pas
-retrouver la plaque à partir de l'identifiant).
+clair, sans clé), utile aux services de facturation : Access ne l'appelle
+JAMAIS (RGPD : Access n'a pas à retrouver la plaque à partir de
+l'identifiant ; recommandation à Vehicles : la protéger par une clé).
 
 ⚠️ Vehicles a changé son contrat trois fois le 24/11 :
   1. `GET /api/vehicles/{plate}` + `POST /api/vehicles/identify` (matin) ;
