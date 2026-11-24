@@ -4,6 +4,26 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.6.0] — 2026-11-24 — Booking réel
+
+### Ajouté
+- Booking branché en réel : à l'entrée, `GET /reservations/active` à
+  l'instant du passage (réservation confirmée qui couvre l'instant). Si
+  elle existe : place du **type réservé**, prise dans le quota « booking »
+  de Parking ; « Réservation reconnue » sur la borne. Panne de Booking :
+  entrée sans réservation, jamais d'erreur.
+- `GET /health` indique `"booking": "réel"` ou `"simulé"`.
+- Événement d'entrée : `reservationId` et `reservationEnd` (champs ajoutés).
+
+### Modifié
+- Sortie d'un véhicule avec réservation : le créneau est déjà payé à
+  Booking, rien n'est facturé dedans ; seul le dépassement après la fin du
+  créneau est facturé, au tarif sans réservation (avant : nouveau prix
+  « réservé », soit un double paiement). Borne : « Réservation déjà réglée ».
+- Booking réel par défaut (`BOOKING_USE_MOCK=true` pour le simuler) ;
+  `USE_MOCKS` n'a plus d'effet ; sur Render, une ancienne URL `localhost`
+  est ignorée au profit de `https://booking-api-vhy5.onrender.com`.
+
 ## [4.5.1] — 2026-11-24 — Nouvelles routes Vehicles
 
 ### Corrigé

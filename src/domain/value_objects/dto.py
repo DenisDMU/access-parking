@@ -182,6 +182,8 @@ class ExitDecision:
     # pour le ticket affiché par la borne client.
     entered_at: datetime | None = None
     duration_minutes: int | None = None
+    # Sortie autorisée : le stationnement relevait d'une réservation Booking.
+    reservation: bool | None = None
 
 
 @dataclass(frozen=True)

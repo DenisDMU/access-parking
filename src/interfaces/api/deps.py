@@ -1,13 +1,10 @@
 """Composition root — injection de dépendances FastAPI.
 
 Seul endroit de la codebase où le domaine/l'application sont reliés aux
-implémentations concrètes de `infrastructure`. Vehicles, Parking, Pricing et
-Payment sont branchés en dur sur les vrais services de l'équipe. Seul Booking
-garde une bascule mock/réel (`BOOKING_USE_MOCK`, avec `USE_MOCKS` comme
-valeur par défaut globale si elle n'est pas définie — voir
-`infrastructure/config.py`) : son client HTTP reste un SQUELETTE (routes/
-champs à confirmer avec l'équipe, voir les TODO de `http_booking_client.py`)
-— aucune autre couche à toucher une fois finalisé.
+implémentations concrètes de `infrastructure`. Les 5 services de l'équipe
+(Vehicles, Booking, Parking, Pricing, Payment) sont branchés en réel. Booking
+garde une bascule (`BOOKING_USE_MOCK=true`) pour les tests et le
+développement hors ligne.
 """
 
 from __future__ import annotations
@@ -104,7 +101,7 @@ def get_outbox_repository(
     return SqlOutboxRepository(session)
 
 
-# --- Services externes (bascule USE_MOCKS) ----------------------------------
+# --- Services externes ------------------------------------------------------
 
 
 def get_vehicles_port() -> VehiclesServicePort:
@@ -125,9 +122,7 @@ def get_booking_port() -> BookingServicePort:
     settings = get_settings()
     if settings.booking_use_mock:
         return MockBookingClient()
-    # ⚠️ Squelette : routes/champs à confirmer avec l'équipe Booking avant
-    # utilisation réelle — voir les TODO dans http_booking_client.py.
-    return HttpBookingClient(settings.booking_service_url)
+    return HttpBookingClient(settings.booking_service_url, api_key=settings.booking_api_key)
 
 
 def get_parking_port() -> ParkingServicePort:

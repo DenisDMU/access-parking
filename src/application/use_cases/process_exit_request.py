@@ -18,7 +18,8 @@ from __future__ import annotations
 
 import logging
 import math
-from datetime import datetime
+from datetime import UTC, datetime
+from decimal import Decimal
 from uuid import uuid4
 
 from src.domain.entities.access_authorization import AccessAuthorization
@@ -53,6 +54,19 @@ def _stay_minutes(entry_date: datetime, exit_date: datetime) -> int:
     """Durée réelle du stationnement, en minutes entamées (jamais négative)."""
 
     return max(math.ceil((exit_date - entry_date).total_seconds() / 60), 0)
+
+
+def _reservation_end(payload: dict | None) -> datetime | None:
+    """Fin du créneau réservé, gardée dans l'événement d'entrée (4.6.0)."""
+
+    raw = (payload or {}).get("reservationEnd")
+    if not raw:
+        return None
+    try:
+        end = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return end if end.tzinfo else end.replace(tzinfo=UTC)
 
 
 def _place_type_from_payload(payload: dict | None) -> PlaceType:
@@ -141,9 +155,21 @@ class ProcessExitRequest:
                 reason="Date de sortie antérieure à la date d'entrée",
             )
 
-        amount = self._pricing_port.calculate_price(
-            vehicle_id, entry_date, date, place_type, is_reservation
-        )
+        reservation_end = _reservation_end(entry_event.payload if entry_event else None)
+        if is_reservation and reservation_end is not None:
+            # Réservation payée d'avance à Booking : rien à payer dans le
+            # créneau ; au-delà, seul le dépassement est facturé, au tarif
+            # sans réservation (Booking ne prévoit aucune tolérance).
+            if date <= reservation_end:
+                amount = Decimal("0")
+            else:
+                amount = self._pricing_port.calculate_price(
+                    vehicle_id, reservation_end, date, place_type, False
+                )
+        else:
+            amount = self._pricing_port.calculate_price(
+                vehicle_id, entry_date, date, place_type, is_reservation
+            )
         if amount is None:
             # Pricing indisponible (429/5xx/timeout) : jamais de montant
             # inventé, jamais de paiement tenté — refus propre plutôt qu'un
@@ -242,6 +268,7 @@ class ProcessExitRequest:
             payment_amount=amount,
             entered_at=entry_date,
             duration_minutes=_stay_minutes(entry_date, date),
+            reservation=is_reservation,
         )
 
     def _reject_unknown_vehicle(

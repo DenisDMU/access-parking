@@ -87,6 +87,7 @@ from src.domain.value_objects.dto import (
 )
 from src.domain.value_objects.enums import VehicleCategory
 from src.infrastructure.external.outgoing_http import outgoing_client
+from src.infrastructure.external.place_categories import place_type_from_code
 
 logger = logging.getLogger(__name__)
 
@@ -144,14 +145,7 @@ def _map_category(vehicle_type: VehicleType) -> str:
 
 
 def _place_type_from_category(category: str) -> PlaceType:
-    return PlaceType(
-        category=VehicleCategory.TWO_WHEELER
-        if category == "TWO_WHEELS"
-        else VehicleCategory.FOUR_WHEELER,
-        is_xl=category == "XL",
-        is_electric=category == "ELECTRIC",
-        is_handicap=category == "HANDICAPPED",
-    )
+    return place_type_from_code(category)
 
 
 class HttpParkingClient:

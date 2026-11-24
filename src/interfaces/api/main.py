@@ -57,10 +57,11 @@ async def lifespan(app: FastAPI):
     init_db(deps.get_engine())
     register_presence_collector(deps.count_present_vehicles)
     logger.info(
-        "Access %s (commit %s) démarré — SQLite initialisée, USE_MOCKS=%s",
+        "Access %s (commit %s) démarré — base %s, Booking %s",
         __version__,
         settings.git_commit,
-        settings.use_mocks,
+        deps.get_engine().dialect.name,
+        "simulé" if settings.booking_use_mock else "réel",
     )
     yield
 

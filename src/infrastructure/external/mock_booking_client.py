@@ -39,5 +39,5 @@ _RESERVATIONS: dict[str, Reservation] = {
 class MockBookingClient:
     """Implémente `BookingServicePort`."""
 
-    def get_reservation(self, vehicle_id: str) -> Reservation | None:
+    def get_reservation(self, vehicle_id: str, at: datetime | None = None) -> Reservation | None:
         return _RESERVATIONS.get(vehicle_id)

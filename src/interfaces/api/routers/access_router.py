@@ -159,6 +159,7 @@ def create_access_request(
         ),
         enteredAt=decision.entered_at,
         durationMinutes=decision.duration_minutes,
+        reservation=decision.reservation,
     )
 
 

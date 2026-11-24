@@ -20,11 +20,11 @@
 | | |
 |---|---|
 | **Rôle** | Décide si un véhicule peut entrer/sortir du parking et coordonne les échanges avec Vehicles, Booking, Parking, Pricing, Payment (aucune donnée métier des autres services). |
-| **Version actuelle** | `4.5.1` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
+| **Version actuelle** | `4.6.0` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
 | **Dernière mise à jour** | 24 novembre 2026 (plaques de tous pays ; Parking 1.5.0 : catégories et occupation ; borne client ; Vehicles par plaque) |
 | **URL du service déployé** | https://access-api-a1u7.onrender.com |
 | **Documentation Swagger/OpenAPI** | https://access-api-a1u7.onrender.com/docs (ReDoc : `/redoc`, spec brute : `/openapi.json`) |
-| **Dépendances (services appelés)** | **Vehicles** *(réel)*, Booking *(mocké)*, **Parking** *(réel)*, **Pricing** *(réel)*, **Payment** *(réel)* |
+| **Dépendances (services appelés)** | **Vehicles**, **Booking**, **Parking**, **Pricing**, **Payment** : tous réels |
 | **Tester le service** | Borne client [`/borne`](https://access-api-a1u7.onrender.com/borne) (écran public, voir [section 12](#borne-client-écran-public)), dashboard d'exploitation `/` (borne de test + état du parking), script reproductible [`scripts/smoke_test.sh`](scripts/smoke_test.sh) (voir [section 9](#9-tests-et-qualité)), Swagger `/docs`. Sans clé : `GET /health`. |
 
 ### Fonctionnalités
@@ -49,7 +49,7 @@
 - [x] Exposer la version et le commit déployés (`/health`) et des métriques d'exploitation (`/metrics`).
 - [x] Conserver les données (stationnements, décisions, événements) dans une base Postgres (Neon) qui survit aux redémarrages.
 - [x] Plafonner la durée facturée à 7 jours et compter tout début de minute (règles 2.4 et 2.5).
-- [ ] Vérifier une réservation via le vrai service **Booking**.
+- [x] Vérifier une réservation via le vrai service **Booking** (`GET /reservations/active`, à l'heure du passage) ; la place est prise dans le quota « réservation » de Parking, et la sortie ne refait pas payer le créneau déjà réglé (seul un dépassement est facturé).
 - [x] Identifier un véhicule via le vrai service **Vehicles** (`GET /api/getvehicles/{plaque}`, création via `POST /api/identify` à l'entrée ; routes réglables).
 - [x] Attribuer/occuper/libérer une place via le vrai service **Parking** (place mise de côté puis confirmée avec son `hold_id`).
 - [x] Vérifier que chaque catégorie demandée existe chez Parking (`GET /parking/categories`, en cache 5 min) : une catégorie renommée donne un motif précis, pas « Parking indisponible ».
@@ -67,13 +67,13 @@
 |---|---|---|
 | **Métier** | ✅ Entrée (avec/sans réservation), sortie payée, refus (présence, compatibilité, paiement, date incohérente), confirmation PMR / véhicule inconnu | Règles pures dans `src/domain/rules/`, use cases `ProcessEntryRequest` / `ProcessExitRequest`, tests unitaires |
 | **API** | ✅ REST documentée (`/docs`), entrées/sorties validées, erreurs normalisées, `/health` | [section 11](#11-endpoints) |
-| **Intégration** | ✅ Vehicles, Parking, Pricing, Payment réels (REST) ; événements publiés sur RabbitMQ (bus d'équipe) · ⏳ Booking encore mocké | [section 5](#5-brancher-un-vrai-microservice-à-la-place-dun-mock), [section 6](#6-publication-dévénements--webhook-ou-rabbitmq) |
+| **Intégration** | ✅ Les 5 services réels (Vehicles, Booking, Parking, Pricing, Payment, en REST) ; événements publiés sur RabbitMQ (bus d'équipe) | [section 5](#5-brancher-un-vrai-microservice-à-la-place-dun-mock), [section 6](#6-publication-dévénements--webhook-ou-rabbitmq) |
 | **UI** | ✅ Borne client `/borne` (entrée/sortie, clavier à l'écran, ticket, clair/sombre, mobile) et dashboard servi par Access : borne d'entrée/sortie, état du parking (présences, occupation vue par Parking, décisions, santé), journal d'événements, recherche | [section 12](#12-borne-et-journal-de-bord-dashboard) |
-| **Qualité** | ✅ 288 tests (unitaires + intégration), entrées invalides et cas limites couverts, `ruff` (lint + format), script de vérification reproductible | [section 9](#9-tests-et-qualité) |
+| **Qualité** | ✅ 303 tests (unitaires + intégration), entrées invalides et cas limites couverts, `ruff` (lint + format), script de vérification reproductible | [section 9](#9-tests-et-qualité) |
 | **Observabilité** | ✅ Correlation ID propagé à tous les services et événements, logs par décision, `/metrics` Prometheus (techniques + métier + intégration), config Prometheus fournie, `/health` avec version et commit | [section 9](#métriques-prometheus) |
 | **CI/CD et déploiement** | ✅ GitHub Actions (lint → tests → bandit → pip-audit → gitleaks), déploiement Render après CI verte, smoke test de l'instance déployée (version vérifiée), CHANGELOG, Dependabot | [section 9](#intégration-continue-cicd), [section 14](#14-déploiement-sur-render) |
 | **Sécurité** | ✅ Clé API (comparaison en temps constant) sur toutes les routes sauf `/health`, clé borne limitée au passage d'un véhicule, refus de démarrer en production avec une clé faible, validation stricte, erreurs sans stack trace, en-têtes de sécurité, CORS restreint, rate limiting, secrets hors Git, plaque jamais stockée/publiée/renvoyée/loggée (test dédié) | [section 10](#10-sécurité) |
-| **Version** | `4.5.1` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
+| **Version** | `4.6.0` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
 | **Dernière mise à jour** | 24 novembre 2026 | |
 
 ### Suivi des jalons
@@ -120,8 +120,8 @@
 Access est le **point central** du workflow d'entrée/sortie du parking. Il ne
 possède **aucune donnée métier des autres services** (identité véhicule,
 réservations, disponibilité des places, tarifs, transactions) : il les
-interroge via 5 ports dédiés (Vehicles, Parking, Pricing et Payment réels,
-Booking encore mocké) et ne conserve en propre
+interroge via 5 ports dédiés (Vehicles, Booking, Parking, Pricing et
+Payment, tous réels) et ne conserve en propre
 que ses propres objets métier (`AccessRequest`, `AccessAuthorization`,
 `AccessEvent`) plus un cache technique de présence (`vehicle_presence`).
 
@@ -142,9 +142,11 @@ sequenceDiagram
         A->>Ve: GET /api/getvehicles/{plaque}
     end
     Ve-->>A: pseudoId (= vehicleId) + attributs
-    A->>B: get_reservation(vehicleId)
-    alt pas de réservation
-        A->>P: request_place(vehicleType)
+    A->>B: GET /reservations/active?vehicle_id=…&at=…
+    alt réservation valable
+        A->>P: hold (type réservé, quota « booking ») puis confirm_entry
+    else pas de réservation
+        A->>P: hold (type du véhicule, quota « walkin ») puis confirm_entry
     end
     A-->>V: Autorisation (AUTHORIZED / REFUSED / CONFIRMATION_REQUIRED)
     A--)A: Publie VEHICLE_ENTERED / ACCESS_REFUSED
@@ -355,17 +357,13 @@ question d'attendre que les 5 soient prêts pour en brancher un premier. Les
 5 squelettes HTTP existent déjà (`infrastructure/external/http_*_client.py`),
 chacun avec des `TODO` explicites listant ce qui reste à confirmer avec
 l'équipe du service concerné (route exacte, méthode HTTP, noms de champs
-JSON, codes d'erreur). Pour finaliser Booking, le dernier service mocké :
-
-1. Ouvrez `src/infrastructure/external/http_booking_client.py` et traitez
-   chaque `TODO[BOOKING-*]` avec la vraie spec de l'équipe Booking (route,
-   méthode, champs de réponse, code "pas de réservation").
-2. Renseignez `BOOKING_SERVICE_URL` (son URL réelle) et ajoutez
-   `BOOKING_USE_MOCK=false` — dans `.env` en local, ou dans **Render →
-   access-api → Environment** pour la version déployée.
-3. C'est tout — `deps.py::get_booking_port()` bascule automatiquement sur
-   `HttpBookingClient` dès que `BOOKING_USE_MOCK=false`, **sans toucher au
-   `USE_MOCKS` global**.
+JSON, codes d'erreur). **Depuis le 24/11, les 5 services sont réels**, Booking
+compris (dernier branché, 4.6.0). `BOOKING_USE_MOCK=true` le simule encore
+pour les tests et le développement hors ligne ; `USE_MOCKS` n'a plus
+d'effet. `GET /health` indique `"booking": "réel"` ou `"simulé"` : c'est la
+façon la plus simple de vérifier ce que Render utilise vraiment. Une
+ancienne valeur `BOOKING_SERVICE_URL=http://localhost…` restée dans Render
+est ignorée (Access utilise alors `https://booking-api-vhy5.onrender.com`).
 
 > ⚠️ **CORS n'a rien à voir avec ce branchement.** `CORS_ALLOWED_ORIGINS`
 > ne concerne que du JavaScript exécuté **dans un navigateur** qui
@@ -382,7 +380,7 @@ même fichier `deps.py`) — chaque squelette liste ses propres `TODO` :
 | Service  | Fichier squelette                      | Points ouverts principaux |
 |----------|------------------------------------------|----------------------------|
 | **Vehicles** | `http_vehicles_client.py` | **✅ Branché** (`GET /api/getvehicles/{plaque}`, et `POST /api/identify` à l'entrée sur un 404 ; routes réglables par `VEHICLES_LOOKUP_PATH` et `VEHICLES_IDENTIFY_PATH`, Vehicles les ayant renommées deux fois le 24/11) — `pseudoId` devient le `vehicleId`, `disabled` vaut type PMR **et** justificatif, toute autre réponse = véhicule non identifié, voir section 16 |
-| Booking  | `http_booking_client.py`   | Route/méthode, code "pas de réservation", `placeId` déjà assigné ou non |
+| **Booking** | `http_booking_client.py` | **✅ Branché** (`GET /reservations/active?vehicle_id=…&at=…`, toujours 200 : `valid` + réservations confirmées couvrant l'instant ; mêmes codes de type de place que Parking ; panne → entrée sans réservation). Pas de place nominative : la place est prise chez Parking, type réservé, quota « booking » |
 | **Parking** | `http_parking_client.py` | **✅ Branché** (`hold` → `confirm_entry` avec le `hold_id` reçu, place mise de côté 30 s → `free` ; catégories STANDARD/XL/ELECTRIC/HANDICAPPED/TWO_WHEELS vérifiées sur `GET /parking/categories` avant chaque `hold` (liste en cache 5 min ; une catégorie absente ou un 404 sur `hold` → « Catégorie de place X inconnue du service Parking ») ; libellé de Parking remonté ; occupation lue sur `GET /parking/occupation` ; en-tête `X-API-Key` = `PARKING_API_KEY`) — pas de `placeId` réel, encodage synthétique `"CATEGORIE:walkin\|booking"`, voir section 16 |
 | **Pricing** | `http_pricing_client.py` | **✅ Branché** (`PRICING_USE_MOCK=false`) contre le vrai service (`POST /quote`) — mapping `PlaceType → zone` et arrondi de durée pour les réservations restent des hypothèses documentées dans le fichier, voir aussi section 16 |
 | **Payment** | `http_payment_client.py` | **✅ Branché** (`POST /payments` puis polling `GET /payments/{id}` jusqu'à `ACCEPTED`/`REFUSED`, 2 s / 40 s max) — montant en centimes, clé d'idempotence `access:{stationnement}:exit`, en-tête `X-API-Key` envoyé si `PAYMENT_API_KEY` est renseignée, voir section 16 |
@@ -494,7 +492,7 @@ ACCESS_TEST_DATABASE_URL=<url Postgres> pytest tests/integration   # idem contre
 pytest -v            # détail de chaque cas
 ```
 
-Couverture (288 tests) :
+Couverture (303 tests) :
 
 - **Unitaires** — matrice complète de la règle de compatibilité
   véhicule/place, règle de présence, règle d'accessibilité ; chaque use case
@@ -537,7 +535,7 @@ précédente, `needs:` dans le workflow) et doivent **tous** passer — si une
 | Job | Outil | Ce qu'il vérifie |
 |---|---|---|
 | Lint | `ruff` | Erreurs, imports, bugs probables, règles de sécurité, **formatage homogène** (config : `ruff.toml`) |
-| Tests | `pytest` | Les 288 tests unitaires + intégration, sans aucun secret |
+| Tests | `pytest` | Les 303 tests unitaires + intégration, sans aucun secret |
 | Sécurité du code | `bandit` | Analyse statique (SAST) : injections, appels dangereux, secrets en dur… |
 | Dépendances | `pip-audit` | Vulnérabilités connues (CVE) dans `requirements.txt` |
 | Secrets | `gitleaks` | Aucun secret (clé API, URL CloudAMQP…) dans tout l'historique git |
@@ -1069,13 +1067,10 @@ public partagé :
 
 - **Ils veulent qu'Access les appelle (Vehicles, Booking, Parking, Pricing,
   Payment)** : il suffit de m'envoyer l'URL publique de leur service et
-  leur contrat d'API. Je mets à jour `BOOKING_SERVICE_URL` (etc.) dans les
-  variables d'environnement Render de `access-api`, je complète le client
-  HTTP correspondant (`infrastructure/external/http_*_client.py`, déjà prêt
-  avec des `TODO` précis, section 5), puis je bascule la variable **de ce
-  service uniquement**
-  (`BOOKING_USE_MOCK=false`) — Vehicles, Parking, Pricing et Payment sont
-  déjà branchés en réel, aucune autre couche à toucher.
+  leur contrat d'API. Les 5 services sont déjà branchés en réel ; un
+  changement de contrat se traite dans le client HTTP correspondant
+  (`infrastructure/external/http_*_client.py`), sans toucher aux autres
+  couches.
 - **Ils veulent recevoir les événements d'Access** (`VEHICLE_ENTERED` /
   `VEHICLE_EXITED` / `ACCESS_REFUSED`) : c'est déjà fait pour tout le monde
   qui écoute le bus partagé de l'équipe — Access publie sur l'exchange
@@ -1111,9 +1106,15 @@ non intrusives** ont été ajoutées :
 - `VehiclePresenceRepositoryPort.get_current_request_id` : complète
   `get_status` (dont la signature spec est inchangée) pour exposer
   `current_request_id`, nécessaire à l'étape 4 du workflow "Sortie".
-- `Reservation.place_id` (optionnel) : Booking (mocké) peut indiquer
-  directement la place réservée ; si absent (cas réel désormais, cf.
-  ci-dessous), le use case retombe sur `ParkingServicePort.request_place`.
+- `Reservation.place_id` (optionnel) : toujours absent avec le vrai Booking
+  (aucune place nominative) ; le use case demande alors la place à Parking,
+  avec le **type réservé**, dans le quota « booking ».
+- **Réservation payée d'avance** (Booking encaisse au moment de réserver) :
+  à la sortie, rien n'est facturé dans le créneau ; au-delà de la fin du
+  créneau, seul le dépassement est facturé, au tarif sans réservation
+  (Booking ne prévoit aucune tolérance). La fin du créneau est gardée dans
+  l'événement d'entrée (`reservationId`, `reservationEnd`, champs ajoutés).
+  Hypothèse à valider avec les équipes Booking et Pricing.
 - `ParkingServicePort.request_place`/`mark_place_occupied`/`mark_place_free`
   ont gagné un paramètre `is_reservation` (même principe que
   `PricingServicePort`, section 5) : le vrai service Parking sépare sa

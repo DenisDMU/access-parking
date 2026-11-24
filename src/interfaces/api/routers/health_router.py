@@ -34,4 +34,5 @@ def health(request: Request, engine=Depends(deps.get_engine)) -> HealthOut:
         uptime_seconds=int(time.time() - start_time),
         version=__version__,
         commit=get_settings().git_commit,
+        booking="simulé" if get_settings().booking_use_mock else "réel",
     )

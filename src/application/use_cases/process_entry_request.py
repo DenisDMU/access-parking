@@ -124,7 +124,8 @@ class ProcessEntryRequest:
                 reason="Véhicule déjà présent dans le parking",
             )
 
-        reservation = self._booking_port.get_reservation(vehicle_id)
+        # Réservation confirmée qui couvre l'instant du passage (Booking).
+        reservation = self._booking_port.get_reservation(vehicle_id, at=date)
         is_reservation = reservation is not None
         assignment, refusal = self._assign_place(vehicle_info.vehicle_type, reservation)
         if assignment is None:
@@ -260,6 +261,10 @@ class ProcessEntryRequest:
                     "placeId": place_id,
                     "placeType": _place_type_to_payload(place_type),
                     "reservation": is_reservation,
+                    # Réservation payée d'avance à Booking : la sortie ne
+                    # facture que le dépassement après la fin du créneau.
+                    "reservationId": reservation.id if reservation else None,
+                    "reservationEnd": reservation.end_date.isoformat() if reservation else None,
                 },
                 created_at=date,
             )
@@ -308,7 +313,18 @@ class ProcessEntryRequest:
                 ),
                 None,
             )
-        return self._request_place(vehicle_type, is_reservation=reservation is not None)
+        if reservation is not None:
+            # Place du type RÉSERVÉ, prise dans le quota « booking » de Parking
+            # (la règle de compatibilité vérifie ensuite qu'elle convient au véhicule).
+            reserved = reservation.reserved_place_type
+            reserved_as_vehicle = VehicleType(
+                category=reserved.category,
+                is_xl=reserved.is_xl,
+                is_electric=reserved.is_electric,
+                is_handicap=reserved.is_handicap,
+            )
+            return self._request_place(reserved_as_vehicle, is_reservation=True)
+        return self._request_place(vehicle_type, is_reservation=False)
 
     def _request_place(
         self, vehicle_type: VehicleType, is_reservation: bool

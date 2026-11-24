@@ -109,4 +109,5 @@ def borne_passage(
         ),
         enteredAt=decision.entered_at,
         durationMinutes=decision.duration_minutes,
+        reservation=decision.reservation,
     )

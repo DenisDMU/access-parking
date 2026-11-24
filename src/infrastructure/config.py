@@ -20,6 +20,22 @@ def _split_urls(raw: str) -> list[str]:
     return [url.strip() for url in raw.split(",") if url.strip()]
 
 
+BOOKING_DEFAULT_URL = "https://booking-api-vhy5.onrender.com"
+
+
+def _booking_service_url() -> str:
+    """URL de Booking. Sur Render, une valeur locale (`localhost`, héritée du
+    blueprint d'avant la mise en service de Booking) est ignorée au profit
+    du vrai service : sinon Access chercherait les réservations sur sa
+    propre machine et n'en trouverait jamais."""
+
+    url = os.getenv("BOOKING_SERVICE_URL", "").strip()
+    on_render = os.getenv("RENDER", "").lower() == "true"
+    if not url or (on_render and ("localhost" in url or "127.0.0.1" in url)):
+        return BOOKING_DEFAULT_URL
+    return url
+
+
 def _bool_env(name: str, default: bool) -> bool:
     raw = os.getenv(name)
     if raw is None:
@@ -49,20 +65,16 @@ class Settings:
         )
     )
 
-    # Bascule mock/réel : ne concerne plus que Booking, seul service encore
-    # simulé (son contrat n'est pas confirmé). BOOKING_USE_MOCK, si elle est
-    # définie, prend le dessus sur USE_MOCKS (voir README section 5). Les
-    # autres services sont toujours appelés en réel.
-    use_mocks: bool = field(default_factory=lambda: _bool_env("USE_MOCKS", True))
-
     vehicles_service_url: str = os.getenv("VEHICLES_SERVICE_URL", "http://localhost:8001")
-    booking_service_url: str = os.getenv("BOOKING_SERVICE_URL", "http://localhost:8002")
+    booking_service_url: str = field(default_factory=_booking_service_url)
     parking_service_url: str = os.getenv("PARKING_SERVICE_URL", "http://localhost:8003")
     pricing_service_url: str = os.getenv("PRICING_SERVICE_URL", "http://localhost:8004")
     payment_service_url: str = os.getenv("PAYMENT_SERVICE_URL", "http://localhost:8005")
 
     booking_use_mock: bool = field(
-        default_factory=lambda: _bool_env("BOOKING_USE_MOCK", _bool_env("USE_MOCKS", True))
+        # Booking est réel depuis le 24/11 : seul BOOKING_USE_MOCK=true le
+        # simule encore (USE_MOCKS, ancienne bascule globale, n'a plus d'effet).
+        default_factory=lambda: _bool_env("BOOKING_USE_MOCK", False)
     )
     # Pas de parking_use_mock / pricing_use_mock (ni payment_use_mock, voir
     # plus bas) : Pricing puis Parking sont les premiers services réellement branchés (voir README section 5) —
@@ -80,6 +92,7 @@ class Settings:
     parking_api_key: str = os.getenv("PARKING_API_KEY", "")
     pricing_api_key: str = os.getenv("PRICING_API_KEY", "")
     vehicles_api_key: str = os.getenv("VEHICLES_API_KEY", "")
+    booking_api_key: str = os.getenv("BOOKING_API_KEY", "")  # Booking n'en exige pas (24/11)
     # Routes de Vehicles (renommées deux fois le 24/11) : réglables dans
     # Render pour suivre un futur changement sans toucher au code.
     # `{plate}` est remplacé par la plaque (encodée).
