@@ -182,6 +182,12 @@
   .key:disabled { opacity: .28; cursor: default; box-shadow: none; }
   .key.wide { max-width: 170px; font-family: system-ui, sans-serif; font-size: 18px; }
   .actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+  /* Validation agent (PMR) */
+  .agent-code { display: flex; gap: 14px; justify-content: center; min-height: 64px; }
+  .agent-code span { width: 46px; height: 60px; border-radius: 12px; background: var(--bg-2);
+    display: grid; place-items: center; font: 700 34px/1 system-ui, sans-serif; }
+  .agent-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 0 auto; width: min(100%, 360px); }
+  .agent-pad .key { max-width: none; }
   .btn {
     border: 0; border-radius: 18px; min-height: 68px; padding: 0 34px; font-size: 22px; font-weight: 700;
     background: var(--bg-2); color: var(--text);
@@ -383,6 +389,22 @@
     <p class="countdown" id="countdown"></p>
   </section>
 
+  <!-- Validation PMR par un agent -->
+  <section class="screen" id="screen-agent" aria-labelledby="agentTitle">
+    <div class="center">
+      <h1 id="agentTitle">Validation agent</h1>
+      <p class="lead">Après vérification de la carte mobilité inclusion, l'agent saisit son code.</p>
+    </div>
+    <div class="agent-code" id="agentCode" aria-live="polite" aria-label="Code saisi"></div>
+    <p class="plate-hint" id="agentHint">Le véhicule sera enregistré comme PMR pour ses prochains passages.</p>
+    <div class="agent-pad" id="agentPad" aria-label="Clavier du code agent"></div>
+    <div class="actions">
+      <button class="btn ghost" type="button" id="agentCancel">Annuler</button>
+      <button class="btn ghost" type="button" id="agentStandard">Pas de carte : place standard</button>
+      <button class="btn primary" type="button" id="agentSubmit" disabled>Valider PMR</button>
+    </div>
+  </section>
+
   <!-- Borne non configurée -->
   <section class="screen" id="screen-off" aria-labelledby="offTitle">
     <div class="result-icon wait" aria-hidden="true">
@@ -448,7 +470,7 @@
   function fixedMode() { var m = load(MODE_STORAGE); return m === "1" || m === "2" ? Number(m) : null; }
 
   var $ = function (id) { return document.getElementById(id); };
-  var screens = ["home", "type", "plate", "country", "wait", "result", "off", "config"];
+  var screens = ["home", "type", "plate", "country", "wait", "result", "agent", "off", "config"];
   var current = "";
   function show(name) {
     current = name;
@@ -463,6 +485,9 @@
 
   // --- Parcours ---------------------------------------------------------------------
   var direction = null; // 1 = entrée, 2 = sortie
+  // Entrée PMR en attente d'un agent : plaque gardée en mémoire seulement
+  // le temps de la validation (jamais stockée), effacée au retour à l'accueil.
+  var pendingPmr = null;
   var timers = [];
   function clearTimers() { timers.forEach(clearTimeout); timers.forEach(clearInterval); timers = []; }
 
@@ -474,6 +499,7 @@
   function goHome() {
     clearTimers();
     resetPlate();
+    pendingPmr = null;
     updatePill();
     // Sans clé, la borne passe par la route publique (si Access l'autorise).
     if (!borneKey() && !publicAccess) { show("off"); return; }
@@ -695,6 +721,13 @@
   document.addEventListener("keydown", function (e) {
     if (current === "type" && e.key === "Escape") { goHome(); return; }
     if (current === "country" && e.key === "Escape") { show("plate"); return; }
+    if (current === "agent") {
+      if (/^[0-9]$/.test(e.key)) { agentType(e.key); e.preventDefault(); }
+      else if (e.key === "Backspace") { agentErase(); e.preventDefault(); }
+      else if (e.key === "Enter") { submitAgent(); e.preventDefault(); }
+      else if (e.key === "Escape") goHome();
+      return;
+    }
     if (current !== "plate" || e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.key === "Backspace") { erase(); e.preventDefault(); return; }
     if (e.key === "Enter") { if (isValid()) submit(); e.preventDefault(); return; }
@@ -738,18 +771,19 @@
   // - borne configurée avec sa clé : POST /api/v1/access/requests ;
   // - sinon : route publique POST /api/v1/borne/passages (sans clé, date
   //   imposée par le serveur, réponse sans identifiant du véhicule).
-  function send(plate, dir) {
+  function send(plate, dir, opts) {
+    opts = opts || { vehicleType: dir === 1 ? vehicleType : null, country: country.code };
     var key = borneKey();
     if (key) {
       return fetch("/api/v1/access/requests", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-API-Key": key },
-        body: JSON.stringify({ licensePlate: plate, type: dir, date: new Date().toISOString(), source: 2, vehicleType: dir === 1 ? vehicleType : null, country: country.code }),
+        body: JSON.stringify({ licensePlate: plate, type: dir, date: new Date().toISOString(), source: 2, vehicleType: opts.vehicleType, country: opts.country }),
       }).then(function (res) {
         if (res.status === 401 && publicAccess) {
           // Clé périmée (changée dans Render) : on l'oublie et on passe par la route publique.
           forget(KEY_STORAGE);
-          return send(plate, dir);
+          return send(plate, dir, opts);
         }
         return res;
       });
@@ -757,7 +791,7 @@
     return fetch("/api/v1/borne/passages", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ licensePlate: plate, type: dir, vehicleType: dir === 1 ? vehicleType : null, country: country.code }),
+      body: JSON.stringify({ licensePlate: plate, type: dir, vehicleType: opts.vehicleType, country: opts.country }),
     });
   }
 
@@ -777,19 +811,30 @@
     if (!isValid() || !direction) return;
     var plate = formatted();
     var dir = direction;
+    var opts = { vehicleType: dir === 1 ? vehicleType : null, country: country.code };
     // La plaque quitte l'écran dès l'envoi : elle n'est ni gardée ni réaffichée.
     resetPlate();
+    sendAndShow(plate, dir, opts);
+    plate = null;
+  }
+
+  function sendAndShow(plate, dir, opts) {
     showWait(dir);
-    send(plate, dir).then(function (res) {
+    send(plate, dir, opts).then(function (res) {
       if (res.status === 401 || res.status === 403) { showOutOfService(); return null; }
       if (res.status === 429) { showResult(busyResult()); return null; }
       if (res.status === 422) { showResult(invalidPlateResult(dir)); return null; }
       if (!res.ok) { showResult(unavailableResult(dir)); return null; }
-      return res.json().then(function (data) { showResult(resultFor(dir, normalize(data))); });
+      return res.json().then(function (data) {
+        var r = resultFor(dir, normalize(data));
+        // PMR déclaré, justificatif inconnu : on garde la plaque (en mémoire)
+        // le temps qu'un agent valide sur cette borne.
+        pendingPmr = r.agent ? { plate: plate, country: opts.country } : null;
+        showResult(r);
+      });
     }).catch(function () {
       showResult(unavailableResult(dir));
     });
-    plate = null;
   }
 
   // --- Messages au client -----------------------------------------------------------
@@ -864,7 +909,7 @@
       if (!data.vehicleIdentified) {
         return { kind: "wait", title: "Un agent arrive", lead: "Nous n'avons pas pu identifier votre véhicule. Restez à la borne, un agent vous rejoint.", delay: 20 };
       }
-      return { kind: "wait", title: "Un agent arrive", lead: "Cette place demande une vérification (justificatif PMR). Restez à la borne, un agent vous rejoint.", delay: 20 };
+      return { kind: "wait", title: "Un agent arrive", lead: "Cette place demande une vérification de la carte mobilité inclusion. Restez à la borne, un agent vous rejoint.", agent: dir === 1, delay: 120 };
     }
     if (RETRYABLE.test(reason)) {
       return {
@@ -908,6 +953,12 @@
     });
 
     var actions = $("resultActions"); actions.replaceChildren();
+    if (r.agent && pendingPmr) {
+      var agentBtn = document.createElement("button");
+      agentBtn.type = "button"; agentBtn.className = "btn primary"; agentBtn.textContent = "Validation agent";
+      agentBtn.addEventListener("click", showAgent);
+      actions.appendChild(agentBtn);
+    }
     if (r.retry) {
       var again = document.createElement("button");
       again.type = "button"; again.className = "btn primary"; again.textContent = "Réessayer";
@@ -919,7 +970,7 @@
       actions.appendChild(again);
     }
     var done = document.createElement("button");
-    done.type = "button"; done.className = "btn" + (r.retry ? " ghost" : " primary"); done.textContent = "Terminer";
+    done.type = "button"; done.className = "btn" + (r.retry || (r.agent && pendingPmr) ? " ghost" : " primary"); done.textContent = "Terminer";
     done.addEventListener("click", goHome);
     actions.appendChild(done);
 
@@ -932,6 +983,89 @@
     timers.push(setInterval(count, 1000));
     show("result");
   }
+
+  // --- Validation PMR par un agent -------------------------------------------------
+  var AGENT_MAX = 8;
+  var agentCode = "";
+
+  function renderAgent() {
+    var box = $("agentCode"); box.replaceChildren();
+    for (var i = 0; i < agentCode.length; i++) {
+      var dot = document.createElement("span"); dot.textContent = "•"; box.appendChild(dot);
+    }
+    $("agentSubmit").disabled = agentCode.length === 0;
+  }
+  function agentHint(text, error) {
+    var hint = $("agentHint");
+    hint.textContent = text; hint.classList.toggle("error", Boolean(error));
+  }
+  function agentType(d) { if (agentCode.length < AGENT_MAX) { agentCode += d; renderAgent(); } }
+  function agentErase() { agentCode = agentCode.slice(0, -1); renderAgent(); }
+
+  (function buildAgentPad() {
+    var pad = $("agentPad");
+    "123456789".split("").concat(["", "0", "⌫"]).forEach(function (d) {
+      if (!d) { pad.appendChild(document.createElement("span")); return; }
+      var k = document.createElement("button");
+      k.type = "button"; k.className = "key"; k.textContent = d;
+      k.setAttribute("aria-label", d === "⌫" ? "Effacer" : d);
+      k.addEventListener("click", function () { if (d === "⌫") agentErase(); else agentType(d); });
+      pad.appendChild(k);
+    });
+  })();
+
+  function agentTimeout() {
+    clearTimers();
+    // Sans action pendant 90 s, retour à l'accueil (la plaque est oubliée).
+    timers.push(setTimeout(goHome, 90000));
+  }
+
+  function showAgent() {
+    if (!pendingPmr) { goHome(); return; }
+    agentCode = ""; renderAgent();
+    agentHint("Le véhicule sera enregistré comme PMR pour ses prochains passages.", false);
+    agentTimeout();
+    show("agent");
+  }
+
+  function submitAgent() {
+    if (!pendingPmr || !agentCode) return;
+    var body = { licensePlate: pendingPmr.plate, country: pendingPmr.country, agentCode: agentCode };
+    agentCode = ""; renderAgent();
+    $("agentSubmit").disabled = true;
+    agentHint("Vérification…", false);
+    fetch("/api/v1/borne/pmr-validation", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then(function (res) {
+      if (res.status === 403) {
+        return res.json().catch(function () { return {}; }).then(function (data) {
+          if (/code agent/i.test(data.detail || "")) { agentHint("Code incorrect. Réessayez.", true); agentTimeout(); }
+          else showOutOfService();
+        });
+      }
+      if (res.status === 429) { agentHint("Trop d'essais : patientez une minute.", true); agentTimeout(); return null; }
+      if (!res.ok) { agentHint("Enregistrement impossible pour le moment. Réessayez.", true); agentTimeout(); return null; }
+      return res.json().then(function (data) {
+        pendingPmr = null;
+        showResult(resultFor(1, normalize(data)));
+      });
+    }).catch(function () {
+      agentHint("Service injoignable. Réessayez.", true); agentTimeout();
+    });
+    body = null;
+  }
+
+  $("agentSubmit").addEventListener("click", submitAgent);
+  $("agentCancel").addEventListener("click", goHome);
+  $("agentStandard").addEventListener("click", function () {
+    // Pas de carte : entrée sur une place standard, sans agent.
+    if (!pendingPmr) { goHome(); return; }
+    var pending = pendingPmr; pendingPmr = null;
+    vehicleType = "STANDARD";
+    sendAndShow(pending.plate, 1, { vehicleType: "STANDARD", country: pending.country });
+  });
 
   function showOutOfService() { clearTimers(); show("off"); }
 

@@ -34,3 +34,10 @@ class VehiclesServicePort(Protocol):
         `None` seulement si Vehicles est indisponible ou répond hors contrat.
         """
         ...
+
+    def confirm_disability(self, vehicle_id: str) -> bool:
+        """Enregistre chez Vehicles le justificatif PMR de ce véhicule, après
+        vérification de la carte par un agent : aux passages suivants, il
+        entre directement sur une place PMR. `False` si Vehicles ne l'a pas
+        enregistré (panne, véhicule inconnu)."""
+        ...

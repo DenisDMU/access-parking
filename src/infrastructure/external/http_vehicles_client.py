@@ -159,6 +159,24 @@ class HttpVehiclesClient:
         created = self._get(self._lookup_path, plate=plate)
         return None if isinstance(created, _NotFound) else created
 
+    def confirm_disability(self, vehicle_id: str) -> bool:
+        """`PUT` sur la route du véhicule avec `{"isHandicaped": true}` : seul
+        ce champ change (vérifié : les champs absents sont conservés)."""
+
+        if self._lookup_by_plate:
+            return False  # anciens contrats : pas de route par identifiant
+        path = self._routes()[1].replace("{vehicleId}", quote(vehicle_id, safe=""))
+        try:
+            with self._client() as client:
+                response = client.put(f"{self._base_url}{path}", json={"isHandicaped": True})
+        except httpx.HTTPError as exc:
+            logger.warning("Vehicles : PMR non enregistré (%s)", type(exc).__name__)
+            return False
+        if response.status_code != 200:
+            logger.warning("Vehicles : PMR non enregistré (HTTP %s)", response.status_code)
+            return False
+        return True
+
     # --- parcours par identifiant (avec découverte des routes) -------------------
 
     def _routes(self) -> tuple[str, str]:

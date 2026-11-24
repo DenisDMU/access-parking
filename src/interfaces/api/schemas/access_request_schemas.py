@@ -306,6 +306,32 @@ class BornePassageIn(BaseModel):
         return self
 
 
+class BornePmrValidationIn(BaseModel):
+    """Corps de `POST /borne/pmr-validation` : la plaque (et son pays), et le
+    code saisi par l'agent après vérification de la carte mobilité inclusion."""
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+        json_schema_extra={
+            "examples": [{"licensePlate": "AB-123-CD", "country": "FR", "agentCode": "123"}]
+        },
+    )
+
+    license_plate: str = Field(alias="licensePlate", max_length=20)
+    country: CountryCode | None = Field(default=None, description=COUNTRY_DESCRIPTION)
+    agent_code: str = Field(alias="agentCode", min_length=1, max_length=32)
+
+    @field_validator("license_plate")
+    @classmethod
+    def _normalize_plate(cls, value: str) -> str:
+        return normalize_plate(value)
+
+    @model_validator(mode="after")
+    def _apply_country(self):
+        self.license_plate = plate_identity(self.license_plate, self.country)
+        return self
+
+
 class BornePassageOut(BaseModel):
     """Réponse de `POST /borne/passages` : ce qu'affiche la borne, sans
     identifiant de demande ni identifiant du véhicule."""
@@ -385,7 +411,7 @@ class HealthOut(BaseModel):
         description="Moteur de base utilisé (sqlite ou postgresql) — jamais l'URL",
     )
     uptime_seconds: int = Field(alias="uptimeSeconds", examples=[1234])
-    version: str = Field(examples=["4.9.2"])
+    version: str = Field(examples=["4.10.0"])
     commit: str = Field(examples=["b742756d0c1e9f4a8b3c2d1e0f9a8b7c6d5e4f3a"])
     booking: str = Field(
         examples=["réel"],

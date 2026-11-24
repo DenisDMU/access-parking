@@ -14,6 +14,10 @@ garde sa clé.
   identifiant pseudonymisé du véhicule (pas de lien plaque → pseudoId).
 - Interrupteur `BORNE_PUBLIC` (activé par défaut) : à `false`, 403 et la
   borne exige sa clé (`BORNE_API_KEY`).
+- `POST /borne/pmr-validation` : un agent valide sur la borne un conducteur
+  PMR que Vehicles ne connaissait pas comme tel (carte vérifiée, code agent
+  `AGENT_CODE`). Le justificatif est enregistré chez Vehicles, puis l'entrée
+  est rejouée normalement. Même débit limité par adresse.
 
 ⚠️ La plaque reçue n'est ni loggée ni renvoyée (même discipline RGPD que
 `access_router`).
@@ -21,10 +25,15 @@ garde sa clé.
 
 from __future__ import annotations
 
+import hmac
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
+from src.application.use_cases.confirm_disability_by_agent import (
+    ConfirmDisabilityByAgent,
+    DisabilityNotRecordedError,
+)
 from src.application.use_cases.process_entry_request import ProcessEntryRequest
 from src.application.use_cases.process_exit_request import ProcessExitRequest
 from src.domain.value_objects.enums import DetectionSource, RequestType
@@ -36,12 +45,33 @@ from src.interfaces.api.routers.access_router import _place_type_out
 from src.interfaces.api.schemas.access_request_schemas import (
     BornePassageIn,
     BornePassageOut,
+    BornePmrValidationIn,
     BorneStatusOut,
 )
 from src.interfaces.api.schemas.error_schemas import ErrorOut
 from src.interfaces.api.vehicle_types import declared_vehicle_type
 
 router = APIRouter(prefix="/borne", tags=["Borne publique"])
+
+BORNE_OFF = "Borne publique désactivée : configurez la borne avec sa clé"
+WRONG_AGENT_CODE = "Code agent incorrect"
+
+
+def _require_public_borne() -> None:
+    if not get_settings().borne_public:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=BORNE_OFF)
+
+
+def _entry_out(decision) -> BornePassageOut:
+    record_decision(decision.type, decision.result, decision.reason)
+    return BornePassageOut(
+        result=decision.result,
+        reason=decision.reason,
+        vehicleIdentified=decision.vehicle_id is not None,
+        placeType=_place_type_out(decision.place_type),
+        placeLabel=decision.place_label,
+        reservation=decision.reservation,
+    )
 
 
 @router.get(
@@ -77,11 +107,7 @@ def borne_passage(
     entry_use_case: ProcessEntryRequest = Depends(deps.get_process_entry_request_use_case),
     exit_use_case: ProcessExitRequest = Depends(deps.get_process_exit_request_use_case),
 ) -> BornePassageOut:
-    if not get_settings().borne_public:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Borne publique désactivée : configurez la borne avec sa clé",
-        )
+    _require_public_borne()
     now = datetime.now(UTC)
     if body.type == RequestType.ENTRY:
         decision = entry_use_case.execute(
@@ -90,15 +116,7 @@ def borne_passage(
             source=DetectionSource.TERMINAL,
             declared_type=declared_vehicle_type(body.vehicle_type),
         )
-        record_decision(decision.type, decision.result, decision.reason)
-        return BornePassageOut(
-            result=decision.result,
-            reason=decision.reason,
-            vehicleIdentified=decision.vehicle_id is not None,
-            placeType=_place_type_out(decision.place_type),
-            placeLabel=decision.place_label,
-            reservation=decision.reservation,
-        )
+        return _entry_out(decision)
 
     decision = exit_use_case.execute(
         plate=body.license_plate, date=now, source=DetectionSource.TERMINAL
@@ -115,3 +133,45 @@ def borne_passage(
         durationMinutes=decision.duration_minutes,
         reservation=decision.reservation,
     )
+
+
+@router.post(
+    "/pmr-validation",
+    response_model=BornePassageOut,
+    summary="Validation PMR par un agent, à la borne (code agent)",
+    description=(
+        "Après une entrée « confirmation requise » (PMR déclaré, justificatif "
+        "inconnu de Vehicles), l'agent vérifie la carte mobilité inclusion et "
+        "saisit son code. Access enregistre le justificatif chez Vehicles "
+        "(le véhicule n'aura plus besoin d'agent), puis rejoue l'entrée : "
+        "réponse identique à `POST /borne/passages`. 403 si le code est faux "
+        "ou la borne publique désactivée, 503 si Vehicles n'a pas enregistré "
+        "le justificatif."
+    ),
+    responses={
+        403: {"model": ErrorOut, "description": "Code agent incorrect, ou borne désactivée"},
+        422: {"model": ErrorOut, "description": "Plaque invalide"},
+        429: {"description": "Trop de tentatives depuis cette adresse"},
+        503: {"model": ErrorOut, "description": "Vehicles n'a pas enregistré le PMR"},
+    },
+)
+@limiter.limit(lambda: get_settings().rate_limit_borne, key_func=client_ip)
+def borne_pmr_validation(
+    request: Request,
+    body: BornePmrValidationIn,
+    use_case: ConfirmDisabilityByAgent = Depends(deps.get_confirm_disability_use_case),
+) -> BornePassageOut:
+    _require_public_borne()
+    expected = get_settings().agent_code
+    if not expected or not hmac.compare_digest(body.agent_code.encode(), expected.encode()):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=WRONG_AGENT_CODE)
+    try:
+        decision = use_case.execute(
+            plate=body.license_plate, date=datetime.now(UTC), source=DetectionSource.TERMINAL
+        )
+    except DisabilityNotRecordedError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Vehicles n'a pas enregistré le justificatif PMR, réessayez",
+        ) from None
+    return _entry_out(decision)

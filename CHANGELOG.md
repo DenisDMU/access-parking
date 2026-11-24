@@ -4,6 +4,19 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.10.0] — 2026-11-24 — Validation PMR par un agent
+
+### Ajouté
+- Borne : sur « Un agent arrive » pour un PMR déclaré sans justificatif
+  connu, bouton « Validation agent ». L'agent vérifie la carte mobilité
+  inclusion et tape son code : entrée sur une place PMR. « Pas de carte :
+  place standard » fait entrer le véhicule sur une place standard.
+- `POST /borne/pmr-validation` (`licensePlate`, `country`, `agentCode`) :
+  code agent `AGENT_CODE` (`123` par défaut), justificatif enregistré chez
+  Vehicles (`PUT` avec `isHandicaped`), puis entrée rejouée avec toutes ses
+  règles. Aux passages suivants, le véhicule entre directement en PMR.
+  403 si le code est faux, 503 si Vehicles n'enregistre pas.
+
 ## [4.9.2] — 2026-11-24 — Champs Vehicles renommés
 
 ### Corrigé

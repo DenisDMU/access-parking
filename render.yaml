@@ -55,6 +55,10 @@ services:
         # publique POST /api/v1/borne/passages (passage seulement, date
         # imposée, 10/min par adresse). false : la borne exige sa clé.
         value: "true"
+      - key: AGENT_CODE
+        # Code saisi par l'agent sur la borne pour valider un PMR (carte
+        # mobilité inclusion vérifiée). Volontairement simple : démonstration.
+        value: "123"
       - key: DATABASE_URL
         # Base Postgres hébergée (Neon) : URL secrète, saisie dans Render >
         # Environment, jamais versionnée. sync: false empêche le blueprint
