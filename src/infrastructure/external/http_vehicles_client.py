@@ -14,6 +14,12 @@ d'après-midi) par des appels réels contre https://parking-vehicles.onrender.co
 Parcours (mode « par identifiant », par défaut) : plaque → `identify` →
 pseudoId → `getvehicles/{pseudoId}` → caractéristiques.
 
+Revérifié le 24/11 au soir : `licensePlate` désormais obligatoire et
+caractéristiques à `false` par défaut (déjà ce qu'envoie Access). Vehicles
+expose aussi `GET /api/getplate/{vehicleId}` (identifiant → plaque en
+clair, sans clé) : Access ne l'appelle JAMAIS (RGPD : Access ne doit pas
+retrouver la plaque à partir de l'identifiant).
+
 ⚠️ Vehicles a changé son contrat trois fois le 24/11 :
   1. `GET /api/vehicles/{plate}` + `POST /api/vehicles/identify` (matin) ;
   2. `GET /api/getvehicles/{plate}` + `POST /api/identify` (après-midi) ;
