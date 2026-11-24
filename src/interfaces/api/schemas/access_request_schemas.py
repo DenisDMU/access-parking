@@ -361,6 +361,10 @@ class BorneParkingCategoryOut(BaseModel):
     total_capacity: int = Field(alias="totalCapacity")
     spot_taken: int = Field(alias="spotTaken")
     spot_held: int = Field(alias="spotHeld", description="Places mises de côté (hold de 30 s)")
+    reserved: int = Field(
+        default=0,
+        description="Véhicules présents entrés avec une réservation Booking (compte d'Access)",
+    )
 
 
 class BorneParkingOut(BaseModel):
@@ -433,7 +437,7 @@ class HealthOut(BaseModel):
         description="Moteur de base utilisé (sqlite ou postgresql) — jamais l'URL",
     )
     uptime_seconds: int = Field(alias="uptimeSeconds", examples=[1234])
-    version: str = Field(examples=["4.12.1"])
+    version: str = Field(examples=["4.13.0"])
     commit: str = Field(examples=["b742756d0c1e9f4a8b3c2d1e0f9a8b7c6d5e4f3a"])
     booking: str = Field(
         examples=["réel"],

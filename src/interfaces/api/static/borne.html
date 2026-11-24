@@ -592,7 +592,7 @@
     if (plan) { plan.setTheme(planTheme()); plan.setActive(true); refreshPlan(); return; }
     if (planLoading) return;
     planLoading = true;
-    import("/static/parking3d.js?v=4.12.0").then(function (mod) {
+    import("/static/parking3d.js?v=4.13.0").then(function (mod) {
       plan = mod.createParking3D($("plan3d"), { title: "Le parking en direct", theme: planTheme() });
       if (!plan) return;
       plan.setActive(current === "plan" && !document.hidden);

@@ -28,6 +28,7 @@ def test_occupation_publique_sans_cle(client):
         "totalCapacity": 10,
         "spotTaken": 3,
         "spotHeld": 1,
+        "reserved": 0,
     }
 
 
@@ -38,7 +39,14 @@ def test_des_compteurs_seulement(client):
     body = client.get(URL).json()
     assert set(body) == {"available", "categories"}
     for category in body["categories"]:
-        assert set(category) == {"name", "label", "totalCapacity", "spotTaken", "spotHeld"}
+        assert set(category) == {
+            "name",
+            "label",
+            "totalCapacity",
+            "spotTaken",
+            "spotHeld",
+            "reserved",
+        }
     assert "vehicleId" not in client.get(URL).text and "AA-111-AA" not in client.get(URL).text
 
 
@@ -95,3 +103,15 @@ def test_debit_limite_par_adresse(client, monkeypatch):
     )
     codes = [client.get(URL).status_code for _ in range(5)]
     assert codes == [200, 200, 200, 429, 429]
+
+
+def test_vehicules_entres_avec_reservation_comptes_par_categorie(client):
+    """GG-777-GG a une réservation (Booking simulé) : compté, sans être désigné."""
+
+    entry = client.post("/api/v1/borne/passages", json={"licensePlate": "GG-777-GG", "type": 1})
+    assert entry.json()["result"] == 1 and entry.json()["reservation"] is True
+    client.post("/api/v1/borne/passages", json={"licensePlate": "AA-111-AA", "type": 1})
+    body = client.get(URL).json()
+    reserved = {c["name"]: c["reserved"] for c in body["categories"]}
+    assert sum(reserved.values()) == 1
+    assert "v_with_reservation" not in client.get(URL).text

@@ -86,9 +86,11 @@ from src.domain.value_objects.dto import (
     PlaceType,
     VehicleType,
 )
-from src.domain.value_objects.enums import VehicleCategory
 from src.infrastructure.external.outgoing_http import COLD_START_TIMEOUT_S, outgoing_client
-from src.infrastructure.external.place_categories import place_type_from_code
+from src.infrastructure.external.place_categories import (
+    code_from_place_type,
+    place_type_from_code,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -136,17 +138,9 @@ def _map_category(vehicle_type: VehicleType) -> str:
     """Traduit un `VehicleType` en une des 5 catégories réelles de Parking
     (mutuellement exclusives). Même ordre de priorité que
     `http_pricing_client._map_zone` pour rester cohérent entre les deux
-    services de l'équipe."""
+    services de l'équipe (`place_categories.code_from_place_type`)."""
 
-    if vehicle_type.is_handicap:
-        return "HANDICAPPED"
-    if vehicle_type.category is VehicleCategory.TWO_WHEELER:
-        return "TWO_WHEELS"
-    if vehicle_type.is_electric:
-        return "ELECTRIC"
-    if vehicle_type.is_xl:
-        return "XL"
-    return "STANDARD"
+    return code_from_place_type(vehicle_type)
 
 
 def _place_type_from_category(category: str) -> PlaceType:

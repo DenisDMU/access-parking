@@ -335,6 +335,9 @@ const MODELS = {
   scooter: { label: "Scooter", lean: 0.14, build: scooter },
 };
 
+// Hauteur du repère « R » au-dessus de chaque modèle.
+const RESA_HEIGHT = { hatch: 2.3, sedan: 2.3, suv: 2.6, ev: 2.3, van: 3.4, camper: 3.9, moto: 1.9, scooter: 1.9 };
+
 // --- Trajets : polyligne aux angles arrondis -----------------------------------
 
 function makePath(pts, radius) {
@@ -486,6 +489,8 @@ const CSS = `
 .p3d-zone u { grid-column: 2 / 4; height: 4px; border-radius: 4px; text-decoration: none; background: var(--hairline, rgba(76,79,105,.12)); overflow: hidden; }
 .p3d-zone u b { display: block; height: 100%; width: 0; border-radius: 4px; background: var(--c); transition: width .6s cubic-bezier(.2,.8,.2,1); }
 .p3d-note { padding: 6px 6px 0; font-size: 11.5px; color: var(--subtext, #6c6f85); }
+.p3d-resa { display: flex; align-items: center; gap: 7px; }
+.p3d-resa i { font: 800 10px/16px system-ui, sans-serif; font-style: normal; width: 16px; height: 16px; border-radius: 5px; text-align: center; color: #fff; background: #1e66f5; }
 .p3d-tip { position: absolute; left: 0; top: 0; padding: 8px 11px; max-width: 260px; pointer-events: none; opacity: 0;
   transition: opacity .12s; z-index: 3; }
 .p3d-tip.on { opacity: 1; }
@@ -509,6 +514,7 @@ const CSS = `
   .p3d-zone { padding: 4px; font-size: 12px; }
   .p3d-zone u { display: none; }
   .p3d-note { grid-column: 1 / 3; }
+  .p3d-zone span { font-size: 11px; }
   .p3d-tag { font-size: 11px; padding: 3px 8px 3px 6px; gap: 6px; }
 }
 `;
@@ -529,11 +535,11 @@ function elem(tag, cls, text) {
 // --- Données ---------------------------------------------------------------------
 
 const DEMO_ZONES = [
-  { name: "HANDICAPPED", label: "PMR", cap: 6, taken: 2, held: 0 },
-  { name: "ELECTRIC", label: "Électrique", cap: 10, taken: 5, held: 0 },
-  { name: "TWO_WHEELS", label: "Deux-roues", cap: 12, taken: 6, held: 0 },
-  { name: "STANDARD", label: "Standard", cap: 38, taken: 19, held: 0 },
-  { name: "XL", label: "Grand gabarit", cap: 8, taken: 3, held: 0 },
+  { name: "HANDICAPPED", label: "PMR", cap: 6, taken: 2, held: 0, reserved: 1 },
+  { name: "ELECTRIC", label: "Électrique", cap: 10, taken: 5, held: 0, reserved: 1 },
+  { name: "TWO_WHEELS", label: "Deux-roues", cap: 12, taken: 6, held: 0, reserved: 0 },
+  { name: "STANDARD", label: "Standard", cap: 38, taken: 19, held: 0, reserved: 3 },
+  { name: "XL", label: "Grand gabarit", cap: 8, taken: 3, held: 0, reserved: 1 },
 ];
 
 function liveZones(overview) {
@@ -544,6 +550,8 @@ function liveZones(overview) {
       name: String(c.name), label: String(c.label || c.name), cap: c.totalCapacity,
       taken: clamp(c.spotTaken || 0, 0, c.totalCapacity),
       held: clamp(c.spotHeld || 0, 0, c.totalCapacity),
+      // Véhicules entrés avec une réservation (route publique de la borne).
+      reserved: c.reserved != null ? clamp(c.reserved, 0, c.totalCapacity) : null,
     }));
   if (!zones.length) return null;
   zones.sort((a, b) => {
@@ -719,6 +727,16 @@ export function createParking3D(container, options) {
     screen: new THREE.MeshBasicMaterial({ color: 0x64d7f0, toneMapped: false }),
     boothGlass: new THREE.MeshStandardMaterial({ color: 0x1b2836, roughness: 0.2, metalness: 0.4, emissive: 0xffc56b, emissiveIntensity: 0 }),
     post: new THREE.MeshStandardMaterial({ color: 0x2a2d38, roughness: 0.7 }),
+    resa: new THREE.SpriteMaterial({
+      map: canvasTexture(128, (ctx, s) => {
+        ctx.fillStyle = "rgba(17,17,27,0.28)"; roundRect(ctx, 10, 14, s - 16, s - 16, 26); ctx.fill();
+        ctx.fillStyle = "#1e66f5"; roundRect(ctx, 6, 6, s - 16, s - 16, 26); ctx.fill();
+        ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 7; roundRect(ctx, 6, 6, s - 16, s - 16, 26); ctx.stroke();
+        ctx.fillStyle = "#ffffff"; ctx.font = "800 " + s * 0.54 + "px system-ui, sans-serif";
+        ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("R", s / 2 - 5, s / 2 - 1);
+      }),
+      depthWrite: false, toneMapped: false,
+    }),
     trunk: new THREE.MeshStandardMaterial({ color: 0x6b4a32, roughness: 0.9 }),
     totem: new THREE.MeshStandardMaterial({ color: 0x174fc0, roughness: 0.6 }),
   };
@@ -807,7 +825,7 @@ export function createParking3D(container, options) {
       zones: zones.map((z) => {
         const n = Math.max(1, Math.round(z.cap / unit));
         const scale = (v) => (v > 0 ? clamp(Math.round(v / unit) || 1, 0, n) : 0);
-        return Object.assign({}, z, { n, takenN: scale(z.taken), heldN: scale(z.held) });
+        return Object.assign({}, z, { n, takenN: scale(z.taken), heldN: scale(z.held), reservedN: scale(z.reserved || 0) });
       }),
     };
   }
@@ -1252,7 +1270,18 @@ export function createParking3D(container, options) {
     cam.bz = D / 2 + 22;
     cam.home = fit;
 
-    lot = { L, group, zones, fleet, leds, rings, hover, gateIn, gateOut, textures, tags, seq: 0, pickDirty: true };
+    // Repères « R » des véhicules entrés avec une réservation (toujours face caméra).
+    const resaSprites = [];
+    for (let i = 0; i < 48; i++) {
+      const sprite = new THREE.Sprite(M.resa);
+      sprite.scale.set(1.7, 1.7, 1);
+      sprite.visible = false;
+      sprite.renderOrder = 4;
+      group.add(sprite);
+      resaSprites.push(sprite);
+    }
+
+    lot = { L, group, zones, fleet, leds, rings, hover, gateIn, gateOut, textures, tags, resaSprites, seq: 0, pickDirty: true };
     spawnTraffic();
   }
 
@@ -1420,6 +1449,7 @@ export function createParking3D(container, options) {
         const zone = lot.zones[i];
         zone.label = z.label; zone.cap = z.cap; zone.taken = z.taken; zone.held = z.held;
         zone.takenN = z.takenN; zone.heldN = z.heldN;
+        zone.reserved = z.reserved; zone.reservedN = z.reservedN;
       });
     }
     lot.zones.forEach((zone) => {
@@ -1434,14 +1464,37 @@ export function createParking3D(container, options) {
       zone.tag.count.textContent = zone.taken + "/" + zone.cap;
     });
     assignPresences();
+    markReservations();
     refreshSpots();
     renderLegend();
     firstSync = false;
   }
 
+  /* Véhicules entrés avec une réservation : un « R » bleu flotte au-dessus.
+     Dashboard : ceux dont la présence d'Access le dit. Borne (et démo) : le
+     nombre par zone, appliqué aux plus anciens véhicules garés de la zone. */
+  function markReservations() {
+    lot.zones.forEach((zone) => {
+      const known = zone.vehicles.some((v) => v.info);
+      let left = known ? 0 : zone.reservedN || 0;
+      zone.vehicles.slice().sort((a, b) => a.id - b.id).forEach((v) => {
+        if (known) v.reserved = Boolean(v.info && v.info.reservation);
+        else { v.reserved = left > 0; if (v.reserved) left--; }
+      });
+    });
+  }
+
   function assignPresences() {
     if (!lot) return;
     const byZone = {};
+    // Dashboard : le nombre de réservations par zone se lit dans les présences.
+    if (data.source === "live" && presences.length) {
+      const counts = {};
+      presences.forEach((p) => { if (p.reservation) counts[categoryOfPresence(p)] = (counts[categoryOfPresence(p)] || 0) + 1; });
+      lot.zones.forEach((zone) => {
+        if (zone.reserved == null) { zone.reserved = counts[zone.name] || 0; zone.reservedN = zone.reserved; }
+      });
+    }
     if (data.source === "live") {
       presences.forEach((p) => {
         const name = categoryOfPresence(p);
@@ -1479,10 +1532,18 @@ export function createParking3D(container, options) {
       const fill = elem("b");
       fill.style.width = (zone.cap ? Math.min(100, (zone.taken / zone.cap) * 100) : 0) + "%";
       bar.appendChild(fill);
-      b.append(elem("i"), elem("em", null, zone.label), elem("span", null, zone.taken + "/" + zone.cap + (zone.held ? " · " + zone.held + " en attente" : "")), bar);
+      const extra = (zone.held ? " · " + zone.held + " en attente" : "") + (zone.reserved ? " · " + zone.reserved + " R" : "");
+      b.append(elem("i"), elem("em", null, zone.label), elem("span", null, zone.taken + "/" + zone.cap + extra), bar);
+      if (zone.reserved) b.title += " · " + zone.reserved + " véhicule(s) entré(s) avec une réservation";
       b.addEventListener("click", () => focusZone(zone));
       legend.appendChild(b);
     });
+    const reservedTotal = lot.zones.reduce((s, z) => s + (z.reserved || 0), 0);
+    if (reservedTotal) {
+      const note = elem("div", "p3d-note p3d-resa");
+      note.append(elem("i", null, "R"), document.createTextNode(reservedTotal + " véhicule(s) entré(s) avec une réservation"));
+      legend.appendChild(note);
+    }
     if (data.unit > 1) legend.appendChild(elem("div", "p3d-note", "Grand parking : 1 place affichée ≈ " + Math.round(data.unit * 10) / 10 + " places."));
     srcDot.parentElement.style.setProperty("--c", data.source === "live" ? "#40a02b" : "#fe640b");
     srcText.textContent = data.source === "live" ? "Temps réel · occupation vue par Parking" : "Démonstration · " + (data.reason || "données simulées");
@@ -1619,7 +1680,8 @@ export function createParking3D(container, options) {
           (v.info.reservation ? " · réservation" : "");
         tipMore.textContent = "Cliquer pour ouvrir sa demande d'entrée";
       } else {
-        tipSub.textContent = data.source === "live" ? "Place comptée par Parking" : "Véhicule de démonstration";
+        tipSub.textContent = (data.source === "live" ? "Place comptée par Parking" : "Véhicule de démonstration") +
+          (v.reserved ? " · entré avec une réservation" : "");
         tipMore.textContent = v.state === "entering" ? "En train de se garer" : v.state === "leaving" ? "En train de sortir" : "";
       }
       lot.hover.position.set(v.x, 0.06, v.z);
@@ -1738,6 +1800,17 @@ export function createParking3D(container, options) {
       g[0].angle = lerp(g[0].angle, g[1] ? 1.42 : 0, 1 - Math.exp(-dt * (g[1] ? 9 : 4)));
       g[0].pivot.rotation.z = g[0].angle;
     });
+    // Repères « R » : suivent les véhicules réservés, avec un léger flottement.
+    let r = 0;
+    lot.zones.forEach((zone) => {
+      zone.vehicles.forEach((v) => {
+        if (!v.reserved || v.state === "gone" || r >= lot.resaSprites.length) return;
+        const sprite = lot.resaSprites[r++];
+        sprite.visible = true;
+        sprite.position.set(v.x, (RESA_HEIGHT[v.model] || 2.4) + Math.sin(now * 2.2 + v.id) * 0.12, v.z);
+      });
+    });
+    for (; r < lot.resaSprites.length; r++) lot.resaSprites[r].visible = false;
     // Places mises de côté : anneau qui pulse
     const pulse = 1 + Math.sin(now * 4.2) * 0.14;
     lot.rings.forEach((r) => { if (r.visible) { r.scale.setScalar(pulse); r.material.opacity = 0.55 + Math.sin(now * 4.2) * 0.35; } });

@@ -919,7 +919,7 @@
     if (plan3dLoading) return;
     plan3dLoading = true;
     const notice = $("plan3dNotice");
-    import("/static/parking3d.js?v=4.12.0").then(function (mod) {
+    import("/static/parking3d.js?v=4.13.0").then(function (mod) {
       plan3d = mod.createParking3D($("plan3d"), {
         onVehicleClick: function (presence) {
           if (presence && presence.entryRequestId) openRequest(presence.entryRequestId);
