@@ -31,8 +31,17 @@ _SCENARIOS = [
     {"licensePlate": "ZZ-999-ZZ", "type": 2, "date": "2026-09-02T11:00:00Z", "source": 2},
     {"licensePlate": "CC-333-CC", "type": 2, "date": "2026-09-02T11:00:00Z", "source": 2},
     {"licensePlate": "YY-888-YY", "type": 2, "date": "2026-09-02T11:00:00Z", "source": 2},
+    # Plaques étrangères et ancien format français (4.3.0).
+    {"licensePlate": "B-MW 1234", "type": 1, "date": "2026-09-02T10:00:00Z", "source": 3},
+    {"licensePlate": "BMW1234", "type": 2, "date": "2026-09-02T11:00:00Z", "source": 2},
+    {"licensePlate": "123 ABC 75", "type": 1, "date": "2026-09-02T10:00:00Z", "source": 3},
 ]
-_SENT = {scenario["licensePlate"] for scenario in _SCENARIOS} | {"AA-111-AA", "AA-11-AAA"}
+_SENT = {scenario["licensePlate"] for scenario in _SCENARIOS} | {
+    "AA-111-AA",
+    "AB#123",
+    "BMW1234",
+    "123ABC75",
+}
 
 
 class _Plate:
@@ -56,10 +65,10 @@ def test_no_plate_in_responses_tables_events_or_logs(client, caplog):
             assert not PLATE.search(response.text), response.text
 
         invalid = client.post(
-            URL, json={**_SCENARIOS[0], "licensePlate": "AA-11-AAA"}, headers=AUTH_HEADERS
+            URL, json={**_SCENARIOS[0], "licensePlate": "AB#123"}, headers=AUTH_HEADERS
         )
         assert invalid.status_code == 422
-        assert "AA-11-AAA" not in invalid.text
+        assert "AB#123" not in invalid.text
 
         known = client.post(
             "/api/v1/access/vehicles/known",

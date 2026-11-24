@@ -20,21 +20,28 @@ from src.domain.value_objects.enums import (
     RequestType,
 )
 
-# Plaque française (SIV). Acceptée en minuscules, avec espaces ou sans
-# séparateur, puis normalisée en `AB-123-CD` : Vehicles reçoit toujours la
-# même forme pour un même véhicule.
-_PLATE_INPUT = re.compile(r"^([A-Z]{2})[\s-]?(\d{3})[\s-]?([A-Z]{2})$")
-PLATE_FORMAT_ERROR = "Plaque attendue au format AB-123-CD"
+# Plaques de tous pays et de tous formats (SIV, ancien FNI, étrangères).
+# Les séparateurs (espaces, tirets, points) sont retirés pour qu'une même
+# plaque donne toujours la même forme chez Vehicles, quelle que soit la façon
+# de la saisir. Seule exception : la plaque française SIV garde sa forme
+# `AB-123-CD` (celle déjà enregistrée chez Vehicles depuis la 4.0.0).
+_SEPARATORS = re.compile(r"[\s.\-]+")
+_SIV = re.compile(r"^([A-Z]{2})(\d{3})([A-Z]{2})$")
+_ANY_PLATE = re.compile(r"^[A-Z0-9]{2,10}$")
+PLATE_FORMAT_ERROR = "Plaque attendue : 2 à 10 lettres (A-Z) ou chiffres, séparateurs acceptés"
 
 
 def normalize_plate(value: str) -> str:
-    """`ab 123 cd` → `AB-123-CD`. Le message d'erreur ne reprend jamais la
-    valeur reçue."""
+    """`ab 123 cd` → `AB-123-CD` ; `b-mw 1234` → `BMW1234` ; `123 abc 75` →
+    `123ABC75`. Le message d'erreur ne reprend jamais la valeur reçue."""
 
-    match = _PLATE_INPUT.match(value.strip().upper())
-    if match is None:
-        raise ValueError(PLATE_FORMAT_ERROR)
-    return "-".join(match.groups())
+    compact = _SEPARATORS.sub("", value.strip().upper())
+    siv = _SIV.match(compact)
+    if siv:
+        return "-".join(siv.groups())
+    if _ANY_PLATE.match(compact):
+        return compact
+    raise ValueError(PLATE_FORMAT_ERROR)
 
 
 # Taille max d'une photo encodée en base64 (~3 Mo de photo une fois décodée).
@@ -63,7 +70,10 @@ class AccessRequestIn(BaseModel):
     license_plate: str = Field(
         alias="licensePlate",
         max_length=20,
-        description="Plaque lue par la borne, format AB-123-CD (transmise à Vehicles uniquement)",
+        description=(
+            "Plaque lue par la borne, française ou étrangère : 2 à 10 lettres ou "
+            "chiffres, séparateurs acceptés (transmise à Vehicles uniquement)"
+        ),
     )
     type: RequestType = Field(description="1=ENTRY, 2=EXIT")
     date: datetime
@@ -273,7 +283,7 @@ class HealthOut(BaseModel):
         description="Moteur de base utilisé (sqlite ou postgresql) — jamais l'URL",
     )
     uptime_seconds: int = Field(alias="uptimeSeconds", examples=[1234])
-    version: str = Field(examples=["4.2.0"])
+    version: str = Field(examples=["4.3.0"])
     commit: str = Field(examples=["b742756d0c1e9f4a8b3c2d1e0f9a8b7c6d5e4f3a"])
 
     model_config = ConfigDict(populate_by_name=True)

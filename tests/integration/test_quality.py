@@ -24,7 +24,9 @@ def _payload(plate: str, type_: int, date: str, source: int = 3) -> dict:
     "body",
     [
         {},  # tout manque
-        _payload("ZZ-0-ZZZ", 1, "2026-09-02T10:00:00Z"),  # plaque mal formée
+        _payload("AB#123", 1, "2026-09-02T10:00:00Z"),  # caractère interdit
+        _payload("A", 1, "2026-09-02T10:00:00Z"),  # plaque trop courte
+        _payload("ABCDEFGHIJK", 1, "2026-09-02T10:00:00Z"),  # plus de 10 caractères
         _payload("A" * 21, 1, "2026-09-02T10:00:00Z"),  # plaque trop longue
         _payload("", 1, "2026-09-02T10:00:00Z"),  # plaque vide
         _payload("AA-111-AA", 3, "2026-09-02T10:00:00Z"),  # type inconnu
@@ -58,10 +60,10 @@ def test_photo_base64_invalide_renvoie_400(client):
 
 def test_plaque_invalide_sur_known(client):
     response = client.post(
-        "/api/v1/access/vehicles/known", json={"licensePlate": "ZZ-0-ZZZ"}, headers=AUTH_HEADERS
+        "/api/v1/access/vehicles/known", json={"licensePlate": "AB#123"}, headers=AUTH_HEADERS
     )
     assert response.status_code == 422
-    assert "ZZ-0-ZZZ" not in response.text
+    assert "AB#123" not in response.text
 
 
 def test_filtre_periode_inversee_renvoie_422(client):

@@ -20,8 +20,8 @@
 | | |
 |---|---|
 | **Rôle** | Décide si un véhicule peut entrer/sortir du parking et coordonne les échanges avec Vehicles, Booking, Parking, Pricing, Payment (aucune donnée métier des autres services). |
-| **Version actuelle** | `4.2.0` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
-| **Dernière mise à jour** | 24 novembre 2026 (Parking 1.5.0 : catégories et occupation ; borne client ; Vehicles par plaque) |
+| **Version actuelle** | `4.3.0` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
+| **Dernière mise à jour** | 24 novembre 2026 (plaques de tous pays ; Parking 1.5.0 : catégories et occupation ; borne client ; Vehicles par plaque) |
 | **URL du service déployé** | https://access-api-a1u7.onrender.com |
 | **Documentation Swagger/OpenAPI** | https://access-api-a1u7.onrender.com/docs (ReDoc : `/redoc`, spec brute : `/openapi.json`) |
 | **Dépendances (services appelés)** | **Vehicles** *(réel)*, Booking *(mocké)*, **Parking** *(réel)*, **Pricing** *(réel)*, **Payment** *(réel)* |
@@ -29,7 +29,7 @@
 
 ### Fonctionnalités
 
-- [x] Identifier un véhicule par sa plaque auprès de Vehicles, qui le retrouve ou le crée ; la plaque n'est ni stockée, ni publiée, ni renvoyée, ni loggée (seul l'identifiant pseudonymisé circule).
+- [x] Identifier un véhicule par sa plaque auprès de Vehicles, qui le retrouve ou le crée ; **toutes les plaques** sont acceptées (françaises SIV ou ancien format, étrangères : 2 à 10 lettres ou chiffres) ; la plaque n'est ni stockée, ni publiée, ni renvoyée, ni loggée (seul l'identifiant pseudonymisé circule).
 - [x] Autoriser l'entrée d'un véhicule sans réservation (place attribuée automatiquement).
 - [x] Autoriser l'entrée d'un véhicule avec réservation active.
 - [x] Refuser l'entrée d'un véhicule déjà présent.
@@ -69,11 +69,11 @@
 | **API** | ✅ REST documentée (`/docs`), entrées/sorties validées, erreurs normalisées, `/health` | [section 11](#11-endpoints) |
 | **Intégration** | ✅ Vehicles, Parking, Pricing, Payment réels (REST) ; événements publiés sur RabbitMQ (bus d'équipe) · ⏳ Booking encore mocké | [section 5](#5-brancher-un-vrai-microservice-à-la-place-dun-mock), [section 6](#6-publication-dévénements--webhook-ou-rabbitmq) |
 | **UI** | ✅ Borne client `/borne` (entrée/sortie, clavier à l'écran, ticket, clair/sombre, mobile) et dashboard servi par Access : borne d'entrée/sortie, état du parking (présences, occupation vue par Parking, décisions, santé), journal d'événements, recherche | [section 12](#12-borne-et-journal-de-bord-dashboard) |
-| **Qualité** | ✅ 246 tests (unitaires + intégration), entrées invalides et cas limites couverts, `ruff` (lint + format), script de vérification reproductible | [section 9](#9-tests-et-qualité) |
+| **Qualité** | ✅ 269 tests (unitaires + intégration), entrées invalides et cas limites couverts, `ruff` (lint + format), script de vérification reproductible | [section 9](#9-tests-et-qualité) |
 | **Observabilité** | ✅ Correlation ID propagé à tous les services et événements, logs par décision, `/metrics` Prometheus (techniques + métier + intégration), config Prometheus fournie, `/health` avec version et commit | [section 9](#métriques-prometheus) |
 | **CI/CD et déploiement** | ✅ GitHub Actions (lint → tests → bandit → pip-audit → gitleaks), déploiement Render après CI verte, smoke test de l'instance déployée (version vérifiée), CHANGELOG, Dependabot | [section 9](#intégration-continue-cicd), [section 14](#14-déploiement-sur-render) |
 | **Sécurité** | ✅ Clé API (comparaison en temps constant) sur toutes les routes sauf `/health`, clé borne limitée au passage d'un véhicule, refus de démarrer en production avec une clé faible, validation stricte, erreurs sans stack trace, en-têtes de sécurité, CORS restreint, rate limiting, secrets hors Git, plaque jamais stockée/publiée/renvoyée/loggée (test dédié) | [section 10](#10-sécurité) |
-| **Version** | `4.2.0` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
+| **Version** | `4.3.0` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
 | **Dernière mise à jour** | 24 novembre 2026 | |
 
 ### Suivi des jalons
@@ -218,10 +218,24 @@ et collez la clé.
 
 Les véhicules sont ceux du vrai service Vehicles (voir son
 [Swagger](https://parking-vehicles.onrender.com/swagger-ui/index.html)) : il
-suffit d'envoyer une plaque au format `AB-123-CD` (minuscules et espaces
-acceptés). Une plaque inconnue est créée chez Vehicles à l'entrée, comme un
+suffit d'envoyer une plaque, française ou étrangère (voir « Formats de
+plaque » ci-dessous). Une plaque inconnue est créée chez Vehicles à l'entrée, comme un
 4 roues standard ; pour tester un profil précis (PMR, électrique, XL, 2
 roues), enregistrez-le d'abord chez Vehicles (`POST /api/vehicles/identify`).
+
+**Formats de plaque** : toutes les plaques sont acceptées, en majuscules ou
+minuscules, avec ou sans espaces, tirets ou points :
+
+| Saisie | Envoyé à Vehicles | Règle |
+|---|---|---|
+| `ab 123 cd`, `AB123CD` | `AB-123-CD` | plaque française SIV : forme avec tirets conservée (déjà connue de Vehicles) |
+| `123 ABC 75` | `123ABC75` | ancien format français (FNI) : séparateurs retirés |
+| `B-MW 1234`, `bmw1234` | `BMW1234` | plaque étrangère : séparateurs retirés |
+
+Une même plaque saisie de deux façons donne donc toujours le même véhicule
+chez Vehicles (entrée « B-MW 1234 », sortie « bmw1234 »). Refusé (422) :
+moins de 2 ou plus de 10 lettres et chiffres, ou un autre caractère
+(`#`, `_`, lettres accentuées…).
 Les tests automatisés utilisent un registre déterministe de plaques
 `AA-111-AA` à `HH-888-HH` (`DEMO_VEHICLES`, dans
 [`tests/unit/fakes.py`](tests/unit/fakes.py)) qui couvre chaque profil
@@ -480,7 +494,7 @@ ACCESS_TEST_DATABASE_URL=<url Postgres> pytest tests/integration   # idem contre
 pytest -v            # détail de chaque cas
 ```
 
-Couverture (246 tests) :
+Couverture (269 tests) :
 
 - **Unitaires** — matrice complète de la règle de compatibilité
   véhicule/place, règle de présence, règle d'accessibilité ; chaque use case
@@ -499,7 +513,8 @@ Couverture (246 tests) :
   sortie refusée (paiement échoué, véhicule non présent), `/health`,
   `/access/vehicles/known`, `/access/presences` (suit entrée puis
   sortie). `test_quality.py` couvre les **entrées invalides** (corps vide,
-  plaque mal formée, vide ou trop longue, type/source inconnus, date illisible, JSON
+  plaque avec caractère interdit, vide, trop courte ou trop longue (toutes
+  les formes acceptées sont testées : SIV, ancien format, étrangères), type/source inconnus, date illisible, JSON
   mal formé, photo corrompue, période inversée, `limit` hors bornes, clé
   invalide), les **cas limites** (sortie datée avant l'entrée, date sans
   fuseau) et les **logs** (correlation ID reçu/généré/assaini, décision
@@ -522,7 +537,7 @@ précédente, `needs:` dans le workflow) et doivent **tous** passer — si une
 | Job | Outil | Ce qu'il vérifie |
 |---|---|---|
 | Lint | `ruff` | Erreurs, imports, bugs probables, règles de sécurité, **formatage homogène** (config : `ruff.toml`) |
-| Tests | `pytest` | Les 246 tests unitaires + intégration, sans aucun secret |
+| Tests | `pytest` | Les 269 tests unitaires + intégration, sans aucun secret |
 | Sécurité du code | `bandit` | Analyse statique (SAST) : injections, appels dangereux, secrets en dur… |
 | Dépendances | `pip-audit` | Vulnérabilités connues (CVE) dans `requirements.txt` |
 | Secrets | `gitleaks` | Aucun secret (clé API, URL CloudAMQP…) dans tout l'historique git |
@@ -669,8 +684,8 @@ Puis http://localhost:9090 — requêtes utiles :
 - **En-têtes de sécurité** : `X-Content-Type-Options: nosniff`,
   `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`,
   `Cache-Control: no-store` sur `/api/*`, HSTS derrière le proxy HTTPS.
-- **Validation stricte** : Pydantic, y compris la plaque (format
-  `AB-123-CD`, normalisée avant l'appel à Vehicles) dans le corps de
+- **Validation stricte** : Pydantic, y compris la plaque (2 à 10 lettres
+  ou chiffres, normalisée avant l'appel à Vehicles, voir section 3) dans le corps de
   `POST /access/requests` et de `POST /access/vehicles/known` (jamais dans
   une URL, qui finirait dans les journaux des proxys), la taille de `photoBase64`
   (4 Mo max), les filtres d'audit (`limit` 1-500, `from` ≤ `to`, longueur des
@@ -812,9 +827,11 @@ que voit le conducteur à l'entrée ou à la sortie du parking :
 
 1. **Accueil** : « Entrer » ou « Sortir ». Une borne installée à un endroit
    précis saute ce choix (`/borne?mode=entree` ou `/borne?mode=sortie`).
-2. **Plaque** : affichée comme une vraie plaque française, saisie au clavier
-   à l'écran (ou au clavier physique). Le clavier guide le format
-   `AB-123-CD` : seules les touches attendues sont actives.
+2. **Plaque** : saisie libre au clavier à l'écran (ou au clavier
+   physique) : lettres, chiffres et espace, pour les plaques françaises
+   (SIV ou ancien format) comme étrangères, 2 à 10 caractères. Une plaque
+   SIV est mise en forme `AB-123-CD` et marquée « F » ; les autres
+   s'affichent telles que saisies.
 3. **Traitement** : étapes affichées (identification, place ou montant,
    paiement ; jusqu'à ~40 s pour un paiement).
 4. **Résultat** :

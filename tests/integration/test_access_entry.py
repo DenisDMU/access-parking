@@ -96,8 +96,41 @@ def test_entry_without_api_key_is_refused(client):
 
 def test_invalid_plate_is_rejected_with_422_without_echoing_it(client):
     response = client.post(
-        "/api/v1/access/requests", json=_entry_payload("ZZ-0-ZZZ"), headers=AUTH_HEADERS
+        "/api/v1/access/requests", json=_entry_payload("AB#123"), headers=AUTH_HEADERS
     )
     assert response.status_code == 422
-    assert "ZZ-0-ZZZ" not in response.text
+    assert "AB#123" not in response.text
     assert client.vehicles.calls == []
+
+
+def test_plaque_etrangere_acceptee_et_normalisee_sans_separateurs(client):
+    response = client.post(
+        "/api/v1/access/requests", json=_entry_payload("b-mw 1234"), headers=AUTH_HEADERS
+    )
+    assert response.status_code == 200
+    assert response.json()["authorization"]["result"] == 1
+    assert client.vehicles.calls == ["BMW1234"]
+    assert client.vehicles.created == ["BMW1234"]
+
+
+def test_ancien_format_francais_accepte(client):
+    response = client.post(
+        "/api/v1/access/requests", json=_entry_payload("123 ABC 75"), headers=AUTH_HEADERS
+    )
+    assert response.status_code == 200
+    assert client.vehicles.calls == ["123ABC75"]
+
+
+def test_meme_plaque_etrangere_saisie_autrement_retrouve_le_meme_vehicule(client):
+    """Entrée « B-MW 1234 », sortie « bmw1234 » : même véhicule chez Vehicles."""
+
+    entry = client.post(
+        "/api/v1/access/requests", json=_entry_payload("B-MW 1234"), headers=AUTH_HEADERS
+    ).json()
+    exit_ = client.post(
+        "/api/v1/access/requests",
+        json={**_entry_payload("bmw1234", date="2026-09-02T12:15:00Z"), "type": 2},
+        headers=AUTH_HEADERS,
+    ).json()
+    assert exit_["vehicleId"] == entry["vehicleId"]
+    assert exit_["authorization"]["result"] == 1

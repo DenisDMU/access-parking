@@ -25,7 +25,7 @@ def test_vehicle_known_without_api_key_is_refused(client):
 
 
 def test_invalid_plate_is_rejected_with_422(client):
-    response = client.post(URL, json={"licensePlate": "invalide"}, headers=AUTH_HEADERS)
+    response = client.post(URL, json={"licensePlate": "inv@lide"}, headers=AUTH_HEADERS)
     assert response.status_code == 422
 
 
