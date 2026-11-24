@@ -113,7 +113,12 @@ def get_vehicles_port() -> VehiclesServicePort:
     # Les tests automatisés remplacent ce provider par un FakeVehiclesPort
     # via app.dependency_overrides (tests/integration/conftest.py).
     settings = get_settings()
-    return HttpVehiclesClient(settings.vehicles_service_url, api_key=settings.vehicles_api_key)
+    return HttpVehiclesClient(
+        settings.vehicles_service_url,
+        api_key=settings.vehicles_api_key,
+        lookup_path=settings.vehicles_lookup_path,
+        identify_path=settings.vehicles_identify_path,
+    )
 
 
 def get_booking_port() -> BookingServicePort:

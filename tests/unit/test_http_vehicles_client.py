@@ -56,7 +56,7 @@ class _FakeVehicles:
 def test_calls_vehicles_by_plate():
     vehicles = _FakeVehicles(known=True)
     _client(vehicles).get_vehicle_info(_PLATE)
-    assert vehicles.requests == [("GET", f"/api/vehicles/{_PLATE}")]
+    assert vehicles.requests == [("GET", f"/api/getvehicles/{_PLATE}")]
 
 
 def test_maps_response_to_pseudonymized_vehicle_info():
@@ -119,7 +119,7 @@ def test_identify_known_vehicle_does_not_call_identify():
     info = _client(vehicles).identify_vehicle(_PLATE)
 
     assert info is not None and info.vehicle_id == _PSEUDO_ID
-    assert vehicles.requests == [("GET", f"/api/vehicles/{_PLATE}")]
+    assert vehicles.requests == [("GET", f"/api/getvehicles/{_PLATE}")]
 
 
 def test_identify_unknown_vehicle_creates_it_then_reads_it():
@@ -128,9 +128,9 @@ def test_identify_unknown_vehicle_creates_it_then_reads_it():
 
     assert info is not None and info.vehicle_id == _PSEUDO_ID
     assert vehicles.requests == [
-        ("GET", f"/api/vehicles/{_PLATE}"),
-        ("POST", "/api/vehicles/identify"),
-        ("GET", f"/api/vehicles/{_PLATE}"),
+        ("GET", f"/api/getvehicles/{_PLATE}"),
+        ("POST", "/api/identify"),
+        ("GET", f"/api/getvehicles/{_PLATE}"),
     ]
     assert vehicles.created == [
         {
@@ -184,3 +184,30 @@ def test_plate_never_appears_in_logs(caplog):
 
     assert caplog.records
     assert all(_PLATE not in record.getMessage() for record in caplog.records)
+
+
+def test_routes_reglables_si_vehicles_les_renomme():
+    vehicles = _FakeVehicles(known=False)
+    client = HttpVehiclesClient(
+        _BASE_URL,
+        transport=httpx.MockTransport(vehicles),
+        lookup_path="/v2/cars/{plate}",
+        identify_path="/v2/cars",
+    )
+    client.identify_vehicle(_PLATE)
+    assert vehicles.requests == [
+        ("GET", f"/v2/cars/{_PLATE}"),
+        ("POST", "/v2/cars"),
+        ("GET", f"/v2/cars/{_PLATE}"),
+    ]
+
+
+def test_identify_404_signale_une_route_changee_en_erreur(caplog):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(404)  # GET (inconnue) puis POST (route disparue)
+
+    with caplog.at_level(logging.ERROR):
+        assert _client(handler).identify_vehicle(_PLATE) is None
+    errors = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
+    assert len(errors) == 1 and "/api/identify" in errors[0]
+    assert _PLATE not in errors[0]
