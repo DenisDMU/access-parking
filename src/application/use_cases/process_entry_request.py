@@ -270,6 +270,8 @@ class ProcessEntryRequest:
             reason=authorization.reason,
             vehicle_type_check_ok=True,
             disability_check_ok=disability_check_ok,
+            place_type=place_type,
+            reservation=is_reservation,
         )
 
     def _analyze_photo(self, photo: bytes | None) -> dict | None:

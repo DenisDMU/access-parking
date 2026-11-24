@@ -137,6 +137,10 @@ class EntryDecision:
     vehicle_type_check_ok: bool | None
     disability_check_ok: bool | None
     payment_amount: Decimal | None = None
+    # Entrée autorisée : type de la place attribuée et réservation reconnue
+    # (affichés par la borne client).
+    place_type: PlaceType | None = None
+    reservation: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -150,6 +154,10 @@ class ExitDecision:
     result: AuthorizationResult
     reason: str | None
     payment_amount: Decimal | None = None
+    # Sortie autorisée : heure d'entrée et durée facturée (minutes entamées),
+    # pour le ticket affiché par la borne client.
+    entered_at: datetime | None = None
+    duration_minutes: int | None = None
 
 
 @dataclass(frozen=True)

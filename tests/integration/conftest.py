@@ -20,6 +20,7 @@ import os
 # bascule (mocks supprimés du code) : ils sont remplacés ci-dessous par des
 # dependency overrides dédiés.
 os.environ["API_KEY"] = "test-api-key"
+os.environ["BORNE_API_KEY"] = "test-borne-key-0001"
 os.environ["USE_MOCKS"] = "true"
 os.environ["BOOKING_USE_MOCK"] = "true"
 os.environ["PAYMENT_API_KEY"] = ""
@@ -54,6 +55,7 @@ from tests.unit.fakes import (  # noqa: E402
 )
 
 AUTH_HEADERS = {"X-API-Key": "test-api-key"}
+BORNE_HEADERS = {"X-API-Key": "test-borne-key-0001"}
 
 
 @pytest.fixture()

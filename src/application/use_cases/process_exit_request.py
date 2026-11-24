@@ -240,6 +240,8 @@ class ProcessExitRequest:
             result=authorization.result,
             reason=authorization.reason,
             payment_amount=amount,
+            entered_at=entry_date,
+            duration_minutes=_stay_minutes(entry_date, date),
         )
 
     def _reject_unknown_vehicle(

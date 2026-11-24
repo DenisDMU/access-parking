@@ -1,0 +1,732 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="robots" content="noindex" />
+<title>Parking — Borne</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%231e66f5'/%3E%3Ctext x='16' y='23' font-family='Arial,sans-serif' font-size='20' font-weight='700' fill='white' text-anchor='middle'%3EP%3C/text%3E%3C/svg%3E" />
+<link rel="preload" href="/static/fonts/MesloLGS-NF-Bold.woff2" as="font" type="font/woff2" crossorigin />
+<style>
+  /* ------------------------------------------------------------------------
+     Borne client — entrée / sortie du parking.
+     Écran public : aucune donnée d'exploitation, jamais l'identifiant
+     interne du véhicule, et la plaque n'est conservée nulle part (ni
+     stockage du navigateur, ni historique).
+     Palette Catppuccin (Latte / Mocha selon le réglage de l'appareil),
+     comme le dashboard d'exploitation. Aucune ressource externe.
+     ------------------------------------------------------------------------ */
+  @font-face {
+    font-family: "MesloLGS NF";
+    src: url("/static/fonts/MesloLGS-NF-Bold.woff2") format("woff2");
+    font-weight: 700; font-style: normal; font-display: swap;
+  }
+  :root {
+    color-scheme: light;
+    --bg: #eff1f5; --bg-2: #e6e9ef; --card: #ffffff; --line: #dce0e8;
+    --text: #4c4f69; --muted: #6c6f85; --faint: #9ca0b0;
+    --blue: #1e66f5; --green: #40a02b; --red: #d20f39; --peach: #fe640b; --yellow: #df8e1d;
+    --key: #ffffff; --key-text: #4c4f69; --key-shadow: rgba(76, 79, 105, 0.18);
+    --on-accent: #ffffff;
+    --plate-bg: #ffffff; --plate-ink: #11111b; --plate-band: #1e4fb4;
+    --shadow: 0 18px 48px rgba(76, 79, 105, 0.16);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --bg: #1e1e2e; --bg-2: #181825; --card: #262637; --line: #313244;
+      --text: #cdd6f4; --muted: #a6adc8; --faint: #6c7086;
+      --blue: #89b4fa; --green: #a6e3a1; --red: #f38ba8; --peach: #fab387; --yellow: #f9e2af;
+      --key: #313244; --key-text: #cdd6f4; --key-shadow: rgba(0, 0, 0, 0.45);
+      --on-accent: #11111b;
+      --plate-bg: #f4f4f6; --plate-ink: #11111b; --plate-band: #1e4fb4;
+      --shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 400 18px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    user-select: none; -webkit-user-select: none; touch-action: manipulation;
+    overflow-x: hidden;
+  }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  button:focus-visible, input:focus-visible, select:focus-visible {
+    outline: 3px solid var(--blue); outline-offset: 3px;
+  }
+
+  .kiosk { min-height: 100%; display: flex; flex-direction: column; max-width: 980px; margin: 0 auto; padding: 20px 16px 24px; }
+
+  /* --- En-tête ------------------------------------------------------------- */
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .brand { display: flex; align-items: center; gap: 12px; background: none; border: 0; padding: 4px; border-radius: 14px; }
+  .brand-mark {
+    width: 48px; height: 48px; border-radius: 14px; background: var(--blue); color: var(--on-accent);
+    display: grid; place-items: center; font: 700 28px/1 "MesloLGS NF", ui-monospace, monospace;
+  }
+  .brand-text { text-align: left; }
+  .brand-name { font-weight: 700; font-size: 20px; }
+  .brand-sub { color: var(--muted); font-size: 15px; }
+  .clock { font: 700 26px/1 "MesloLGS NF", ui-monospace, monospace; color: var(--muted); }
+  .mode-pill {
+    display: inline-block; margin-top: 2px; padding: 2px 10px; border-radius: 99px;
+    font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+    background: var(--bg-2); color: var(--muted);
+  }
+
+  /* --- Écrans -------------------------------------------------------------- */
+  .screen { display: none; flex: 1; flex-direction: column; justify-content: center; gap: 22px; padding-top: 18px; animation: fade .25s ease; }
+  .screen.active { display: flex; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .screen { animation: none; } .spinner { animation-duration: 3s !important; } }
+
+  h1 { margin: 0; font-size: clamp(30px, 6vw, 46px); line-height: 1.12; letter-spacing: -0.01em; }
+  .lead { margin: 0; color: var(--muted); font-size: clamp(18px, 3vw, 22px); }
+  .center { text-align: center; }
+
+  /* Accueil : choix entrée / sortie */
+  .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .choice {
+    border: 0; border-radius: 26px; padding: 34px 22px; min-height: 220px;
+    background: var(--card); box-shadow: var(--shadow);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+    font-size: 28px; font-weight: 700; transition: transform .12s ease;
+  }
+  .choice:active { transform: scale(.98); }
+  .choice svg { width: 72px; height: 72px; }
+  .choice.in svg { color: var(--green); }
+  .choice.out svg { color: var(--blue); }
+  .choice small { font-size: 17px; font-weight: 400; color: var(--muted); }
+
+  /* Plaque d'immatriculation */
+  .plate {
+    display: flex; align-items: stretch; margin: 0 auto; width: min(100%, 560px); height: 116px;
+    background: var(--plate-bg); border: 4px solid var(--plate-ink); border-radius: 14px; overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  .plate-band {
+    width: 64px; flex: none; background: var(--plate-band); color: #fff;
+    display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 12px;
+    font: 700 26px/1 Arial, sans-serif;
+  }
+  .plate-band svg { width: 34px; height: 34px; margin-bottom: auto; margin-top: 12px; }
+  .plate-text {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    font: 700 clamp(40px, 9vw, 64px)/1 "MesloLGS NF", ui-monospace, monospace;
+    color: var(--plate-ink); letter-spacing: .04em; white-space: nowrap;
+  }
+  .plate-text .ph { color: #b8bccb; }
+  .plate-text .caret { display: inline-block; width: 4px; height: .9em; background: var(--blue); margin-left: 2px; vertical-align: -0.08em; animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .plate-band.right { justify-content: center; padding: 0; }
+  .plate-hint { text-align: center; color: var(--muted); font-size: 16px; min-height: 1.45em; }
+  .plate-hint.error { color: var(--red); font-weight: 700; }
+
+  /* Clavier à l'écran */
+  .keyboard { display: flex; flex-direction: column; gap: 8px; margin: 0 auto; width: min(100%, 860px); }
+  .krow { display: flex; gap: 8px; justify-content: center; }
+  .key {
+    flex: 1 1 0; max-width: 76px; height: 64px; border: 0; border-radius: 14px;
+    background: var(--key); color: var(--key-text); box-shadow: 0 2px 0 var(--key-shadow), 0 6px 14px var(--key-shadow);
+    font: 700 24px/1 "MesloLGS NF", ui-monospace, monospace;
+  }
+  .key:active { transform: translateY(2px); box-shadow: 0 0 0 var(--key-shadow); }
+  .key:disabled { opacity: .28; cursor: default; box-shadow: none; }
+  .key.wide { max-width: 170px; font-family: system-ui, sans-serif; font-size: 18px; }
+  .actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+  .btn {
+    border: 0; border-radius: 18px; min-height: 68px; padding: 0 34px; font-size: 22px; font-weight: 700;
+    background: var(--bg-2); color: var(--text);
+  }
+  .btn.primary { background: var(--blue); color: var(--on-accent); box-shadow: 0 10px 24px rgba(30, 102, 245, .28); }
+  .btn.primary:disabled { opacity: .4; box-shadow: none; cursor: default; }
+  .btn.ghost { background: transparent; color: var(--muted); }
+
+  /* Traitement */
+  .spinner {
+    width: 96px; height: 96px; margin: 0 auto; border-radius: 50%;
+    border: 8px solid var(--line); border-top-color: var(--blue); animation: spin 1s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .steps { list-style: none; margin: 0 auto; padding: 0; display: grid; gap: 10px; width: min(100%, 460px); }
+  .steps li { display: flex; align-items: center; gap: 12px; color: var(--faint); font-size: 19px; }
+  .steps li::before {
+    content: ""; flex: none; width: 14px; height: 14px; border-radius: 50%; border: 3px solid currentColor;
+  }
+  .steps li.now { color: var(--text); font-weight: 700; }
+  .steps li.now::before { border-color: var(--blue); background: var(--blue); }
+  .steps li.done { color: var(--muted); }
+  .steps li.done::before { border-color: var(--green); background: var(--green); }
+
+  /* Résultat */
+  .result-icon { width: 128px; height: 128px; margin: 0 auto; border-radius: 50%; display: grid; place-items: center; }
+  .result-icon svg { width: 72px; height: 72px; }
+  .result-icon.ok { background: color-mix(in srgb, var(--green) 18%, transparent); color: var(--green); }
+  .result-icon.ko { background: color-mix(in srgb, var(--red) 16%, transparent); color: var(--red); }
+  .result-icon.wait { background: color-mix(in srgb, var(--peach) 18%, transparent); color: var(--peach); }
+  .ticket {
+    margin: 0 auto; width: min(100%, 520px); background: var(--card); border-radius: 22px; box-shadow: var(--shadow);
+    padding: 8px 24px; position: relative;
+  }
+  .ticket::before, .ticket::after {
+    content: ""; position: absolute; left: 50%; width: 36px; height: 18px; margin-left: -18px; background: var(--bg);
+  }
+  .ticket::before { top: -1px; border-radius: 0 0 18px 18px; }
+  .ticket::after { bottom: -1px; border-radius: 18px 18px 0 0; }
+  .ticket dl { margin: 0; }
+  .ticket .row { display: flex; justify-content: space-between; gap: 16px; padding: 14px 0; border-bottom: 2px dashed var(--line); }
+  .ticket .row:last-child { border-bottom: 0; }
+  .ticket dt { color: var(--muted); }
+  .ticket dd { margin: 0; font-weight: 700; text-align: right; }
+  .ticket .total dd { font: 700 30px/1.1 "MesloLGS NF", ui-monospace, monospace; color: var(--text); }
+  .countdown { text-align: center; color: var(--faint); font-size: 16px; }
+
+  /* Configuration (exploitant) */
+  .config { margin: 0 auto; width: min(100%, 520px); background: var(--card); border-radius: 22px; box-shadow: var(--shadow); padding: 24px; display: grid; gap: 16px; }
+  .config label { display: grid; gap: 6px; font-weight: 700; }
+  .config input, .config select {
+    font: inherit; font-weight: 400; padding: 14px; border-radius: 12px; border: 2px solid var(--line);
+    background: var(--bg); color: var(--text); width: 100%;
+  }
+  .config .note { margin: 0; color: var(--muted); font-size: 15px; }
+  .config .status { min-height: 1.45em; font-weight: 700; }
+  .config .status.ok { color: var(--green); }
+  .config .status.ko { color: var(--red); }
+
+  .foot { margin-top: 18px; text-align: center; color: var(--faint); font-size: 14px; }
+
+  @media (max-width: 640px) {
+    body { font-size: 16px; }
+    .choices { grid-template-columns: 1fr; }
+    .choice { min-height: 150px; padding: 22px; font-size: 24px; }
+    .choice svg { width: 52px; height: 52px; }
+    .plate { height: 88px; }
+    .plate-band { width: 46px; font-size: 20px; }
+    .plate-band svg { width: 26px; height: 26px; }
+    .krow { gap: 5px; }
+    .keyboard { gap: 6px; }
+    .key { height: 52px; border-radius: 10px; font-size: 18px; }
+    .key.wide { font-size: 15px; }
+    .btn { min-height: 58px; padding: 0 22px; font-size: 19px; }
+    .clock { font-size: 20px; }
+    .brand-mark { width: 40px; height: 40px; font-size: 22px; }
+  }
+</style>
+</head>
+<body>
+<div class="kiosk">
+  <header class="top">
+    <!-- Appui long (3 s) sur le logo : réglages de la borne (exploitant). -->
+    <button class="brand" id="brand" type="button" aria-label="Parking">
+      <span class="brand-mark" aria-hidden="true">P</span>
+      <span class="brand-text">
+        <span class="brand-name">Parking</span><br />
+        <span class="mode-pill" id="modePill">Borne</span>
+      </span>
+    </button>
+    <div class="clock" id="clock" aria-hidden="true">--:--</div>
+  </header>
+
+  <!-- Accueil (borne sans sens fixé) -->
+  <section class="screen" id="screen-home" aria-labelledby="homeTitle">
+    <div class="center">
+      <h1 id="homeTitle">Bienvenue</h1>
+      <p class="lead">Que souhaitez-vous faire ?</p>
+    </div>
+    <div class="choices">
+      <button class="choice in" type="button" data-go="1">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="m10 17 5-5-5-5"/><path d="M15 12H3"/></svg>
+        Entrer
+        <small>Je gare mon véhicule</small>
+      </button>
+      <button class="choice out" type="button" data-go="2">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>
+        Sortir
+        <small>Je paie et je repars</small>
+      </button>
+    </div>
+  </section>
+
+  <!-- Saisie de la plaque -->
+  <section class="screen" id="screen-plate" aria-labelledby="plateTitle">
+    <div class="center">
+      <h1 id="plateTitle">Votre plaque</h1>
+      <p class="lead" id="plateLead">Saisissez la plaque d'immatriculation de votre véhicule.</p>
+    </div>
+    <div class="plate" role="textbox" aria-live="polite" aria-label="Plaque saisie" id="plateBox">
+      <div class="plate-band" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><g fill="#ffd200"><circle cx="12" cy="3.5" r="1.2"/><circle cx="16.25" cy="4.64" r="1.2"/><circle cx="19.36" cy="7.75" r="1.2"/><circle cx="20.5" cy="12" r="1.2"/><circle cx="19.36" cy="16.25" r="1.2"/><circle cx="16.25" cy="19.36" r="1.2"/><circle cx="12" cy="20.5" r="1.2"/><circle cx="7.75" cy="19.36" r="1.2"/><circle cx="4.64" cy="16.25" r="1.2"/><circle cx="3.5" cy="12" r="1.2"/><circle cx="4.64" cy="7.75" r="1.2"/><circle cx="7.75" cy="4.64" r="1.2"/></g></svg>
+        F
+      </div>
+      <div class="plate-text" id="plateText"></div>
+      <div class="plate-band right" aria-hidden="true"></div>
+    </div>
+    <p class="plate-hint" id="plateHint">Format : AB-123-CD</p>
+    <div class="keyboard" id="keyboard" aria-label="Clavier"></div>
+    <div class="actions">
+      <button class="btn ghost" type="button" id="cancelBtn">Annuler</button>
+      <button class="btn primary" type="button" id="submitBtn" disabled>Valider</button>
+    </div>
+  </section>
+
+  <!-- Traitement -->
+  <section class="screen" id="screen-wait" aria-live="polite" aria-labelledby="waitTitle">
+    <div class="spinner" aria-hidden="true"></div>
+    <div class="center">
+      <h1 id="waitTitle">Un instant…</h1>
+      <p class="lead" id="waitLead"></p>
+    </div>
+    <ol class="steps" id="steps"></ol>
+  </section>
+
+  <!-- Résultat -->
+  <section class="screen" id="screen-result" aria-live="assertive" aria-labelledby="resultTitle">
+    <div class="result-icon" id="resultIcon" aria-hidden="true"></div>
+    <div class="center">
+      <h1 id="resultTitle"></h1>
+      <p class="lead" id="resultLead"></p>
+    </div>
+    <div class="ticket" id="ticket" hidden><dl id="ticketRows"></dl></div>
+    <div class="actions" id="resultActions"></div>
+    <p class="countdown" id="countdown"></p>
+  </section>
+
+  <!-- Borne non configurée -->
+  <section class="screen" id="screen-off" aria-labelledby="offTitle">
+    <div class="result-icon wait" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+    </div>
+    <div class="center">
+      <h1 id="offTitle">Borne hors service</h1>
+      <p class="lead">Un agent est à votre disposition à l'accueil du parking.</p>
+    </div>
+  </section>
+
+  <!-- Réglages (exploitant) -->
+  <section class="screen" id="screen-config" aria-labelledby="configTitle">
+    <div class="center">
+      <h1 id="configTitle">Réglages de la borne</h1>
+      <p class="lead">Réservé à l'exploitant.</p>
+    </div>
+    <form class="config" id="configForm" autocomplete="off">
+      <label>Clé de la borne
+        <input type="password" id="cfgKey" placeholder="BORNE_API_KEY" spellcheck="false" />
+      </label>
+      <p class="note">La clé borne ne permet que de faire passer un véhicule. Elle est enregistrée sur cet appareil uniquement.</p>
+      <label>Emplacement
+        <select id="cfgMode">
+          <option value="libre">Entrée et sortie (choix du client)</option>
+          <option value="1">Entrée du parking</option>
+          <option value="2">Sortie du parking</option>
+        </select>
+      </label>
+      <p class="status" id="cfgStatus" role="status"></p>
+      <div class="actions">
+        <button class="btn ghost" type="button" id="cfgTest">Tester la clé</button>
+        <button class="btn primary" type="submit">Enregistrer</button>
+      </div>
+      <div class="actions">
+        <button class="btn ghost" type="button" id="cfgClose">Fermer</button>
+      </div>
+    </form>
+  </section>
+
+  <p class="foot">Vos données : seule la plaque est transmise au service d'identification, elle n'est pas conservée par la borne.</p>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // --- Réglages de l'appareil (exploitant) ------------------------------------------
+  // Seuls la clé de la borne et son emplacement sont mémorisés. Jamais la plaque.
+  var KEY_STORAGE = "access.borne.key";
+  var MODE_STORAGE = "access.borne.mode";
+  function load(name) { try { return localStorage.getItem(name) || ""; } catch (e) { return ""; } }
+  function save(name, value) { try { localStorage.setItem(name, value); } catch (e) { /* non bloquant */ } }
+
+  var params = new URLSearchParams(location.search);
+  var urlMode = { entree: "1", sortie: "2", libre: "libre" }[params.get("mode") || ""];
+  if (urlMode) save(MODE_STORAGE, urlMode);
+
+  function borneKey() { return load(KEY_STORAGE); }
+  function fixedMode() { var m = load(MODE_STORAGE); return m === "1" || m === "2" ? Number(m) : null; }
+
+  var $ = function (id) { return document.getElementById(id); };
+  var screens = ["home", "plate", "wait", "result", "off", "config"];
+  var current = "";
+  function show(name) {
+    current = name;
+    screens.forEach(function (s) { $("screen-" + s).classList.toggle("active", s === name); });
+  }
+
+  // --- Horloge ----------------------------------------------------------------------
+  function tick() {
+    $("clock").textContent = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  }
+  tick(); setInterval(tick, 10000);
+
+  // --- Parcours ---------------------------------------------------------------------
+  var direction = null; // 1 = entrée, 2 = sortie
+  var timers = [];
+  function clearTimers() { timers.forEach(clearTimeout); timers.forEach(clearInterval); timers = []; }
+
+  function updatePill() {
+    var m = fixedMode();
+    $("modePill").textContent = m === 1 ? "Entrée" : m === 2 ? "Sortie" : "Entrée · Sortie";
+  }
+
+  function goHome() {
+    clearTimers();
+    resetPlate();
+    updatePill();
+    if (!borneKey()) { show("off"); return; }
+    var m = fixedMode();
+    if (m) { startPlate(m); return; }
+    direction = null;
+    show("home");
+  }
+
+  function startPlate(dir) {
+    direction = dir;
+    resetPlate();
+    $("plateTitle").textContent = dir === 1 ? "Bienvenue" : "Bonne route !";
+    $("plateLead").textContent = dir === 1
+      ? "Saisissez votre plaque pour entrer dans le parking."
+      : "Saisissez votre plaque pour régler et sortir.";
+    $("cancelBtn").hidden = !!fixedMode() && buffer.length === 0;
+    show("plate");
+  }
+
+  document.querySelectorAll("[data-go]").forEach(function (btn) {
+    btn.addEventListener("click", function () { startPlate(Number(btn.dataset.go)); });
+  });
+
+  // --- Saisie de la plaque (format SIV : AB-123-CD) ---------------------------------
+  var buffer = "";
+  var LETTERS = "AZERTYUIOPQSDFGHJKLMWXCVBN";
+  var ROWS = ["1234567890", "AZERTYUIOP", "QSDFGHJKLM", "WXCVBN"];
+
+  function expectsLetter(pos) { return pos < 2 || pos > 4; }
+  function accepts(ch) {
+    if (buffer.length >= 7) return false;
+    var isLetter = LETTERS.indexOf(ch) !== -1;
+    return expectsLetter(buffer.length) ? isLetter : /\d/.test(ch);
+  }
+  function formatted() {
+    return buffer.slice(0, 2) + (buffer.length > 2 ? "-" + buffer.slice(2, 5) : "") +
+      (buffer.length > 5 ? "-" + buffer.slice(5) : "");
+  }
+
+  function renderPlate() {
+    var text = $("plateText");
+    text.replaceChildren();
+    if (!buffer) {
+      var ph = document.createElement("span");
+      ph.className = "ph"; ph.textContent = "AB-123-CD";
+      text.appendChild(ph);
+    } else {
+      text.appendChild(document.createTextNode(formatted()));
+    }
+    if (buffer.length < 7) {
+      var caret = document.createElement("span"); caret.className = "caret"; text.appendChild(caret);
+    }
+    $("plateBox").setAttribute("aria-label", buffer ? "Plaque saisie : " + formatted().split("").join(" ") : "Aucune plaque saisie");
+    $("submitBtn").disabled = buffer.length !== 7;
+    document.querySelectorAll(".key[data-ch]").forEach(function (k) { k.disabled = !accepts(k.dataset.ch); });
+    $("eraseKey").disabled = buffer.length === 0;
+    var hint = $("plateHint");
+    hint.classList.remove("error");
+    hint.textContent = buffer.length === 7 ? "Vérifiez votre plaque, puis « Valider »."
+      : expectsLetter(buffer.length) ? "Saisissez " + (buffer.length < 2 ? "les 2 premières lettres" : "les 2 dernières lettres")
+      : "Saisissez les 3 chiffres";
+    if (fixedMode()) $("cancelBtn").hidden = buffer.length === 0;
+  }
+  function resetPlate() { buffer = ""; renderPlate(); }
+  function typeChar(ch) { if (accepts(ch)) { buffer += ch; renderPlate(); } }
+  function erase() { buffer = buffer.slice(0, -1); renderPlate(); }
+
+  (function buildKeyboard() {
+    var kb = $("keyboard");
+    ROWS.forEach(function (row, i) {
+      var r = document.createElement("div"); r.className = "krow";
+      row.split("").forEach(function (ch) {
+        var k = document.createElement("button");
+        k.type = "button"; k.className = "key"; k.textContent = ch; k.dataset.ch = ch;
+        k.setAttribute("aria-label", ch);
+        k.addEventListener("click", function () { typeChar(ch); });
+        r.appendChild(k);
+      });
+      if (i === ROWS.length - 1) {
+        var del = document.createElement("button");
+        del.type = "button"; del.className = "key wide"; del.id = "eraseKey"; del.textContent = "⌫ Effacer";
+        del.addEventListener("click", erase);
+        r.appendChild(del);
+      }
+      kb.appendChild(r);
+    });
+  })();
+
+  document.addEventListener("keydown", function (e) {
+    if (current !== "plate" || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === "Backspace") { erase(); e.preventDefault(); return; }
+    if (e.key === "Enter") { if (buffer.length === 7) submit(); e.preventDefault(); return; }
+    if (e.key === "Escape") { goHome(); return; }
+    var ch = (e.key || "").toUpperCase();
+    if (ch.length === 1 && /[A-Z0-9]/.test(ch)) { typeChar(ch); e.preventDefault(); }
+  });
+
+  $("cancelBtn").addEventListener("click", goHome);
+  $("submitBtn").addEventListener("click", submit);
+
+  // --- Envoi à Access ---------------------------------------------------------------
+  var STEPS = {
+    1: ["Identification du véhicule", "Recherche d'une place", "Ouverture de la barrière"],
+    2: ["Identification du véhicule", "Calcul du montant", "Paiement en cours"],
+  };
+
+  function showWait(dir) {
+    $("waitTitle").textContent = "Un instant…";
+    $("waitLead").textContent = dir === 1 ? "Nous vous attribuons une place."
+      : "Le règlement peut prendre jusqu'à 40 secondes. Merci de patienter.";
+    var list = $("steps"); list.replaceChildren();
+    STEPS[dir].forEach(function (label) {
+      var li = document.createElement("li"); li.textContent = label; list.appendChild(li);
+    });
+    var items = list.children, idx = 0;
+    function step() {
+      for (var i = 0; i < items.length; i++) {
+        items[i].className = i < idx ? "done" : i === idx ? "now" : "";
+      }
+      if (idx < items.length - 1) idx++;
+    }
+    step();
+    var iv = setInterval(step, dir === 1 ? 1200 : 4000);
+    timers.push(iv);
+    show("wait");
+  }
+
+  function submit() {
+    if (buffer.length !== 7 || !direction) return;
+    var plate = formatted();
+    var dir = direction;
+    // La plaque quitte l'écran dès l'envoi : elle n'est ni gardée ni réaffichée.
+    resetPlate();
+    showWait(dir);
+    var body = {
+      licensePlate: plate,
+      type: dir,
+      date: new Date().toISOString(),
+      source: 2, // 2 = TERMINAL (borne)
+    };
+    plate = null;
+    fetch("/api/v1/access/requests", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-API-Key": borneKey() },
+      body: JSON.stringify(body),
+    }).then(function (res) {
+      body = null;
+      if (res.status === 401) { showOutOfService(); return null; }
+      if (res.status === 429) { showResult(busyResult()); return null; }
+      if (res.status === 422) { showResult(invalidPlateResult(dir)); return null; }
+      if (!res.ok) { showResult(unavailableResult(dir)); return null; }
+      return res.json().then(function (data) { showResult(resultFor(dir, data)); });
+    }).catch(function () {
+      showResult(unavailableResult(dir));
+    });
+  }
+
+  // --- Messages au client -----------------------------------------------------------
+  var ICONS = {
+    ok: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+    ko: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>',
+    wait: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>',
+  };
+
+  function placeLabel(pt) {
+    if (!pt) return "Standard";
+    if (pt.isHandicap) return "Place PMR";
+    if (pt.category === 1) return "Deux-roues";
+    if (pt.isElectric) return "Place avec recharge électrique";
+    if (pt.isXl) return "Grand gabarit (XL)";
+    return "Standard";
+  }
+  function fmtTime(iso) {
+    return new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  }
+  function fmtDuration(min) {
+    var h = Math.floor(min / 60), m = min % 60;
+    return h ? h + " h " + String(m).padStart(2, "0") + " min" : m + " min";
+  }
+  function fmtEuro(v) {
+    return Number(v).toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
+  }
+
+  // Motif renvoyé par Access → message compréhensible par le client.
+  // Le motif technique n'est jamais affiché tel quel.
+  var REFUSALS = [
+    [/déjà présent/i, "Ce véhicule est déjà enregistré dans le parking.", "Si vous pensez qu'il s'agit d'une erreur, appelez un agent."],
+    [/réservation trouvée mais aucune place/i, "Votre place réservée n'est pas disponible.", "Un agent va vous aider à trouver une solution."],
+    [/aucune place disponible/i, "Le parking est complet.", "Aucune place adaptée à votre véhicule n'est libre pour le moment."],
+    [/incompatible/i, "Aucune place adaptée à votre véhicule.", "Un agent peut vous orienter."],
+    [/non présent/i, "Ce véhicule n'est pas enregistré dans le parking.", "Vérifiez la plaque saisie, ou appelez un agent."],
+    [/paiement refusé/i, "Le paiement a été refusé.", "Un agent va vous aider à régler votre stationnement."],
+    [/antérieure/i, "L'heure de sortie est incohérente.", "Un agent va vous aider."],
+  ];
+  var RETRYABLE = /réessayez|indisponible|non confirmée/i;
+
+  function resultFor(dir, data) {
+    var auth = data.authorization || {};
+    var reason = auth.reason || "";
+    if (auth.result === 1 && dir === 1) {
+      var rows = [["Place", placeLabel(data.placeType)], ["Heure d'entrée", fmtTime(Date.now())]];
+      if (data.reservation) rows.splice(1, 0, ["Réservation", "Reconnue"]);
+      return { kind: "ok", title: "La barrière s'ouvre", lead: "Bienvenue ! Bon stationnement.", rows: rows, delay: 12 };
+    }
+    if (auth.result === 1 && dir === 2) {
+      var amount = auth.paymentAmount;
+      var rows2 = [];
+      if (data.enteredAt) rows2.push(["Entrée", fmtTime(data.enteredAt)]);
+      rows2.push(["Sortie", fmtTime(Date.now())]);
+      if (data.durationMinutes != null) rows2.push(["Durée", fmtDuration(data.durationMinutes)]);
+      rows2.push(["Montant", amount ? fmtEuro(amount) : "Gratuit", "total"]);
+      return {
+        kind: "ok", title: "Merci, bonne route !",
+        lead: amount ? "Paiement accepté. La barrière s'ouvre." : "Première heure offerte. La barrière s'ouvre.",
+        rows: rows2, delay: 20,
+      };
+    }
+    if (auth.result === 3) {
+      if (!data.vehicleId) {
+        return { kind: "wait", title: "Un agent arrive", lead: "Nous n'avons pas pu identifier votre véhicule. Restez à la borne, un agent vous rejoint.", delay: 20 };
+      }
+      return { kind: "wait", title: "Un agent arrive", lead: "Cette place demande une vérification (justificatif PMR). Restez à la borne, un agent vous rejoint.", delay: 20 };
+    }
+    if (RETRYABLE.test(reason)) {
+      return {
+        kind: "ko", title: "Service momentanément indisponible",
+        lead: dir === 2 ? "Votre paiement n'a pas été finalisé et ne sera pas débité deux fois. Veuillez réessayer."
+          : "Veuillez réessayer dans un instant.",
+        retry: dir, delay: 25,
+      };
+    }
+    for (var i = 0; i < REFUSALS.length; i++) {
+      if (REFUSALS[i][0].test(reason)) return { kind: "ko", title: REFUSALS[i][1], lead: REFUSALS[i][2], retry: dir, delay: 15 };
+    }
+    return { kind: "ko", title: "Passage refusé", lead: "Un agent peut vous aider.", retry: dir, delay: 15 };
+  }
+  function invalidPlateResult(dir) {
+    return { kind: "ko", title: "Plaque non reconnue", lead: "Vérifiez le format : deux lettres, trois chiffres, deux lettres.", retry: dir, delay: 15 };
+  }
+  function unavailableResult(dir) {
+    return { kind: "ko", title: "Service momentanément indisponible", lead: "Veuillez réessayer dans un instant, ou appelez un agent.", retry: dir, delay: 20 };
+  }
+  function busyResult() {
+    return { kind: "ko", title: "Borne très sollicitée", lead: "Merci de patienter quelques secondes avant de réessayer.", retry: direction, delay: 15 };
+  }
+
+  function showResult(r) {
+    clearTimers();
+    var icon = $("resultIcon");
+    icon.className = "result-icon " + r.kind;
+    icon.innerHTML = ICONS[r.kind];
+    $("resultTitle").textContent = r.title;
+    $("resultLead").textContent = r.lead;
+
+    var ticket = $("ticket"), rows = $("ticketRows");
+    rows.replaceChildren();
+    ticket.hidden = !r.rows;
+    (r.rows || []).forEach(function (row) {
+      var div = document.createElement("div"); div.className = "row" + (row[2] ? " " + row[2] : "");
+      var dt = document.createElement("dt"); dt.textContent = row[0];
+      var dd = document.createElement("dd"); dd.textContent = row[1];
+      div.append(dt, dd); rows.appendChild(div);
+    });
+
+    var actions = $("resultActions"); actions.replaceChildren();
+    if (r.retry) {
+      var again = document.createElement("button");
+      again.type = "button"; again.className = "btn primary"; again.textContent = "Réessayer";
+      again.addEventListener("click", function () { clearTimers(); startPlate(r.retry); });
+      actions.appendChild(again);
+    }
+    var done = document.createElement("button");
+    done.type = "button"; done.className = "btn" + (r.retry ? " ghost" : " primary"); done.textContent = "Terminer";
+    done.addEventListener("click", goHome);
+    actions.appendChild(done);
+
+    var left = r.delay;
+    function count() {
+      $("countdown").textContent = "Retour à l'accueil dans " + left + " s";
+      if (left-- <= 0) goHome();
+    }
+    count();
+    timers.push(setInterval(count, 1000));
+    show("result");
+  }
+
+  function showOutOfService() { clearTimers(); show("off"); }
+
+  // --- Réglages (appui long sur le logo, ou ?config) --------------------------------
+  var pressTimer = null;
+  function openConfig() {
+    clearTimers();
+    $("cfgKey").value = "";
+    $("cfgKey").placeholder = borneKey() ? "•••••••• (inchangée si vide)" : "BORNE_API_KEY";
+    $("cfgMode").value = load(MODE_STORAGE) || "libre";
+    setCfgStatus("", "");
+    show("config");
+  }
+  var brand = $("brand");
+  ["pointerdown"].forEach(function (ev) {
+    brand.addEventListener(ev, function () { pressTimer = setTimeout(openConfig, 3000); });
+  });
+  ["pointerup", "pointerleave", "pointercancel"].forEach(function (ev) {
+    brand.addEventListener(ev, function () { clearTimeout(pressTimer); });
+  });
+
+  function setCfgStatus(text, kind) {
+    var s = $("cfgStatus"); s.textContent = text; s.className = "status" + (kind ? " " + kind : "");
+  }
+
+  // Vérifie la clé sans effet de bord : un corps vide est rejeté en 422 si la
+  // clé est valide (authentification vérifiée avant la validation), 401 sinon.
+  function testKey(key) {
+    return fetch("/api/v1/access/requests", {
+      method: "POST", headers: { "Content-Type": "application/json", "X-API-Key": key }, body: "{}",
+    }).then(function (res) { return res.status === 422; });
+  }
+
+  $("cfgTest").addEventListener("click", function () {
+    var key = $("cfgKey").value.trim() || borneKey();
+    if (!key) { setCfgStatus("Saisissez la clé de la borne.", "ko"); return; }
+    setCfgStatus("Vérification…", "");
+    testKey(key).then(function (ok) {
+      setCfgStatus(ok ? "Clé valide." : "Clé refusée par le service.", ok ? "ok" : "ko");
+    }).catch(function () { setCfgStatus("Service injoignable.", "ko"); });
+  });
+
+  $("configForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var key = $("cfgKey").value.trim();
+    if (key) save(KEY_STORAGE, key);
+    save(MODE_STORAGE, $("cfgMode").value);
+    if (!borneKey()) { setCfgStatus("Saisissez la clé de la borne.", "ko"); return; }
+    goHome();
+  });
+  $("cfgClose").addEventListener("click", goHome);
+
+  // --- Démarrage --------------------------------------------------------------------
+  if (params.has("config")) {
+    history.replaceState(null, "", location.pathname + (urlMode ? "?mode=" + params.get("mode") : ""));
+    openConfig();
+  } else {
+    goHome();
+  }
+})();
+</script>
+</body>
+</html>
