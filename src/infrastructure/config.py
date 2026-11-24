@@ -98,8 +98,8 @@ class Settings:
     # `{plate}` est remplacé par la plaque (encodée).
     # `{vehicleId}` : consultation par identifiant après `identify` (contrat du
     # 24/11 au soir) ; `{plate}` : ancien contrat, consultation par plaque.
-    vehicles_lookup_path: str = os.getenv("VEHICLES_LOOKUP_PATH", "/api/getvehicles/{vehicleId}")
-    vehicles_identify_path: str = os.getenv("VEHICLES_IDENTIFY_PATH", "/api/identify")
+    vehicles_lookup_path: str = os.getenv("VEHICLES_LOOKUP_PATH", "/api/vehicles/{vehicleId}")
+    vehicles_identify_path: str = os.getenv("VEHICLES_IDENTIFY_PATH", "/api/vehicles/create")
 
     ai_model_name: str = os.getenv("AI_MODEL_NAME", "fake-vision-v1")
 
