@@ -85,7 +85,7 @@ import httpx
 
 from src.domain.value_objects.dto import VehicleInfo, VehicleType
 from src.domain.value_objects.enums import VehicleCategory
-from src.infrastructure.external.outgoing_http import outgoing_client
+from src.infrastructure.external.outgoing_http import COLD_START_TIMEOUT_S, outgoing_client
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +126,7 @@ class HttpVehiclesClient:
     def __init__(
         self,
         base_url: str,
-        timeout_s: float = 45.0,
+        timeout_s: float = COLD_START_TIMEOUT_S,
         transport: httpx.BaseTransport | None = None,
         api_key: str = "",
         lookup_path: str = DEFAULT_LOOKUP_PATH,

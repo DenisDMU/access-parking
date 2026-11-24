@@ -87,6 +87,8 @@ def _entry_out(decision) -> BornePassageOut:
     description="Lu par la page `/borne` au démarrage. Sans clé.",
 )
 def borne_status() -> BorneStatusOut:
+    # La borne vient de s'ouvrir : un passage va suivre, on réveille les services.
+    deps.wake_services()
     return BorneStatusOut(publicAccess=get_settings().borne_public)
 
 

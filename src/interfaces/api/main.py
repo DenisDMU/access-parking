@@ -63,6 +63,9 @@ async def lifespan(app: FastAPI):
         deps.get_engine().dialect.name,
         "simulé" if settings.booking_use_mock else "réel",
     )
+    # Access vient d'être réveillé par un visiteur : les autres services
+    # dorment sans doute aussi (offre gratuite de Render). On les réveille.
+    deps.wake_services()
     yield
 
 

@@ -4,6 +4,20 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.12.1] — 2026-11-24 — Parking complet et services réveillés d'avance
+
+### Corrigé
+- Catégorie pleine chez Parking (constaté : XL 12/12, deux-roues 10/10) :
+  la borne affichait « Service Parking indisponible » au lieu de « Le
+  parking est complet ». Quand Parking refuse une place, Access lui demande
+  s'il en reste dans cette catégorie avant de conclure à une panne.
+- « Service Parking indisponible, réessayez plus tard » au premier passage
+  après une pause : les services de l'équipe (offre gratuite de Render)
+  dorment après 15 min et mettent 30 à 60 s à se réveiller. Access les
+  réveille maintenant d'avance (`GET /health` aux cinq services, en
+  parallèle) à son démarrage et à l'ouverture de la borne ou du dashboard,
+  et les attend 45 s au lieu de 20. `WARM_UP_SERVICES=false` pour couper.
+
 ## [4.12.0] — 2026-11-24 — Plan 3D sur la borne publique
 
 ### Ajouté

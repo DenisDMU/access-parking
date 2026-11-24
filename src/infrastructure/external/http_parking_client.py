@@ -71,6 +71,7 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Callable
+from urllib.parse import quote
 
 import httpx
 
@@ -86,12 +87,16 @@ from src.domain.value_objects.dto import (
     VehicleType,
 )
 from src.domain.value_objects.enums import VehicleCategory
-from src.infrastructure.external.outgoing_http import outgoing_client
+from src.infrastructure.external.outgoing_http import COLD_START_TIMEOUT_S, outgoing_client
 from src.infrastructure.external.place_categories import place_type_from_code
 
 logger = logging.getLogger(__name__)
 
 # Les 5 catégories qu'Access peut demander (voir `_map_category`).
+# Refus de hold qui ne peuvent pas venir d'un parking plein : clé refusée,
+# catégorie inconnue (traitée à part), trop de requêtes.
+_NOT_FULL = (401, 403, 404, 429)
+
 REQUIRED_CATEGORIES = ["STANDARD", "XL", "ELECTRIC", "HANDICAPPED", "TWO_WHEELS"]
 
 CATEGORIES_TTL_S = 300.0
@@ -151,17 +156,17 @@ def _place_type_from_category(category: str) -> PlaceType:
 class HttpParkingClient:
     """Implémente `ParkingServicePort` via un vrai appel HTTP à Parking.
 
-    `timeout_s=20.0` par défaut (au lieu des 3-5s habituels) : les services
-    de l'équipe tournent sur le plan Free de Render, qui met le service en
-    veille après 15 min d'inactivité — un cold start peut prendre plusieurs
-    secondes à se réveiller. Un timeout trop court provoquait un
-    `httpx.ReadTimeout` en production sur une requête pourtant valide.
+    Délai de 45 s (`COLD_START_TIMEOUT_S`) : Parking tourne sur l'offre
+    gratuite de Render, qui l'endort après 15 min sans trafic ; son réveil
+    prend 30 à 60 s. Avec 20 s, le premier passage après une pause était
+    refusé (« Service Parking indisponible ») alors que Parking n'était pas
+    en panne. Access le réveille aussi d'avance (`warm_up.py`).
     """
 
     def __init__(
         self,
         base_url: str,
-        timeout_s: float = 20.0,
+        timeout_s: float = COLD_START_TIMEOUT_S,
         api_key: str = "",
         transport: httpx.BaseTransport | None = None,
         categories_cache: _CategoriesCache | None = None,
@@ -193,6 +198,19 @@ class HttpParkingClient:
                 # « Catégorie <x> introuvable » : la liste en cache est périmée.
                 self._categories_cache.forget(self._base_url)
                 raise ParkingCategoryUnknownError(category)
+            if 400 <= response.status_code < 500 and response.status_code not in _NOT_FULL:
+                # Parking refuse la place. Catégorie pleine ? On lui demande :
+                # « complet » n'est pas « indisponible » (constaté le 24/11 :
+                # XL et deux-roues pleins rendaient « Service Parking
+                # indisponible » à la borne).
+                if self._is_full(category, commercial_type):
+                    logger.info(
+                        "Parking : plus de place %s/%s (hold refusé, HTTP %s)",
+                        category,
+                        commercial_type,
+                        response.status_code,
+                    )
+                    return None
             response.raise_for_status()
         except httpx.HTTPError as exc:
             # Panne, 429, timeout ou clé API refusée (401/403) : ce n'est PAS
@@ -259,6 +277,17 @@ class HttpParkingClient:
         except (httpx.HTTPError, ValueError) as exc:
             logger.warning("Parking indisponible sur %s : %s", operation, exc)
             raise ParkingUnavailableError(str(exc)) from exc
+
+    def _is_full(self, category: str, commercial_type: str) -> bool:
+        """`True` seulement si Parking dit lui-même qu'il n'y a plus de place
+        (`is_available: false`) ; en cas de doute, `False` (panne signalée)."""
+
+        path = f"/parking/availability/{quote(category, safe='')}/{commercial_type}"
+        try:
+            data = self._get(path, "availability")
+            return data.get("is_available") is False or data.get("spot_available") == 0
+        except (ParkingUnavailableError, AttributeError):
+            return False
 
     def _check_category(self, category: str) -> None:
         """Refuse une catégorie absente de Parking ; ne bloque jamais si la
