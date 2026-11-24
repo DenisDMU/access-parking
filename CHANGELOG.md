@@ -4,6 +4,16 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.9.1] — 2026-11-24 — Zone PMR de Pricing
+
+### Corrigé
+- Pricing a renommé sa zone PMR `disabled` → `handicapped` (grille v2 du
+  24/11) : chaque sortie d'un véhicule PMR était refusée (« service de
+  tarification indisponible »). Access envoie `handicapped` et réessaie
+  l'ancien nom sur un `ZONE_NOT_FOUND`.
+- Une réponse de Pricing sans montant exploitable donne un refus propre
+  (jamais une erreur 500).
+
 ## [4.9.0] — 2026-11-24 — Routes Vehicles retrouvées automatiquement
 
 ### Ajouté
