@@ -4,6 +4,16 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.21.0] — 2026-11-25 — Décor de village
+
+### Modifié
+- Maisons refaites : deux pans de toit épais en tuiles arrondies qui
+  débordent des murs, pignons crème avec œil-de-bœuf, faîtière, cheminée,
+  portes arrondies avec leur couronne, haies rondes, boîte aux lettres
+  devant chaque commerce. Les toits ronds de la 4.20.0 disparaissent.
+- Arbres plus touffus (couronnes à plusieurs bosses), rochers ronds semés
+  dans le village.
+
 ## [4.20.0] — 2026-11-25 — Défis entre promeneurs, Suppositofarm
 
 ### Ajouté
