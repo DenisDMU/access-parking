@@ -1,0 +1,91 @@
+# TP « Observabilité avec Prometheus » — services du projet Parking Management.
+#
+# Ce fichier est copié dans l'image par le Dockerfile : après l'avoir modifié,
+# relancer ./demarrer.sh (il reconstruit l'image et recrée le conteneur ;
+# l'historique des mesures est conservé dans un volume).
+#
+# Toutes les cibles sont lues SANS clé : `/metrics` ne contient que des
+# compteurs. Une cible « DOWN » veut dire « Prometheus n'a pas pu lire
+# /metrics » : service arrêté, endormi (offre gratuite de Render) ou qui
+# n'expose pas encore la route.
+global:
+  scrape_interval: 15s # une mesure toutes les 15 secondes
+  scrape_timeout: 10s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # --- Notre microservice, en ligne (Render, HTTPS) --------------------------
+  - job_name: access
+    scheme: https
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["access-api-a1u7.onrender.com"]
+        labels:
+          equipe: access
+          env: production
+
+  # --- Les microservices des autres équipes (Render, HTTPS) ------------------
+  - job_name: parking
+    scheme: https
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["parking-6r73.onrender.com"]
+        labels:
+          equipe: parking
+          env: production
+
+  - job_name: vehicles
+    scheme: https
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["parking-vehicles.onrender.com"]
+        labels:
+          equipe: vehicles
+          env: production
+
+  - job_name: booking
+    scheme: https
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["booking-api-vhy5.onrender.com"]
+        labels:
+          equipe: booking
+          env: production
+
+  - job_name: pricing
+    scheme: https
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["pricing-9khk.onrender.com"]
+        labels:
+          equipe: pricing
+          env: production
+
+  - job_name: payment
+    scheme: https
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["payment-xp8n.onrender.com"]
+        labels:
+          equipe: payment
+          env: production
+
+  # --- Access lancé sur cet ordinateur : la cible de la démonstration --------
+  # `host.docker.internal` désigne l'ordinateur vu depuis le conteneur.
+  # On le démarre (UP), on l'arrête avec Ctrl+C (DOWN) : voir PROMETHEUS.md.
+  - job_name: access-local
+    scheme: http
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["host.docker.internal:8010"]
+        labels:
+          equipe: access
+          env: local
+
+  # --- Prometheus lui-même (toujours UP : sert de témoin) --------------------
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+        labels:
+          equipe: access
+          env: local

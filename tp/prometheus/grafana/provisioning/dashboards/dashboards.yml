@@ -1,0 +1,12 @@
+# Tableaux de bord chargés depuis les fichiers JSON du dépôt (dossier monté
+# en lecture seule) : rien à cliquer dans Grafana.
+apiVersion: 1
+
+providers:
+  - name: TP Prometheus
+    folder: Parking Management
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards

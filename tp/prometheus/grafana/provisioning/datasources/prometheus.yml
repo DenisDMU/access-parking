@@ -1,0 +1,14 @@
+# Source de données créée au démarrage de Grafana : le Prometheus du TP,
+# joint par son nom de conteneur sur le réseau Docker `tp-prometheus`.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://tp-prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: 15s # même pas que scrape_interval dans prometheus.yml

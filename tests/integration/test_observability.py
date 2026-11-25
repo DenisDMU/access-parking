@@ -67,10 +67,6 @@ def test_jauge_des_vehicules_presents(client):
     assert _sample("access_vehicles_present") == 1
 
 
-def test_metrics_requiert_la_cle_api(client):
-    assert client.get("/metrics").status_code == 401
-
-
 def test_entetes_de_securite(client):
     response = client.get(URL, headers=AUTH_HEADERS)
     assert response.headers["X-Content-Type-Options"] == "nosniff"

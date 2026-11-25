@@ -12,7 +12,7 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Request, status
+from fastapi import FastAPI, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,7 +29,6 @@ from src.infrastructure.config import check_secrets, get_settings, is_production
 from src.infrastructure.db.session import init_db
 from src.infrastructure.logging_config import configure_logging, get_correlation_id
 from src.infrastructure.metrics import register_presence_collector
-from src.infrastructure.security.api_key_auth import verify_api_key
 from src.interfaces.api import deps
 from src.interfaces.api.middleware import (
     CORRELATION_HEADER,
@@ -42,6 +41,7 @@ from src.interfaces.api.routers import (
     borne_router,
     events_router,
     health_router,
+    metrics_router,
     promenade_router,
 )
 
@@ -85,7 +85,7 @@ app = FastAPI(
         {"name": "Access", "description": "Traitement des demandes d'entrée/sortie"},
         {"name": "Events", "description": "Lecture de l'outbox d'événements publiés"},
         {"name": "Health", "description": "Healthcheck non authentifié"},
-        {"name": "Monitoring", "description": "Métriques Prometheus (clé API requise)"},
+        {"name": "Monitoring", "description": "Métriques Prometheus (lecture sans clé)"},
     ],
 )
 
@@ -151,15 +151,13 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
 
 app.include_router(health_router.router)
 
-# Métriques Prometheus (nombre de requêtes, latences, codes HTTP par route).
-# Informations d'exploitation : protégées par la clé API, comme le reste.
-Instrumentator(excluded_handlers=["/health", "/metrics", "/static.*"]).instrument(app).expose(
-    app,
-    endpoint="/metrics",
-    tags=["Monitoring"],
-    summary="Métriques Prometheus du service",
-    dependencies=[Depends(verify_api_key)],
-)
+# Métriques Prometheus. L'instrumentation compte chaque requête par méthode,
+# gabarit de route et classe de statut (`http_requests_total`) ; `/health`,
+# `/metrics` et `/static` en sont exclus pour que les lectures de Prometheus
+# et de la sonde de Render ne gonflent pas l'activité mesurée. La route
+# elle-même est servie par `metrics_router` (sans clé : voir ce module).
+Instrumentator(excluded_handlers=["/health", "/metrics", "/static.*"]).instrument(app)
+app.include_router(metrics_router.router)
 app.include_router(access_router.passage_router, prefix="/api/v1")
 app.include_router(access_router.router, prefix="/api/v1")
 app.include_router(events_router.router, prefix="/api/v1")

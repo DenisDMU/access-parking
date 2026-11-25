@@ -35,7 +35,10 @@ plus récentes.
   avec une date imposée par le serveur et une réponse sans identifiant.
 - `/borne/pmr-validation` compare le code agent à temps constant
   (`hmac.compare_digest`).
-- `/metrics` exige la clé.
+- `/metrics` est lisible sans clé (le Prometheus de chaque équipe le lit) :
+  il ne doit contenir que des agrégats. Aucune étiquette ne porte de plaque,
+  d'identifiant de véhicule ou de demande, ni de chemin brut (routes comptées
+  par gabarit) — `tests/integration/test_metrics.py`.
 
 **Secrets.** Aucun secret dans Git (gitleaks en CI). En production,
 `check_secrets` refuse de démarrer si `API_KEY` vaut `change-me`, fait
@@ -55,7 +58,9 @@ moins de 16 caractères, ou si `BORNE_API_KEY` est égale à `API_KEY`.
    `.venv/bin/python -m pytest -q tests/integration/test_no_plate_leak.py`.
 4. Vérifie le service en ligne, **sans clé** et en lecture seule :
    - chaque route protégée répond 401 sans clé (`/api/v1/access/requests`,
-     `/presences`, `/events`, `/parking`, `/borne/key`, `/metrics`) ;
+     `/presences`, `/events`, `/parking`, `/borne/key`) ;
+   - `/metrics` répond 200 sans clé et ne contient ni plaque ni identifiant
+     (seulement des gabarits de route comme `{request_id}`) ;
    - en-têtes `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`,
      `Referrer-Policy: no-referrer` (Render met les noms en minuscules) ;
    - une erreur 422 ne recopie pas la plaque envoyée ;
