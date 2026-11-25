@@ -939,6 +939,39 @@ const CSS = `
 .p3d-panel.talk button { background: #40a02b; }
 @media (prefers-reduced-motion: reduce) { .p3d-tag.quest { animation: none; } }
 @media (max-width: 640px) { .p3d-panel.talk { bottom: 94px; } }
+/* Habillage doux : cartes crème aux coins ronds, texte brun, police arrondie.
+   Les couleurs sont fixées ici pour rester lisibles quel que soit le thème de la page. */
+.p3d { --text: #5b4636; --subtext: #8a7460; --field: rgba(214,190,150,.38); --hairline: rgba(91,70,54,.16);
+  --glass-hi: #fff8e7; --glass-lo: #fdf0cf; --glass-border: #f1dfb6; --blue: #1e66f5; --on-accent: #fff; }
+.p3d-card, .p3d-tag, .p3d-prompt, .p3d-carnet, .p3d-panel button, .p3d-tools button, .p3d-who {
+  font-family: ui-rounded, "SF Pro Rounded", "Hiragino Maru Gothic ProN", "Arial Rounded MT Bold", system-ui, -apple-system, "Segoe UI", sans-serif; }
+.p3d-card { background: #fff8e7; border: 3px solid #f1dfb6; border-radius: 22px; color: #5b4636;
+  backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: 0 5px 0 rgba(91,70,54,.14), 0 14px 28px rgba(17,17,27,.16); }
+.p3d-panel { border-top: 3px solid #f1dfb6; }
+.p3d-tools { padding: 5px; border-radius: 999px; }
+.p3d-tools button { border-radius: 999px; padding: 8px 13px; font-weight: 700; transition: transform .12s; }
+.p3d-tools button:hover { transform: translateY(-1px); }
+.p3d-tools button[aria-pressed="true"] { background: #1e66f5; color: #fff; box-shadow: 0 3px 0 #1651c4; }
+.p3d-head { border-radius: 20px; }
+.p3d-legend { border-radius: 24px; }
+.p3d-total b { color: #1e66f5; }
+.p3d-hint { border-width: 2px; border-radius: 999px; box-shadow: 0 3px 0 rgba(91,70,54,.12); }
+.p3d-here, .p3d-online, .p3d-toast { border-radius: 999px; }
+.p3d-toast { border-left: 3px solid #f1dfb6; border-radius: 24px; background: #fffdf4; }
+.p3d-tag { border: 2.5px solid #fff; box-shadow: 0 3px 0 rgba(17,17,27,.18); }
+.p3d-tag.bubble { border-color: #f1dfb6; color: #5b4636; background: #fffdf4; }
+.p3d-carnet { background: #fff8e7; color: #5b4636; border: 3px solid #f1dfb6; box-shadow: 0 4px 0 rgba(91,70,54,.16); }
+.p3d-carnet:first-of-type, .p3d-carnet:not(.p3d-photo):not(.p3d-hello) { background: #ffd60a; border-color: #fff; color: #5b4636; }
+.p3d-carnet.p3d-photo, .p3d-carnet.p3d-hello { background: #fff8e7; }
+.p3d-prompt { background: #fff8e7; color: #5b4636; border: 3px solid #f1dfb6; box-shadow: 0 5px 0 rgba(91,70,54,.16), 0 12px 24px rgba(17,17,27,.2); }
+.p3d-prompt kbd { background: #40a02b; color: #fff; border-radius: 50%; padding: 7px 10px; }
+.p3d-panel button { border-radius: 999px; box-shadow: 0 3px 0 rgba(17,17,27,.16); }
+.p3d-panel button.p3d-sw { box-shadow: 0 0 0 2px #f1dfb6; }
+.p3d-panel button.p3d-chip { box-shadow: none; }
+.p3d-speed b { color: #1e66f5; }
+/* Les autres promeneurs : juste leur nom, sans fond, et seulement de près. */
+.p3d-tag.who { background: none; border: 0; box-shadow: none; padding: 0; color: #fff; font-weight: 800; font-size: 13px;
+  text-shadow: 0 1px 0 rgba(34,37,46,.85), 0 0 4px rgba(34,37,46,.75), 0 2px 6px rgba(34,37,46,.5); }
 .p3d-fail { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center;
   color: var(--text, #4c4f69); background: var(--mantle, #e6e9ef); font: 600 15px/1.4 system-ui, sans-serif; }
 @media (max-width: 640px) {
@@ -3480,6 +3513,8 @@ export function createParking3D(container, options) {
         o.pet.legs[1].rotation.x = o.pet.legs[2].rotation.x = -Math.sin(o.phase * 3.6) * trot;
         o.pet.tail.rotation.z = Math.sin(performance.now() / 70) * o.pet.wag;
       }
+      // Le nom ne s'affiche que de près en promenade ; vu de haut, on voit tout le monde.
+      o.tag.hidden = walk.on && !walk.ride && Math.hypot(c.x - walk.x, c.z - walk.z) > 14;
       const hello = g.emote != null && EMOTES[g.emote] ? " : " + EMOTES[g.emote] : "";
       const label = g.pseudo + (g.stars ? " ★" + g.stars : "") + hello;
       if (o.label !== label) { o.label = label; o.tag.name.textContent = label; }

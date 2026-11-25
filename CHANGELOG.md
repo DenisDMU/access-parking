@@ -28,6 +28,10 @@ sémantique (majeure = contrat d'API cassé).
   utilisent le même modèle.
 - Décor dans le même style : arbres et buissons en boules avec leur reflet,
   nuages et collines ronds, fleurs semées dans le village.
+- Interface du plan refaite dans le même esprit : cartes crème aux coins
+  ronds, police arrondie, boutons en pastille ; le panneau des places reste.
+  Les pseudos des autres promeneurs s'affichent sans fond, et seulement de
+  près quand on se promène.
 - `look.eyes` (facultatif) dans `POST /borne/promenade` ; cinq jeux de plus
   acceptés par `POST /borne/promenade/scores`.
 
