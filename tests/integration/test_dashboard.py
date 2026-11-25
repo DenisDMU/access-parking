@@ -324,6 +324,32 @@ def test_sons_enregistres_libres_et_servis_par_access(client):
     assert 'new URL("./sons/"' in source and all(f'"{name}"' in source for name in names)
 
 
+def test_plan_3d_gros_bouton_rouge_et_sa_pub(client):
+    """Le bouton rouge au milieu de la route lance une pub tournée dans le décor,
+    avec des voix enregistrées servies par Access et des voix de secours."""
+
+    source = client.get("/static/parking3d.js").text
+    for name in ("function startAd", "function stepAd", "function endAd", "function sayLine"):
+        assert name in source
+    for word in ("NE PAS APPUYER", "Appuyer sur le gros bouton rouge", "Passer la pub", "p3d-cine"):
+        assert word in source
+    # Voix de secours : la synthèse de l'appareil, jamais une voix en ligne.
+    assert "v.localService" in source and "speechSynthesis" in source
+    names = ("1-ticket", "2-ticket", "3-agent", "4-jo", "5-ticket", "6-kingpar")
+    assert 'new URL("./sons/pub/"' in source and all(f'"{name}"' in source for name in names)
+    for name in names:
+        clip = client.get(f"/static/sons/pub/{name}.m4a")
+        assert clip.status_code == 200 and clip.headers["content-type"] == "audio/mp4"
+        assert clip.content[4:8] == b"ftyp" and len(clip.content) < 80_000
+    licence = client.get("/static/sons/pub/LICENCE.txt").text
+    assert "CC BY 4.0" in licence and "Piper" in licence
+    # La pub ne promet rien de payant ni de chiffré : pas de prix, pas de réduction.
+    start = source.index("function startAd")
+    script = source[start : source.index("function endAd")]
+    for word in ("€", "gratuit", "réduction", "promo", "%"):
+        assert word not in script
+
+
 def test_mini_jeux_servis_sans_ressource_externe(client):
     from src.infrastructure.promenade_room import GAMES
 

@@ -14,7 +14,7 @@
    et des identifiants pseudonymisés. */
 
 import * as THREE from "./vendor/three-0.160.0.module.min.js";
-import { GAMES as MINI, startGame } from "./promenade-jeux.js?v=4.27.2";
+import { GAMES as MINI, startGame } from "./promenade-jeux.js?v=4.28.0";
 
 // --- Catégories de Parking → zones du plan -----------------------------------
 
@@ -670,8 +670,9 @@ const WINS = [
   ["tuning", "Premier coup de clé", "Personnaliser un véhicule au KingPar Tuning."],
   ["carrossier", "Carrossier", "Personnaliser trois véhicules différents."],
   ["nuancier", "Nuancier", "Essayer six peintures dans la même visite à l'atelier."],
-  ["chef", "Chef d'orchestre", "Klaxonner cinq fois.", true], // les six suivants sont secrets : « ??? » tant qu'on ne les a pas
+  ["chef", "Chef d'orchestre", "Klaxonner cinq fois.", true], // les sept suivants sont secrets : « ??? » tant qu'on ne les a pas
   ["showcar", "Bête de concours", "Monter jantes, autocollant, néon et accessoire sur le même véhicule.", true],
+  ["bouton", "Il ne fallait pas appuyer", "Appuyer sur le gros bouton rouge, au milieu de la route.", true],
   ["minuit", "Cloche de minuit", "Sonner la cloche du belvédère la nuit.", true],
   ["ange", "Saut de l'ange", "Sauter du haut de la passerelle.", true],
   ["montgolfiere", "Montgolfière", "Sauter au sommet du belvédère avec un ballon.", true],
@@ -1124,6 +1125,27 @@ const CSS = `
 .p3d-panel.talk p.p3d-say { margin: 12px 0 4px; font-size: 16.5px; font-weight: 600; line-height: 1.45; color: #5b4636; }
 .p3d-panel.talk button { background: #40a02b; }
 @media (prefers-reduced-motion: reduce) { .p3d-tag.quest { animation: none; } }
+/* La pub du gros bouton rouge : bandes de cinéma, sous-titres, carton final. */
+.p3d-cine { position: absolute; inset: 0; display: none; pointer-events: none; overflow: hidden; }
+.p3d.cine > .p3d-cine { display: block; }
+.p3d.cine > :not(canvas):not(.p3d-cine) { visibility: hidden !important; }
+.p3d-cine::before, .p3d-cine::after { content: ""; position: absolute; left: 0; right: 0; height: 11%; background: #0b0c10; animation: p3d-bar .5s ease-out; }
+.p3d-cine::before { top: 0; }
+.p3d-cine::after { bottom: 0; }
+@keyframes p3d-bar { from { height: 0; } }
+.p3d-cine-badge { position: absolute; left: 16px; top: 3%; z-index: 1; padding: 4px 10px; border-radius: 8px; background: #d92b3a; color: #fff; font: 900 12px/1 system-ui, sans-serif; letter-spacing: .12em; }
+.p3d-cine-skip { position: absolute; right: 16px; top: 2.2%; z-index: 1; pointer-events: auto; padding: 7px 14px; border: 0; border-radius: 999px; background: rgba(255,255,255,.16); color: #fff; font: 700 13px/1 system-ui, sans-serif; cursor: pointer; }
+.p3d-cine-skip:hover, .p3d-cine-skip:focus-visible { background: rgba(255,255,255,.3); }
+.p3d-cine-sub { position: absolute; left: 50%; bottom: 14%; transform: translateX(-50%); width: max-content; max-width: min(88%, 760px); margin: 0; padding: 10px 18px; border-radius: 18px;
+  background: rgba(11,12,16,.74); color: #fff; font: 700 clamp(15px, 2.3vw, 22px)/1.35 system-ui, sans-serif; text-align: center; }
+.p3d-cine-sub b { color: #ffd60a; margin-right: 9px; }
+.p3d-cine-sub:empty { display: none; }
+.p3d-cine-card { position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%) scale(.6); opacity: 0; transition: opacity .6s, transform .6s cubic-bezier(.2, 1.4, .4, 1);
+  display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 22px 34px; border-radius: 30px; background: rgba(255,248,231,.95); color: #22252e; text-align: center; }
+.p3d-cine-card.on { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.p3d-cine-card canvas { width: 112px; height: 112px; }
+.p3d-cine-card b { font: 900 clamp(26px, 5vw, 44px)/1 system-ui, sans-serif; color: #1e66f5; }
+.p3d-cine-card span { font: 700 clamp(14px, 2.2vw, 19px)/1.3 system-ui, sans-serif; }
 @media (max-width: 640px) { .p3d-panel.talk { bottom: 94px; } }
 /* Habillage doux : cartes crème aux coins ronds, texte brun, police arrondie.
    Les couleurs sont fixées ici pour rester lisibles quel que soit le thème de la page. */
@@ -1371,7 +1393,19 @@ export function createParking3D(container, options) {
   const joy = elem("div", "p3d-joy");
   const joyKnob = elem("i");
   joy.appendChild(joyKnob);
-  container.append(labelLayer, head, tools, legend, hint, here, prompt, joy, speedo, actBtn, carnetBtn, photoBtn, helloBtn, onlineBox, toastBox, panel, tip);
+  // La pub du gros bouton rouge : calque de cinéma par-dessus le plan.
+  const cine = elem("div", "p3d-cine");
+  const cineSub = elem("p", "p3d-cine-sub");
+  cineSub.setAttribute("aria-live", "polite");
+  const cineSkip = elem("button", "p3d-cine-skip", "Passer la pub ▸");
+  cineSkip.type = "button";
+  const cineCard = elem("div", "p3d-cine-card");
+  const cineLogo = document.createElement("canvas");
+  cineLogo.width = cineLogo.height = 224;
+  drawLogo(cineLogo.getContext("2d"), 0, 0, 224);
+  cineCard.append(cineLogo, elem("b", null, "KingPar"), elem("span", null, "À la fin, l'amour gagne toujours."));
+  cine.append(elem("span", "p3d-cine-badge", "PUB"), cineSkip, cineSub, cineCard);
+  container.append(labelLayer, head, tools, legend, hint, here, prompt, joy, speedo, actBtn, carnetBtn, photoBtn, helloBtn, onlineBox, toastBox, panel, tip, cine);
 
   function toolButton(label, title, onClick, pressed) {
     const b = elem("button", null, label);
@@ -1621,6 +1655,7 @@ export function createParking3D(container, options) {
     yaw: 0, pitch: 0.4, dist: 7.5, keys: {}, joy: null, near: null, zone: null, panel: false,
     say: 0, toast: 0, met: false, zoom: null,
     tuning: null, podium: null, // véhicule en cours de tuning ; véhicule resté sur le podium
+    ad: null, // la pub en cours (gros bouton rouge)
     ride: null, hearts: 0, // voiture d'un autre promeneur où l'on est monté ; délai entre deux pluies de cœurs
     punch: 0, duelSig: "", duelDone: "", // coup de poing en cours, dernier défi affiché, dernier défi terminé
     game: null, parked: false, fuel: 0, saveIn: 20, // mini-jeu en cours, créneau jugé, pompe utilisée, sauvegarde // bulle du promeneur, message du carnet, accueil déjà affiché
@@ -2176,6 +2211,7 @@ export function createParking3D(container, options) {
     net.others.forEach((o) => { disposeModel(o.group); if (o.car) o.car.paintMat.dispose(); }); // ils reviennent au prochain échange
     if (lot) lot.quest.folk.forEach((f) => disposeModel(f.model.root));
     if (lot) disposeModel(lot.city.mech.root);
+    if (lot) lot.city.adBtn.mesh.material.dispose();
     net.others.clear();
 
     const L = computeLayout(zones);
@@ -3241,8 +3277,26 @@ export function createParking3D(container, options) {
     rentals.forEach((r) => group.add(r.root));
     tag("Véhicules à conduire", -19.5, 4.9, RENTAL_Z + 3.7, null, true).node.style.background = "#d92b3a";
     tag("KingPar Tuning", podium.x, 6.2, podium.z, null, true).node.style.background = "#22252e";
+    // Le gros bouton rouge, sur son îlot au milieu de la route : il lance la pub KingPar.
+    const adBtn = { x: SPAWN.x, z: ROAD_Z, mesh: null, press: 0 };
+    const island = [cyl(0.74, 0.12, "#ffd60a", { y: 0.06 }, 24), cyl(0.36, 0.86, "#f4f5f7", { y: 0.55 }, 16), cyl(0.5, 0.12, "#22252e", { y: 1.0 }, 20)];
+    for (let k = 0; k < 8; k += 2) {
+      const a = (k / 8) * Math.PI * 2 + 0.39;
+      island.push(box(0.3, 0.125, 0.4, "#22252e", { x: Math.sin(a) * 0.55, y: 0.062, z: Math.cos(a) * 0.55, ry: a }));
+    }
+    const islandMesh = new THREE.Mesh(merge(island, true), M.props);
+    islandMesh.position.set(adBtn.x, 0.03, adBtn.z);
+    islandMesh.castShadow = islandMesh.receiveShadow = true;
+    adBtn.mesh = new THREE.Mesh(new THREE.SphereGeometry(0.43, 24, 14, 0, Math.PI * 2, 0, Math.PI / 2),
+      new THREE.MeshStandardMaterial({ color: 0xe0202e, emissive: 0xff1a2a, emissiveIntensity: 0.35, roughness: 0.3, metalness: 0.1 }));
+    adBtn.mesh.position.set(adBtn.x, 1.09, adBtn.z);
+    adBtn.mesh.castShadow = true;
+    group.add(islandMesh, adBtn.mesh);
+    obstacles.push([adBtn.x - 0.45, adBtn.x + 0.45, adBtn.z - 0.45, adBtn.z + 0.45]);
+    points.push({ x: adBtn.x, z: adBtn.z, label: "Appuyer sur le gros bouton rouge", action: startAd });
+    tag("NE PAS APPUYER", adBtn.x, 2.25, adBtn.z, null, true).node.style.background = "#d92b3a";
     tag(CITY_NAME, (X0 + cityX1) / 2, 46, ROAD_Z, null, true);
-    const city = { x0: X0, x1: cityX1, z0: vz0, z1: vz1, pond, hill, petals, koi, fireworks, gate: tx, bay, pumps: { x: gs.x, z: gz }, podium, mech };
+    const city = { x0: X0, x1: cityX1, z0: vz0, z1: vz1, pond, hill, petals, koi, fireworks, gate: tx, bay, pumps: { x: gs.x, z: gz }, podium, mech, adBtn };
     // La Kingfarm, au sud des champs : potager de citrouilles, verger à cogner, mine à ciel ouvert.
     const farm = { x: X0 + 104, z: R - 75, nodes: [] };
     const addNode = (kind, x, z, parts) => {
@@ -3862,6 +3916,7 @@ export function createParking3D(container, options) {
 
   function setWalk(on) {
     if (!lot || walk.on === on) return;
+    if (!on && walk.ad) endAd();
     if (!on && walk.drive) exitVehicle();
     if (!on && walk.ride) stopRide();
     walk.on = on;
@@ -4266,22 +4321,23 @@ export function createParking3D(container, options) {
     win("or", true);
     if (progress.gold >= 5) win("collection", true);
   }
-  function launchFireworks(count, cozy) {
+  function launchFireworks(count, cozy, at) {
     const fw = lot.city.fireworks;
     fw.left = count; fw.next = 0; fw.cozy = Boolean(cozy);
+    fw.at = at || null; // { x, z, yaw } : tirés devant ce point plutôt que devant le promeneur
   }
   function stepFireworks(dt) {
     const fw = lot.city.fireworks, pos = fw.points.geometry.attributes.position, col = fw.points.geometry.attributes.color;
     const per = Math.floor(fw.life.length / 3);
     if (fw.left > 0) {
-      if (walk.on && !fw.cozy) walk.pitch = lerp(walk.pitch, 0.1, 1 - Math.exp(-dt * 2.2)); // la caméra se lève vers le ciel
+      if (walk.on && !fw.cozy && !fw.at) walk.pitch = lerp(walk.pitch, 0.1, 1 - Math.exp(-dt * 2.2)); // la caméra se lève vers le ciel
       fw.next -= dt;
       if (fw.next <= 0) {
         fw.left--;
         fw.next = 0.4 + Math.random() * 0.5;
         const from = (fw.slot++ % 3) * per, tint = cA.set(fw.cozy ? "#ff5d8f" : FIREWORKS[Math.floor(Math.random() * FIREWORKS.length)]);
-        const ahead = fw.cozy ? 1.2 : 42 + Math.random() * 22, aside = fw.cozy ? 0 : (Math.random() - 0.5) * 46, sn = Math.sin(walk.yaw), cs = Math.cos(walk.yaw);
-        const ox = walk.x + sn * ahead + cs * aside, oy = groundAt(walk.x, walk.z) + (fw.cozy ? 2.3 : 15 + Math.random() * 11), oz = walk.z + cs * ahead - sn * aside;
+        const ahead = fw.cozy ? 1.2 : 42 + Math.random() * 22, aside = fw.cozy ? 0 : (Math.random() - 0.5) * 46, org = fw.at || { x: walk.x, z: walk.z, yaw: walk.yaw }, sn = Math.sin(org.yaw), cs = Math.cos(org.yaw);
+        const ox = org.x + sn * ahead + cs * aside, oy = groundAt(org.x, org.z) + (fw.cozy ? 2.3 : 15 + Math.random() * 11), oz = org.z + cs * ahead - sn * aside;
         for (let i = from; i < from + per; i++) {
           const a = Math.random() * Math.PI * 2, u = Math.random() * 2 - 1, q = Math.sqrt(1 - u * u), sp = (6 + Math.random() * 6) * (fw.cozy ? 0.28 : 1);
           fw.vel[i * 3] = Math.cos(a) * q * sp; fw.vel[i * 3 + 1] = u * sp + 2; fw.vel[i * 3 + 2] = Math.sin(a) * q * sp;
@@ -4325,7 +4381,7 @@ export function createParking3D(container, options) {
   const BASS = [262, 196, 220, 196, 262, 196, 175, 196];
   const music = { t: 0, i: 0 };
   function stepMusic(dt) {
-    if (!walk.on || !audioMix.music || audioMix.vol <= 0 || walk.game) return;
+    if (!walk.on || !audioMix.music || audioMix.vol <= 0 || walk.game || walk.ad) return;
     music.t -= dt;
     if (music.t > 0) return;
     music.t += 0.36;
@@ -4469,6 +4525,7 @@ export function createParking3D(container, options) {
     return close;
   }
   function showPanel(label, side, nodes) {
+    if (walk.ad) endAd();
     if (walk.game) { walk.game.stop(); walk.game = null; }
     panel.classList.remove("talk");
     sfx("pop");
@@ -4558,6 +4615,149 @@ export function createParking3D(container, options) {
     nodes.push(panelClose("C'est parfait"));
     showPanel(kind === "tenue" ? "Boutique KingPar" : kind === "coiffure" ? "Coiffure Le Créneau" : "Animalerie du Copilote", true, nodes);
   }
+  /* --- Le gros bouton rouge : une publicité KingPar tournée dans le décor. Six plans,
+     une caméra qui se promène, des sous-titres, et des voix enregistrées (voir
+     `sayLine`). En secours : la synthèse vocale de l'appareil quand il en a une en
+     français (jamais une voix en ligne), sinon la voix chantonnée des habitants.
+     Tout est servi par Access ; rien n'est envoyé. */
+  function speak(text, pitch, seed) {
+    try {
+      const synth = window.speechSynthesis;
+      const voice = synth && audioMix.vol > 0 ? synth.getVoices().find((v) => /^fr/i.test(v.lang) && v.localService) : null;
+      if (voice) {
+        const line = new SpeechSynthesisUtterance(text);
+        line.voice = voice; line.lang = voice.lang; line.pitch = pitch; line.rate = 1.05;
+        line.volume = clamp(audioMix.vol * 1.5, 0, 1);
+        if (synth.speaking) synth.cancel();
+        synth.speak(line);
+        return;
+      }
+    } catch (err) { /* pas de synthèse vocale : la voix chantonnée la remplace */ }
+    babble(seed);
+  }
+  /* Les voix des acteurs sont enregistrées (dossier `sons/pub/`, synthèse vocale
+     libre, voix sous licence CC BY 4.0). Si le navigateur ne les lit pas, on
+     retombe sur la synthèse de l'appareil, puis sur la voix chantonnée. */
+  const adClips = {};
+  function adClip(name) {
+    if (!adClips[name]) {
+      const clip = new Audio(new URL("./sons/pub/" + name + ".m4a", import.meta.url).href);
+      clip.preload = "auto";
+      adClips[name] = clip;
+    }
+    return adClips[name];
+  }
+  function sayLine(shot) {
+    const fallback = () => speak(shot.text, shot.pitch, shot.who || "kingpar");
+    try {
+      if (audioMix.vol > 0 && new Audio().canPlayType("audio/mp4")) {
+        const clip = adClip(shot.clip);
+        clip.currentTime = 0;
+        clip.volume = clamp(audioMix.vol * 1.5, 0, 1);
+        clip.preservesPitch = clip.webkitPreservesPitch = false; // un peu plus vite, donc un peu plus aigu
+        clip.playbackRate = shot.rate || 1;
+        walk.ad.clip = clip;
+        clip.play().catch(fallback);
+        return;
+      }
+    } catch (err) { /* pas de lecteur audio : voix de l'appareil */ }
+    fallback();
+  }
+  function startAd() {
+    if (walk.ad || !walk.on || walk.drive || walk.ride) return;
+    const L = lot.L, c = lot.city, pod = c.podium, live = { x: c.pumps.x + 16.4, z: ROAD_Z + 8.2 };
+    c.adBtn.press = 1;
+    sfx("ding");
+    try { if (window.speechSynthesis) window.speechSynthesis.getVoices(); } catch (err) { /* sans voix */ }
+    try { ["1-ticket", "2-ticket", "3-agent", "4-jo", "5-ticket", "6-kingpar"].forEach((name) => adClip(name).load()); } catch (err) { /* sans lecteur audio */ }
+    const star = walk.podium || rentals[1]; // la voiture qui tourne sur le podium pendant le plan de l'atelier
+    walk.ad = {
+      t: -1.1, i: -1, star, home: walk.podium ? null : { x: star.x, z: star.z, rot: star.rot }, from: new THREE.Vector3(), to: new THREE.Vector3(), look: new THREE.Vector3(),
+      shots: [
+        { dur: 5.6, who: MASCOT, pitch: 1.5, clip: "1-ticket", rate: 1.07, text: "Vous tournez en rond pour trouver une place ?",
+          from: [L.cx - 36, 27, -32], to: [L.cx - 10, 20, -24], look: [L.cx, 0, lot.D / 2] },
+        { dur: 6.2, who: MASCOT, pitch: 1.5, clip: "2-ticket", rate: 1.07, text: "Chez KingPar, les places libres s'affichent en direct. Promis, on ne triche pas.",
+          from: [live.x + 5.6, 4.2, live.z - 5.6], to: [live.x + 5, 4.7, live.z - 3], look: [live.x, 4.5, live.z] },
+        { dur: 5.6, who: "L'agent du parking", pitch: 0.9, clip: "3-agent", text: "Bienvenue ! Ici, la barrière se lève avec le sourire.", agent: true },
+        { dur: 6.2, who: "Jo, le mécano", pitch: 0.7, clip: "4-jo", text: "Peinture, jantes, néons… C'est la maison qui offre !", tune: true,
+          from: [pod.x + 7.5, 2.0, pod.z + 7.5], to: [pod.x - 0.5, 2.7, pod.z + 9.5], look: [pod.x - 1.6, 1.0, pod.z] },
+        { dur: 6.2, who: MASCOT, pitch: 1.5, clip: "5-ticket", rate: 1.07, text: "Et juste à côté, " + CITY_NAME + " : on se gare, et on reste pour la fête.", fire: 4,
+          from: [c.x0 - 12, 5, ROAD_Z - 4], to: [c.x0 - 2, 8, ROAD_Z], look: [c.x0 + 30, 9, ROAD_Z + 24] },
+        { dur: 6.5, who: "", pitch: 1.1, clip: "6-kingpar", text: "KingPar. À la fin, l'amour gagne toujours.", card: true, fire: 5,
+          from: [L.cx - 6, 24, -44], to: [L.cx + 8, 30, -52], look: [L.cx + 10, 6, 10] },
+      ],
+    };
+    walk.panel = true;
+    walk.keys = {};
+    walk.near = false;
+    prompt.classList.remove("on");
+    cineSub.replaceChildren();
+    cineCard.classList.remove("on");
+    container.classList.add("cine");
+    sound([[523, 0.08, 0], [659, 0.08, 0.14], [784, 0.08, 0.28], [1047, 0.1, 0.42]], 0.5, "triangle", true); // fanfare d'ouverture
+    win("bouton", true);
+  }
+  function endAd() {
+    const ad = walk.ad;
+    if (!ad) return;
+    walk.ad = null;
+    try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (err) { /* sans voix */ }
+    try { if (ad.clip) ad.clip.pause(); } catch (err) { /* sans lecteur audio */ }
+    container.classList.remove("cine");
+    cineCard.classList.remove("on");
+    npc.star = null;
+    walk.tuning = null;
+    if (ad.home) { ad.star.x = ad.home.x; ad.star.z = ad.home.z; ad.star.rot = ad.home.rot; }
+    const jo = lot.city.mech;
+    jo.armR.rotation.x = 0; jo.head.rotation.y = 0;
+    walk.panel = false;
+    walk.near = false;
+    toast("Fin de la pub. Merci de votre attention !", 4);
+  }
+  function stepAd(dt, now) {
+    const ad = walk.ad, L = lot.L;
+    ad.t += dt;
+    const next = ad.i < 0 ? ad.t >= 0 : ad.t >= ad.shots[ad.i].dur;
+    if (next) {
+      ad.i++;
+      ad.t = 0;
+      const shot = ad.shots[ad.i];
+      if (!shot) { endAd(); return; }
+      npc.star = null;
+      walk.tuning = null;
+      lot.city.mech.armR.rotation.x = 0;
+      if (shot.agent) { // la caméra se place devant l'agent, là où il se trouve
+        const a = npc.rot, sn = Math.sin(a), cs = Math.cos(a);
+        shot.from = [npc.x + sn * 5.2 + cs * 1.6, 2.5, npc.z + cs * 5.2 - sn * 1.6];
+        shot.to = [npc.x + sn * 3.6 + cs * 0.8, 2.0, npc.z + cs * 3.6 - sn * 0.8];
+        shot.look = [npc.x, 1.25, npc.z];
+        npc.star = { x: shot.to[0], z: shot.to[2] };
+      }
+      if (shot.tune) { ad.star.rot = 2.4; walk.tuning = ad.star; }
+      ad.from.set(shot.from[0] - L.cx, shot.from[1], shot.from[2] - L.cz);
+      ad.to.set(shot.to[0] - L.cx, shot.to[1], shot.to[2] - L.cz);
+      ad.look.set(shot.look[0] - L.cx, shot.look[1], shot.look[2] - L.cz);
+      camera.position.copy(ad.from);
+      if (shot.fire) launchFireworks(shot.fire, false, { x: shot.to[0], z: shot.to[2], yaw: Math.atan2(shot.look[0] - shot.to[0], shot.look[2] - shot.to[2]) });
+      cineSub.replaceChildren();
+      if (shot.who) cineSub.appendChild(elem("b", null, shot.who));
+      cineSub.appendChild(document.createTextNode(shot.text));
+      cineCard.classList.toggle("on", Boolean(shot.card));
+      if (shot.card) sound([[523, 0.08, 0], [659, 0.08, 0.16], [784, 0.08, 0.32], [1047, 0.09, 0.48], [784, 0.07, 0.72], [1047, 0.11, 0.86]], 0.7, "triangle", true); // le jingle
+      sayLine(shot);
+    }
+    if (ad.i < 0) return; // le temps que le bouton s'enfonce
+    const shot = ad.shots[ad.i], k = clamp(ad.t / shot.dur, 0, 1), ease = k * k * (3 - 2 * k);
+    camera.position.lerpVectors(ad.from, ad.to, ease);
+    camera.lookAt(ad.look);
+    if (Math.abs(camera.fov - 58) > 0.05) { camera.fov = walk.fov = 58; camera.updateProjectionMatrix(); }
+    if (shot.tune) { // Jo salue la caméra pendant que la voiture tourne
+      const jo = lot.city.mech;
+      jo.armR.rotation.x = -2.7 + Math.sin(now * 9) * 0.3;
+      jo.head.rotation.y = -0.8;
+    }
+  }
+  cineSkip.addEventListener("click", endAd);
   /* --- KingPar Tuning : le véhicule monte sur le podium tournant et change sous nos
      yeux. Tout est offert ; le réglage de chaque véhicule reste sur l'appareil. */
   const HORN_SFX = { tut: "klaxon", pouet: "pouet", melodie: "melodie", coin: "coin" };
@@ -5016,7 +5216,9 @@ export function createParking3D(container, options) {
     // Il s'arrête pour saluer le promeneur, et remarque le chien qui aboie.
     const near = walk.on && !walk.drive ? Math.hypot(walk.x - npc.x, walk.z - npc.z) : 99;
     let goal = 0;
-    if (near < 3.2) {
+    if (npc.star) { // son plan dans la pub : il s'arrête, regarde la caméra et salue
+      npc.rot = angleTo(npc.rot, Math.atan2(npc.star.x - npc.x, npc.star.z - npc.z), 1 - Math.exp(-dt * 6));
+    } else if (near < 3.2) {
       if (npc.greet <= 0) { agentSay("hello"); npc.greet = 16; stamp("agent"); }
       npc.rot = angleTo(npc.rot, Math.atan2(walk.x - npc.x, walk.z - npc.z), 1 - Math.exp(-dt * 6));
     } else if (npc.path) {
@@ -5044,7 +5246,7 @@ export function createParking3D(container, options) {
     // À l'arrêt devant un véhicule : il note quelque chose (un bras levé).
     const noting = !npc.path && npc.target && npc.target.face && near >= 3.2;
     agent.armL.rotation.x = -swing * 0.8;
-    agent.armR.rotation.x = noting ? -1.1 + Math.sin(now * 6) * 0.08 : swing * 0.8;
+    agent.armR.rotation.x = npc.star ? -2.7 + Math.sin(now * 9) * 0.3 : noting ? -1.1 + Math.sin(now * 6) * 0.08 : swing * 0.8;
     agent.body.position.y = Math.abs(Math.sin(npc.phase)) * 0.04 * stride;
     agent.root.position.set(npc.x, 0, npc.z);
     agent.root.rotation.y = npc.rot;
@@ -5218,6 +5420,7 @@ export function createParking3D(container, options) {
     stamp("resa");
   }
   function closeResa() {
+    if (walk.ad) { endAd(); return; }
     panel.classList.remove("on");
     if (walk.panel) walk.near = false; // l'invite revient à la prochaine image
     if (walk.game) { walk.game.stop(); walk.game = null; }
@@ -5409,6 +5612,11 @@ export function createParking3D(container, options) {
 
   function stepCamera(dt, now) {
     if (!walk.on) return;
+    const red = lot.city.adBtn; // le bouton rouge palpite, et s'enfonce quand on appuie
+    red.press = Math.max(0, red.press - dt * 2.5);
+    red.mesh.scale.y = 1 - 0.6 * Math.sin(Math.min(1, red.press) * Math.PI);
+    red.mesh.material.emissiveIntensity = walk.ad ? 1.1 : 0.35 + 0.3 * Math.sin(now * 4);
+    if (walk.ad) { stepAd(dt, now); return; }
     const L = lot.L, rv = walk.drive;
     // Caméra dans le dos, un peu au-dessus ; plus loin et plus large en voiture.
     const zoom = rv && !(walk.zoom && walk.zoom.at) ? null : walk.zoom, wide = renderer.domElement.clientWidth > 720;
@@ -5889,6 +6097,7 @@ export function createParking3D(container, options) {
         },
         look: Object.assign({}, look),
         tuning: walk.tuning ? walk.tuning.def.model : null,
+        ad: walk.ad ? { shot: walk.ad.i, text: cineSub.textContent } : null,
         garage: JSON.parse(JSON.stringify(garage)),
         podium: lot ? { x: Math.round(lot.city.podium.x * 10) / 10, z: Math.round(lot.city.podium.z * 10) / 10 } : null,
         carnet: Array.from(carnet),
