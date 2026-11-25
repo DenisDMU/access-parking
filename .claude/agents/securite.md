@@ -35,14 +35,19 @@ plus récentes.
   avec une date imposée par le serveur et une réponse sans identifiant.
 - `/borne/pmr-validation` compare le code agent à temps constant
   (`hmac.compare_digest`).
-- `/metrics` est lisible sans clé (le Prometheus de chaque équipe le lit) :
-  il ne doit contenir que des agrégats. Aucune étiquette ne porte de plaque,
-  d'identifiant de véhicule ou de demande, ni de chemin brut (routes comptées
-  par gabarit) — `tests/integration/test_metrics.py`.
+- `/metrics` exige la clé d'exploitation ou le jeton de lecture
+  `METRICS_TOKEN` (`verify_metrics_key`), qui ne donne accès à aucune autre
+  route ; la clé borne ne lit pas les métriques. Il ne contient que des
+  agrégats : aucune étiquette ne porte de plaque, d'identifiant de véhicule
+  ou de demande, ni de chemin brut (routes comptées par gabarit) —
+  `tests/integration/test_metrics.py`. **Une route de supervision ou
+  d'administration ouverte sans clé est un point bloquant**, même si elle
+  ne contient « que des compteurs ».
 
 **Secrets.** Aucun secret dans Git (gitleaks en CI). En production,
 `check_secrets` refuse de démarrer si `API_KEY` vaut `change-me`, fait
-moins de 16 caractères, ou si `BORNE_API_KEY` est égale à `API_KEY`.
+moins de 16 caractères, si `BORNE_API_KEY` est égale à `API_KEY`, ou si
+`METRICS_TOKEN` est trop court ou égal à l'une des deux clés.
 
 ## Méthode
 
@@ -58,9 +63,7 @@ moins de 16 caractères, ou si `BORNE_API_KEY` est égale à `API_KEY`.
    `.venv/bin/python -m pytest -q tests/integration/test_no_plate_leak.py`.
 4. Vérifie le service en ligne, **sans clé** et en lecture seule :
    - chaque route protégée répond 401 sans clé (`/api/v1/access/requests`,
-     `/presences`, `/events`, `/parking`, `/borne/key`) ;
-   - `/metrics` répond 200 sans clé et ne contient ni plaque ni identifiant
-     (seulement des gabarits de route comme `{request_id}`) ;
+     `/presences`, `/events`, `/parking`, `/borne/key`, `/metrics`) ;
    - en-têtes `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`,
      `Referrer-Policy: no-referrer` (Render met les noms en minuscules) ;
    - une erreur 422 ne recopie pas la plaque envoyée ;

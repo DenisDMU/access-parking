@@ -64,7 +64,10 @@ seul.
 | `access-local` | `http://host.docker.internal:8010/metrics` | Access lancé sur cet ordinateur, pour simuler une panne |
 | `prometheus` | `http://localhost:9090/metrics` | Prometheus lui-même |
 
-Aucune clé dans ce fichier : chaque `/metrics` est lu tel qu'il est publié.
+Aucune clé dans ce fichier. Access exige un jeton de lecture pour `/metrics` :
+Prometheus le lit dans `secrets/access_metrics_token`, que `./demarrer.sh` vous
+fait saisir une fois (dossier ignoré par Git, monté en lecture seule dans le
+conteneur). Les autres services sont lus tels qu'ils sont publiés.
 Un service qui n'expose pas la route apparaît **DOWN**, avec la raison dans
 la colonne « Error » de la page des cibles. `host.docker.internal` est le nom
 de l'ordinateur vu depuis le conteneur.
@@ -96,7 +99,7 @@ docker run -d --name tp-prometheus --network tp-prometheus --add-host=host.docke
 Depuis la racine du dépôt, démarrer la cible locale :
 
 ```bash
-.venv/bin/uvicorn src.interfaces.api.main:app --port 8010
+API_KEY=change-me .venv/bin/uvicorn src.interfaces.api.main:app --port 8010
 ```
 
 `access-local` passe UP. `Ctrl+C` : il passe DOWN à la mesure suivante (15

@@ -85,7 +85,7 @@ app = FastAPI(
         {"name": "Access", "description": "Traitement des demandes d'entrée/sortie"},
         {"name": "Events", "description": "Lecture de l'outbox d'événements publiés"},
         {"name": "Health", "description": "Healthcheck non authentifié"},
-        {"name": "Monitoring", "description": "Métriques Prometheus (lecture sans clé)"},
+        {"name": "Monitoring", "description": "Métriques Prometheus (clé ou jeton de lecture)"},
     ],
 )
 
@@ -155,7 +155,7 @@ app.include_router(health_router.router)
 # gabarit de route et classe de statut (`http_requests_total`) ; `/health`,
 # `/metrics` et `/static` en sont exclus pour que les lectures de Prometheus
 # et de la sonde de Render ne gonflent pas l'activité mesurée. La route
-# elle-même est servie par `metrics_router` (sans clé : voir ce module).
+# elle-même est servie par `metrics_router` (clé ou jeton de lecture : voir ce module).
 Instrumentator(excluded_handlers=["/health", "/metrics", "/static.*"]).instrument(app)
 app.include_router(metrics_router.router)
 app.include_router(access_router.passage_router, prefix="/api/v1")

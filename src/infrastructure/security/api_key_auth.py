@@ -1,12 +1,15 @@
 """Authentification par clé API (`X-API-Key`) — section 11 de la spec, jalon 15.
 
-Deux niveaux :
+Trois niveaux :
 
 - `API_KEY` (exploitation) : accès à toutes les routes.
 - `BORNE_API_KEY` (bornes client, écran public) : accès au seul passage d'un
   véhicule (`POST /access/requests`, via `verify_passage_key`). Une borne
   volée ou inspectée ne donne donc accès ni à l'historique, ni aux
   présences, ni aux événements, ni aux métriques.
+- `METRICS_TOKEN` (supervision) : lecture de `GET /metrics` seulement (via
+  `verify_metrics_key`), pour le Prometheus qui surveille Access. Il ne donne
+  accès à aucune autre route, et la clé borne ne lit pas les métriques.
 
 - Comparaison en **temps constant** (`hmac.compare_digest`) : le temps de
   réponse ne révèle pas combien de caractères de la clé sont corrects.
@@ -18,11 +21,12 @@ from __future__ import annotations
 import hmac
 
 from fastapi import HTTPException, Security, status
-from fastapi.security import APIKeyHeader
+from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 
 from src.infrastructure.config import get_settings
 
 _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+_bearer = HTTPBearer(auto_error=False)
 
 
 def _matches(provided: str, expected: str) -> bool:
@@ -59,3 +63,25 @@ def verify_passage_key(api_key: str | None = Security(_api_key_header)) -> str:
     if not (is_admin or is_borne):
         raise _unauthorized()
     return api_key
+
+
+def verify_metrics_key(
+    api_key: str | None = Security(_api_key_header),
+    bearer: HTTPAuthorizationCredentials | None = Security(_bearer),
+) -> str:
+    """Clé d'exploitation ou jeton de lecture des métriques : réservé à `/metrics`.
+
+    Présenté dans `X-API-Key`, ou dans `Authorization: Bearer …` (le réglage
+    `authorization` de Prometheus, toutes versions).
+    """
+
+    settings = get_settings()
+    provided = api_key or (bearer.credentials if bearer else "")
+    if not provided:
+        raise _unauthorized()
+    # Les deux comparaisons sont toujours faites (pas de court-circuit).
+    is_admin = _matches(provided, settings.api_key)
+    is_reader = _matches(provided, settings.metrics_token)
+    if not (is_admin or is_reader):
+        raise _unauthorized()
+    return provided

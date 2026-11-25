@@ -31,8 +31,8 @@ from src.infrastructure.logging_config import correlation_id_var
 CORRELATION_HEADER = "X-Correlation-ID"
 _VALID_CORRELATION_ID = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 # La promenade multijoueur envoie une position plusieurs fois par seconde et
-# par visiteur, et Prometheus lit `/metrics` toutes les 15 s (un par équipe
-# qui supervise Access) : ils noieraient le journal.
+# par visiteur, et Prometheus lit `/metrics` toutes les 15 s : ils noieraient
+# le journal. Une lecture refusée (401) reste loggée en avertissement.
 _QUIET_PREFIXES = ("/health", "/metrics", "/static", "/favicon.ico", "/api/v1/borne/promenade")
 
 logger = logging.getLogger("access.http")

@@ -1,17 +1,21 @@
 """Tests d'intégration — `GET /metrics` (TP « Observabilité avec Prometheus »).
 
-La route est lue sans clé par le Prometheus de chaque équipe : ces tests
-vérifient son format, que les compteurs suivent l'usage de l'API et les
-opérations métier, et surtout qu'aucune étiquette ne peut porter une plaque,
-un identifiant ou un chemin brut.
+La route exige la clé d'exploitation ou le jeton de lecture `METRICS_TOKEN` :
+ces tests vérifient cette protection, le format, que les compteurs suivent
+l'usage de l'API et les opérations métier, et qu'aucune étiquette ne peut
+porter une plaque, un identifiant ou un chemin brut.
 """
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from prometheus_client import REGISTRY
 from prometheus_client.parser import text_string_to_metric_families
 
-from tests.integration.conftest import AUTH_HEADERS
+from src.infrastructure.config import get_settings
+from src.infrastructure.security import api_key_auth
+from tests.integration.conftest import AUTH_HEADERS, BORNE_HEADERS
 
 REQUESTS = "/api/v1/access/requests"
 PLATE = "AA-111-AA"
@@ -44,11 +48,48 @@ def _passage(client, plate: str, type_: int, date: str) -> dict:
 
 
 def _families(client) -> dict:
-    return {f.name: f for f in text_string_to_metric_families(client.get("/metrics").text)}
+    return {
+        f.name: f
+        for f in text_string_to_metric_families(client.get("/metrics", headers=AUTH_HEADERS).text)
+    }
 
 
-def test_metrics_lisible_sans_cle_au_format_prometheus(client):
-    response = client.get("/metrics")
+def test_metrics_refuse_sans_cle_ni_jeton(client):
+    wrong = "x" * 12
+    assert client.get("/metrics").status_code == 401
+    assert client.get("/metrics", headers={"X-API-Key": wrong}).status_code == 401
+    assert client.get("/metrics", headers={"Authorization": f"Bearer {wrong}"}).status_code == 401
+    # Un refus ne montre rien : ni compteur, ni nom de métrique.
+    refused = client.get("/metrics")
+    assert refused.json() == {"detail": "Clé API manquante ou invalide"}
+    assert "http_requests_total" not in refused.text
+
+
+def test_jeton_de_lecture_reserve_aux_metriques(client, monkeypatch):
+    """`METRICS_TOKEN` lit `/metrics` (en-tête `X-API-Key` ou `Authorization:
+    Bearer`) et rien d'autre ; la clé borne, elle, ne lit pas les métriques."""
+
+    reader, admin = "r" * 24, AUTH_HEADERS["X-API-Key"]
+    settings = replace(get_settings(), metrics_token=reader)
+    monkeypatch.setattr(api_key_auth, "get_settings", lambda: settings)
+
+    assert client.get("/metrics", headers={"X-API-Key": reader}).status_code == 200
+    assert client.get("/metrics", headers={"Authorization": f"Bearer {reader}"}).status_code == 200
+    assert client.get("/metrics", headers={"Authorization": f"Bearer {admin}"}).status_code == 200
+    assert settings.borne_api_key == BORNE_HEADERS["X-API-Key"]
+    assert client.get("/metrics", headers=BORNE_HEADERS).status_code == 401
+    for path in ("/api/v1/access/requests", "/api/v1/access/presences", "/api/v1/access/events"):
+        assert client.get(path, headers={"X-API-Key": reader}).status_code == 401
+
+
+def test_sans_jeton_configure_un_jeton_vide_ne_passe_pas(client):
+    assert get_settings().metrics_token == ""
+    assert client.get("/metrics", headers={"X-API-Key": ""}).status_code == 401
+    assert client.get("/metrics", headers={"Authorization": "Bearer "}).status_code == 401
+
+
+def test_metrics_au_format_prometheus(client):
+    response = client.get("/metrics", headers=AUTH_HEADERS)
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/plain; version=")
@@ -86,7 +127,7 @@ def test_http_requests_total_suit_les_appels_et_separe_succes_et_erreurs(client)
 
     assert _http("/api/v1/access/events", "GET", "2xx") == ok_before + 2
     assert _http("/api/v1/access/events", "GET", "4xx") == refused_before + 1
-    body = client.get("/metrics").text
+    body = client.get("/metrics", headers=AUTH_HEADERS).text
     assert 'handler="/api/v1/access/events",method="GET",status="2xx"' in body
 
 
@@ -104,7 +145,7 @@ def test_route_comptee_par_gabarit_jamais_par_chemin_brut(client):
 
     assert _http(template, "GET", "2xx") == before + 1
     assert _http("none", "GET", "4xx") == unknown_before + 2
-    body = client.get("/metrics").text
+    body = client.get("/metrics", headers=AUTH_HEADERS).text
     assert request_id not in body
     assert vehicle_id not in body
     assert PLATE not in body
@@ -115,17 +156,17 @@ def test_metrics_ne_compte_ni_ses_lectures_ni_la_sonde_de_sante(client):
     comptées, ces lectures feraient croire à une activité qui n'existe pas."""
 
     for _ in range(5):
-        client.get("/metrics")
+        client.get("/metrics", headers=AUTH_HEADERS)
         client.get("/health")
 
-    body = client.get("/metrics").text
+    body = client.get("/metrics", headers=AUTH_HEADERS).text
     assert 'handler="/metrics"' not in body
     assert 'handler="/health"' not in body
 
 
 def test_metrics_hors_limitation_de_debit(client):
     # Bien au-delà de toutes les limites par adresse définies dans l'API.
-    assert {client.get("/metrics").status_code for _ in range(80)} == {200}
+    assert {client.get("/metrics", headers=AUTH_HEADERS).status_code for _ in range(80)} == {200}
 
 
 def test_parking_operations_total_suit_les_entrees_et_sorties(client):
@@ -143,7 +184,7 @@ def test_parking_operations_total_suit_les_entrees_et_sorties(client):
     assert _operation("entry", "refused") == entry_refused + 1
     assert _operation("exit", "authorized") == exit_ok + 1
     assert _operation("exit", "refused") == exit_refused + 1
-    body = client.get("/metrics").text
+    body = client.get("/metrics", headers=AUTH_HEADERS).text
     assert 'parking_operations_total{operation="entry",result="authorized"}' in body
 
 
@@ -168,7 +209,7 @@ def test_parking_operations_total_compte_la_sortie_forcee(client):
     assert _operation("forced_exit", "authorized") == done + 1
     assert _operation("forced_exit", "refused") == missed + 1
     # La route porte un identifiant de véhicule : seul son gabarit est exposé.
-    body = client.get("/metrics").text
+    body = client.get("/metrics", headers=AUTH_HEADERS).text
     assert 'handler="/api/v1/access/presences/{vehicle_id}/release"' in body
     assert vehicle_id not in body
 
@@ -192,7 +233,7 @@ def test_aucune_plaque_ni_identifiant_dans_les_metriques(client):
     client.post("/api/v1/borne/passages", json={"licensePlate": "ZZ#999", "type": 1})  # 422
     client.post("/api/v1/access/vehicles/known", json={"licensePlate": PLATE}, headers=AUTH_HEADERS)
 
-    body = client.get("/metrics").text
+    body = client.get("/metrics", headers=AUTH_HEADERS).text
     for secret in (PLATE, "AA111AA", "AA 111 AA", "ZZ#999", "ZZ999"):
         assert secret not in body
     for identifier in (entry["vehicleId"], entry["requestId"], refused["requestId"]):

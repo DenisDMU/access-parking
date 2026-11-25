@@ -42,3 +42,21 @@ def test_cle_borne_identique_a_la_cle_admin_refusee():
 def test_cle_borne_absente_ou_solide_acceptee():
     assert check_secrets(_settings("x" * 44), production=True) == []
     assert check_secrets(_settings("x" * 44, borne_api_key="b" * 32), production=True) == []
+
+
+def test_jeton_des_metriques_trop_court_refuse_en_production():
+    settings = Settings(api_key="x" * 44, metrics_token="court")
+    with pytest.raises(InsecureConfigurationError, match="METRICS_TOKEN"):
+        check_secrets(settings, production=True)
+
+
+@pytest.mark.parametrize("same_as", ["api_key", "borne_api_key"])
+def test_jeton_des_metriques_identique_a_une_cle_refuse(same_as):
+    keys = {"api_key": "x" * 44, "borne_api_key": "b" * 32}
+    settings = Settings(**keys, metrics_token=keys[same_as])
+    with pytest.raises(InsecureConfigurationError, match="différent"):
+        check_secrets(settings, production=True)
+
+
+def test_jeton_des_metriques_absent_ou_solide_accepte():
+    assert check_secrets(Settings(api_key="x" * 44, metrics_token="m" * 32), production=True) == []

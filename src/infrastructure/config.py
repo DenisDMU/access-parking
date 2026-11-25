@@ -54,6 +54,9 @@ class Settings:
     # les présences, les événements ou les métriques. Vide = pas de clé borne
     # (seule API_KEY est acceptée partout).
     borne_api_key: str = os.getenv("BORNE_API_KEY", "")
+    # Jeton de lecture des métriques : il ne permet QUE de lire `GET /metrics`
+    # (le Prometheus qui supervise Access). Vide = seule API_KEY lit les métriques.
+    metrics_token: str = os.getenv("METRICS_TOKEN", "")
     log_level: str = os.getenv("LOG_LEVEL", "INFO")
     # SHA du commit déployé, fourni automatiquement par Render à chaque
     # build — permet de prouver quel code tourne réellement en ligne
@@ -178,6 +181,11 @@ def check_secrets(settings: Settings, *, production: bool) -> list[str]:
             problems.append(f"BORNE_API_KEY fait moins de {MIN_API_KEY_LENGTH} caractères")
         elif settings.borne_api_key == settings.api_key:
             problems.append("BORNE_API_KEY doit être différente d'API_KEY")
+    if settings.metrics_token:
+        if len(settings.metrics_token) < MIN_API_KEY_LENGTH:
+            problems.append(f"METRICS_TOKEN fait moins de {MIN_API_KEY_LENGTH} caractères")
+        elif settings.metrics_token in (settings.api_key, settings.borne_api_key):
+            problems.append("METRICS_TOKEN doit être différent d'API_KEY et de BORNE_API_KEY")
     if problems and production:
         raise InsecureConfigurationError("; ".join(problems))
     return problems

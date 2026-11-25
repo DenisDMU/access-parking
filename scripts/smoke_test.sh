@@ -71,8 +71,8 @@ check "période from > to → 422" 422 "$(call GET '/api/v1/access/requests?from
 check "demande inexistante → 404" 404 "$(call GET /api/v1/access/requests/inexistante)"
 
 echo "4. Observabilité"
-check "GET /metrics → 200" 200 "$(call GET /metrics)"
-check "GET /metrics sans clé → 200" 200 "$(curl -s -o /dev/null -w '%{http_code}' "$BASE_URL/metrics")"
+check "GET /metrics avec clé → 200" 200 "$(call GET /metrics)"
+check "GET /metrics sans clé → 401" 401 "$(curl -s -o /dev/null -w '%{http_code}' "$BASE_URL/metrics")"
 check "/metrics expose parking_operations_total" True "$(call GET /metrics >/dev/null; grep -q '^# TYPE parking_operations_total counter' "$TMP" && echo True || echo False)"
 check "/metrics expose les métriques métier" True "$(call GET /metrics >/dev/null; grep -q '^# HELP access_decisions_total' "$TMP" && echo True || echo False)"
 check "en-tête X-Correlation-ID renvoyé" "$CID" "$(curl -s -o /dev/null -D - -H "X-Correlation-ID: $CID" "$BASE_URL/health" | tr -d '\r' | awk -F': ' 'tolower($1)=="x-correlation-id"{print $2}')"

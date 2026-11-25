@@ -6,24 +6,30 @@ page est le résumé à suivre, du lancement à la démonstration.
 
 ## Où on en est
 
-- **Access expose `GET /metrics`** en ligne, sans clé :
-  <https://access-api-a1u7.onrender.com/metrics>. On y trouve
+- **Access expose `GET /metrics`** en ligne, **protégé par un jeton de
+  lecture** (`METRICS_TOKEN`) : sans lui, la route répond 401. On y trouve
   `http_requests_total` (requêtes HTTP, succès et erreurs) et
   `parking_operations_total` (entrées, sorties, sorties forcées).
 - **Le `Dockerfile` et `prometheus.yml` sont prêts** dans `tp/prometheus`.
   Prometheus y surveille Access et les cinq autres microservices.
 - Il reste à **lancer Prometheus sur votre ordinateur** et à faire la
-  démonstration. Aucun mot de passe à choisir, aucune clé à fournir.
+  démonstration. Une seule chose à fournir : le jeton de lecture d'Access.
 
 ## Les 3 gestes
 
 **1. Ouvrir Docker Desktop** et attendre que l'icône de la baleine soit fixe.
 
-**2. Démarrer Prometheus :**
+**2. Démarrer Prometheus**, dans un terminal :
 
 ```bash
 cd tp/prometheus && ./demarrer.sh
 ```
+
+La première fois, le script demande le **jeton de lecture d'Access**. Il se
+lit dans Render : **access-api → Environment → `METRICS_TOKEN`** (icône œil).
+Collez-le (la saisie ne s'affiche pas) puis Entrée. Il est rangé dans
+`tp/prometheus/secrets/`, un dossier que Git ignore, et n'est plus redemandé.
+Pour le changer : `./demarrer.sh --jeton`.
 
 Le script construit l'image `tp-prometheus`, démarre le conteneur et affiche
 « Prometheus est prêt ».
@@ -49,7 +55,7 @@ ajouteront leur route `/metrics`) :
 
 | Cible | Service | État | Pourquoi |
 |---|---|---|---|
-| `access` | Access en ligne (Render) | **UP** | `/metrics` répond, sans clé |
+| `access` | Access en ligne (Render) | **UP** | `/metrics` répond avec le jeton saisi au démarrage (DOWN « 401 » sans lui) |
 | `parking` | Parking (Render) | **UP** | expose déjà `/metrics` |
 | `vehicles` | Vehicles (Render) | DOWN | `/metrics` renvoie vers la page de connexion |
 | `pricing` | Pricing (Render) | DOWN | pas encore de route `/metrics` (404) |
@@ -80,11 +86,8 @@ curl -s https://access-api-a1u7.onrender.com/api/v1/borne/status
   `parking_operations_total`, avec le résultat (autorisé, refusé,
   confirmation demandée). Un refus compte aussi : le 25 novembre, plusieurs
   catégories du parking étaient pleines (« Aucune place disponible »).
-- **Lire les compteurs à la main :**
-
-```bash
-curl -s https://access-api-a1u7.onrender.com/metrics | grep -E '^(http_requests_total|parking_operations_total)'
-```
+- **Lire les compteurs** : dans Prometheus, onglet « Table », requête
+  `parking_operations_total` (la route elle-même demande le jeton).
 
 `/health`, `/metrics` et `/static` ne sont pas comptés : les lectures de
 Prometheus et la sonde de Render ne gonflent pas l'activité mesurée.
@@ -153,10 +156,11 @@ l'arrêter sans gêner personne.
 **1. Le démarrer**, dans un second terminal, depuis la racine du dépôt :
 
 ```bash
-.venv/bin/uvicorn src.interfaces.api.main:app --port 8010
+API_KEY=change-me .venv/bin/uvicorn src.interfaces.api.main:app --port 8010
 ```
 
-(Le port 8010 est celui écrit dans `prometheus.yml` ; il laisse le 8000 au
+(`change-me` est la clé de développement, celle que Prometheus envoie à cette
+cible locale. Le port 8010 est celui écrit dans `prometheus.yml` ; il laisse le 8000 au
 TP Splunk.)
 
 **2. Vérifier** sur <http://localhost:9090/targets> : `access-local` passe
@@ -193,8 +197,9 @@ services.
 
 ## Quoi montrer au rendu
 
-1. `https://access-api-a1u7.onrender.com/metrics` dans le navigateur : les
-   lignes `http_requests_total` et `parking_operations_total`.
+1. Dans Prometheus, les séries `http_requests_total` et
+   `parking_operations_total` d'Access ; et `/metrics` qui répond 401 sans
+   jeton dans le navigateur (la route est protégée).
 2. `tp/prometheus/Dockerfile` et `tp/prometheus/prometheus.yml`.
 3. La page des cibles : Access et Parking UP, les autres DOWN, et pourquoi.
 4. Les trois graphiques ci-dessus.
@@ -224,10 +229,13 @@ Prometheus qui vient les lire (il « tire », le service ne pousse rien), les
 date et les garde. `up` est fabriqué par Prometheus lui-même à chaque
 lecture.
 
-**Pourquoi `/metrics` est lisible sans clé** : le Prometheus de chaque équipe
-doit pouvoir le lire, et la route ne contient que des compteurs. Aucune
-plaque, aucun identifiant de véhicule : les routes sont comptées par leur
-modèle (`/api/v1/access/requests/{request_id}`), jamais par l'adresse reçue.
+**Pourquoi `/metrics` demande un jeton** : la route ne contient ni plaque ni
+identifiant, mais elle montre l'activité du parking (montant encaissé, refus
+par motif, véhicules présents), qui ne regarde pas tout Internet. Le jeton de
+lecture ne donne accès qu'à cette route : on peut le confier au Prometheus
+d'une autre équipe sans lui donner la clé d'exploitation. Les routes sont
+comptées par leur modèle (`/api/v1/access/requests/{request_id}`), jamais par
+l'adresse reçue.
 
 **Dans le code** : `src/infrastructure/metrics.py` (les compteurs),
 `src/interfaces/api/routers/metrics_router.py` (la route), et l'appel
@@ -240,7 +248,8 @@ ne connaissent pas Prometheus.
 |---|---|
 | `Docker ne répond pas` | Docker Desktop n'est pas démarré : le lancer et recommencer. |
 | `port is already allocated` | Le port 9090 (ou 3000 pour Grafana) est pris : arrêter l'autre programme. |
-| `access` est DOWN | Render l'a endormi ou le redéploie : attendre une minute. |
+| `access` est DOWN, erreur « 401 » | Le jeton manque ou est faux : `./demarrer.sh --jeton`. |
+| `access` est DOWN, autre erreur | Render l'a endormi ou le redéploie : attendre une minute. |
 | `access-local` reste DOWN | Access n'est pas lancé sur le port 8010 (étape 1 de la démonstration). |
 | Un graphique est vide | Laisser passer deux mesures (30 s), et vérifier la durée affichée. |
 | J'ai modifié `prometheus.yml` | Relancer `./demarrer.sh` : il reconstruit l'image et recrée le conteneur. |
