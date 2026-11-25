@@ -137,6 +137,12 @@ class Settings:
     borne_max_concurrent: int = int(os.getenv("BORNE_MAX_CONCURRENT", "8"))
     rate_limit_borne_parking: str = os.getenv("RATE_LIMIT_BORNE_PARKING", "30/minute")
     borne_parking_cache_s: float = float(os.getenv("BORNE_PARKING_CACHE_S", "10"))
+    # Promenade multijoueur du plan 3D (routes publiques /borne/promenade) :
+    # interrupteur, promeneurs en même temps, débit par adresse (large : une
+    # classe entière partage souvent la même adresse).
+    promenade_multi: bool = field(default_factory=lambda: _bool_env("PROMENADE_MULTI", True))
+    promenade_capacity: int = int(os.getenv("PROMENADE_CAPACITY", "60"))
+    rate_limit_promenade: str = os.getenv("RATE_LIMIT_PROMENADE", "2400/minute")
     # Code saisi par l'agent sur la borne pour valider un PMR (carte mobilité
     # inclusion vérifiée). Volontairement simple pour la démonstration.
     agent_code: str = os.getenv("AGENT_CODE", "123")

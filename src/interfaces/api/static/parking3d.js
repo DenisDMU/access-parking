@@ -14,6 +14,7 @@
    et des identifiants pseudonymisés. */
 
 import * as THREE from "./vendor/three-0.160.0.module.min.js";
+import { GAMES as MINI, startGame } from "./promenade-jeux.js?v=4.17.0";
 
 // --- Catégories de Parking → zones du plan -----------------------------------
 
@@ -379,12 +380,20 @@ const PANTS = ["#27408b", "#22252e", "#6b4a35", "#8b909c", "#3d8a3a", "#b23a48"]
 const HAIRS = ["#3b2a20", "#15161a", "#e3c26a", "#c2552d", "#b9bec9", "#f6a5c0", "#3f7fd9", "#3fa34d"];
 const HATS = [["none", "Aucun"], ["cap", "Casquette Access"], ["straw", "Chapeau de paille"]];
 const CUTS = [["short", "Courte"], ["bob", "Carré"], ["long", "Longue"], ["tail", "Queue-de-cheval"], ["twin", "Couettes"], ["bun", "Chignon"], ["afro", "Afro"], ["mohawk", "Crête"]];
+const SKINS = ["#f6d7bd", "#f0c9a4", "#dba97c", "#b97f55", "#8a5a3c", "#5c3b28"];
+/* Compagnons. `ears` : forme (cone, long, round, flop, none), rayon, hauteur,
+   inclinaison, écart. `tail` : longueur, angle, rayon. */
 const PETS = {
-  chihuahua: { name: "Chihuahua", fur: "#d9a066", ear: "#b07a45", muzzle: "#f0d9b5", scale: 1.4, ears: [0.11, 0.22, 0.45, 0.13], tail: [0.17, -0.6, 0.03], collar: "#e0283a", barks: ["Ouaf !", "Wif !", "Ouaf ouaf !", "Grrr… ouaf !", "Waf !"] },
-  chat: { name: "Chat", fur: "#9aa0a6", ear: "#7d848c", muzzle: "#f4f5f7", scale: 1.4, ears: [0.07, 0.1, 0.2, 0.075], tail: [0.34, -0.9, 0.035], eye: "#3fa34d", wag: 0.25, barks: ["Miaou !", "Mrrr…", "Miaou ?"] },
-  shiba: { name: "Shiba", fur: "#d98a3d", ear: "#b86f2c", muzzle: "#fdf6e3", scale: 1.95, ears: [0.07, 0.11, 0.12, 0.075], tail: [0.16, 0.5, 0.05], chest: true, collar: "#1e66f5", barks: ["Wouf !", "Ouaf ouaf !", "Wouf wouf !"] },
-  lapin: { name: "Lapin", fur: "#f4f5f7", ear: "#f6c1cf", muzzle: "#f4f5f7", scale: 1.5, ears: [0.05, 0.26, 0.08, 0.055], tail: [0.06, 0, 0.07], hop: true, wag: 0, barks: ["Pouic !", "Snif snif.", "…"] },
-  renard: { name: "Renard", fur: "#e2711d", ear: "#22252e", muzzle: "#fdf6e3", scale: 1.65, ears: [0.08, 0.14, 0.15, 0.08], tail: [0.36, -0.25, 0.08], tip: "#fdf6e3", chest: true, wag: 0.3, barks: ["Yip !", "Glap glap !", "Yip yip !"] },
+  chihuahua: { name: "Chihuahua", fur: "#d9a066", ear: "#b07a45", muzzle: "#f0d9b5", scale: 1.4, ears: ["cone", 0.07, 0.2, 0.5, 0.085], tail: [0.13, -0.6, 0.018], collar: "#e0283a", barks: ["Ouaf !", "Wif !", "Ouaf ouaf !", "Grrr… ouaf !", "Waf !"] },
+  chat: { name: "Chat", fur: "#9aa0a6", ear: "#7d848c", muzzle: "#f4f5f7", scale: 1.4, ears: ["cone", 0.045, 0.09, 0.25, 0.065], tail: [0.28, -0.9, 0.02], eye: "#3fa34d", wag: 0.25, barks: ["Miaou !", "Mrrr…", "Miaou ?"] },
+  shiba: { name: "Shiba", fur: "#d98a3d", ear: "#b86f2c", muzzle: "#fdf6e3", scale: 1.9, ears: ["cone", 0.045, 0.1, 0.15, 0.065], tail: [0.12, 0.6, 0.035], chest: true, collar: BRAND, barks: ["Wouf !", "Ouaf ouaf !", "Wouf wouf !"] },
+  lapin: { name: "Lapin", fur: "#f4f5f7", ear: "#f6c1cf", muzzle: "#f4f5f7", scale: 1.5, ears: ["long", 0.028, 0.2, 0.1, 0.045], tail: [0.01, 0, 0.045], hop: true, wag: 0, barks: ["Pouic !", "Snif snif.", "…"] },
+  renard: { name: "Renard", fur: "#e2711d", ear: "#22252e", muzzle: "#fdf6e3", scale: 1.65, ears: ["cone", 0.05, 0.13, 0.2, 0.07], tail: [0.26, -0.3, 0.055], tip: "#fdf6e3", chest: true, wag: 0.3, barks: ["Yip !", "Glap glap !", "Yip yip !"] },
+  cochon: { name: "Cochon", fur: "#f7a8b8", ear: "#e88aa0", muzzle: "#f7a8b8", snout: "#e0788f", scale: 1.6, ears: ["flop", 0.045, 0, 0, 0.08], tail: [0.05, -0.4, 0.014], wag: 0.9, barks: ["Groin !", "Gruik gruik !", "Rrrron…"] },
+  panda: { name: "Panda", fur: "#f4f5f7", ear: "#22252e", muzzle: "#f4f5f7", patch: "#22252e", legs: "#22252e", scale: 1.8, ears: ["round", 0.04, 0, 0, 0.075], tail: [0.01, 0, 0.035], wag: 0, barks: ["Crunch.", "Mmmh…", "On mange quand ?"] },
+  mouton: { name: "Mouton", fur: "#3b3b3b", wool: "#fdf6e3", ear: "#3b3b3b", muzzle: "#3b3b3b", scale: 1.7, ears: ["flop", 0.035, 0, 0, 0.095], tail: [0.01, 0, 0.04], wag: 0, barks: ["Bêêê !", "Mêêê.", "Bê ?"] },
+  tortue: { name: "Tortue", une: true, fur: "#8fbf6a", shell: "#4f7942", ear: "#8fbf6a", muzzle: "#8fbf6a", scale: 1.35, ears: ["none"], tail: [0.04, -1.2, 0.015], wag: 0.1, barks: ["…", "Doucement.", "J'arrive !"] },
+  canard: { name: "Canard", fur: "#ffd60a", ear: "#f2b01e", muzzle: "#ffd60a", beak: "#fe640b", legs: "#fe640b", scale: 1.5, ears: ["none"], tail: [0.05, -0.9, 0.03], wag: 0.8, barks: ["Coin !", "Coin coin !", "Couac ?"] },
 };
 // Stands de la fête : enseigne, invite, répliques.
 const STALLS = [
@@ -418,11 +427,12 @@ const STAMPS = [
   ["ami", "Choisir un compagnon", "À l'animalerie du village."],
   ["fete", "Frapper la grosse caisse de la fête", "Sur la place aux guirlandes, derrière la rue."],
   ["chance", "Tirer un ticket chance", "Au belvédère : une prédiction sur ticket."],
+  ["station", "S'arrêter à la Station Access", "Sur la route du village : jouez au plein pile."],
 ];
 // Tenue, coiffure, compagnon et carnet : gardés sur l'appareil, rien n'est envoyé.
 const LOOK_KEY = "access.plan3d.look";
 const CARNET_KEY = "access.plan3d.carnet";
-const LOOK_DEFAULT = { top: TOPS[0], pants: PANTS[0], hair: HAIRS[0], hat: "none", cut: "short", pack: true, pet: "chihuahua" };
+const LOOK_DEFAULT = { top: TOPS[0], pants: PANTS[0], hair: HAIRS[0], skin: SKINS[1], hat: "none", cut: "short", pack: true, pet: "chihuahua" };
 function loadLook() {
   const look = Object.assign({}, LOOK_DEFAULT);
   try {
@@ -431,6 +441,7 @@ function loadLook() {
     if (TOPS.includes(raw.top)) look.top = raw.top;
     if (PANTS.includes(raw.pants)) look.pants = raw.pants;
     if (HAIRS.includes(raw.hair)) look.hair = raw.hair;
+    if (SKINS.includes(raw.skin)) look.skin = raw.skin;
     if (HATS.some((h) => h[0] === raw.hat)) look.hat = raw.hat;
     if (CUTS.some((c) => c[0] === raw.cut)) look.cut = raw.cut;
     if (typeof raw.pack === "boolean") look.pack = raw.pack;
@@ -438,18 +449,81 @@ function loadLook() {
   } catch (err) { /* stockage indisponible : tenue par défaut */ }
   return look;
 }
-function loadCarnet() {
-  const done = new Set();
+/* Progression : tampons, succès, records et compteurs. Relue avec prudence :
+   seuls les identifiants connus et les nombres bornés sont repris. */
+function loadProgress() {
+  const p = { stamps: new Set(), wins: new Set(), best: {}, km: 0, jumps: 0, pets: [], cuts: [], played: [], day: "", gold: 0, goldDay: "" };
   try {
-    const raw = JSON.parse(window.localStorage.getItem(CARNET_KEY) || "[]");
-    if (Array.isArray(raw)) raw.forEach((id) => { if (STAMPS.some((st) => st[0] === id)) done.add(id); });
-  } catch (err) { /* stockage indisponible : carnet vierge */ }
-  return done;
+    const raw = JSON.parse(window.localStorage.getItem(CARNET_KEY) || "{}");
+    const src = Array.isArray(raw) ? { stamps: raw } : raw || {};
+    if (Array.isArray(src.stamps)) src.stamps.forEach((id) => { if (STAMPS.some((st) => st[0] === id)) p.stamps.add(id); });
+    if (Array.isArray(src.wins)) src.wins.forEach((id) => { if (WINS.some((w) => w[0] === id)) p.wins.add(id); });
+    Object.keys(GOALS).forEach((game) => {
+      const v = src.best && src.best[game];
+      if (Number.isFinite(v)) p.best[game] = clamp(Math.round(v), 0, 100);
+    });
+    if (Number.isFinite(src.km)) p.km = clamp(src.km, 0, 1e5);
+    if (Number.isFinite(src.jumps)) p.jumps = clamp(Math.round(src.jumps), 0, 1e6);
+    ["pets", "cuts", "played"].forEach((k) => {
+      if (Array.isArray(src[k])) p[k] = src[k].filter((v) => typeof v === "string" && /^[a-z]{1,12}$/.test(v)).slice(0, 24);
+    });
+    if (typeof src.day === "string" && /^\d{4}-\d{2}-\d{2}$/.test(src.day)) p.day = src.day;
+    if (typeof src.goldDay === "string" && /^\d{4}-\d{2}-\d{2}$/.test(src.goldDay)) p.goldDay = src.goldDay;
+    if (Number.isFinite(src.gold)) p.gold = clamp(Math.round(src.gold), 0, 9999);
+  } catch (err) { /* stockage indisponible : on repart de zéro */ }
+  return p;
+}
+// Jeton aléatoire du promeneur : le serveur en tire son pseudo, toujours le même sur cet appareil.
+function playerToken() {
+  try {
+    const kept = window.localStorage.getItem(PLAYER_KEY) || "";
+    if (/^"?[0-9a-f]{32}"?$/.test(kept)) return kept.replace(/"/g, "");
+  } catch (err) { /* stockage indisponible : jeton le temps de la visite */ }
+  const bytes = new Uint8Array(16);
+  if (window.crypto && window.crypto.getRandomValues) window.crypto.getRandomValues(bytes);
+  else for (let i = 0; i < 16; i++) bytes[i] = Math.floor(Math.random() * 256);
+  const token = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  store(PLAYER_KEY, token);
+  return token;
 }
 function store(key, value) {
   try { window.localStorage.setItem(key, JSON.stringify(value)); } catch (err) { /* non bloquant */ }
 }
 const FIREWORKS = ["#ff5d8f", "#ffd166", "#7bdff2", "#b8f2a0", "#f7aef8", "#ffffff", "#ff9f1c"];
+// Mini-jeux : stand de la fête → jeu, et score à atteindre pour le succès du même nom.
+const STALL_GAMES = ["crepes", "frites", "barbe", "canards"];
+const GOALS = { canards: 15, crepes: 80, frites: 25, barbe: 100, tambour: 8, plein: 95, creneau: 80 };
+const GAME_NAMES = { canards: "Pêche aux canards", crepes: "Crêpes", frites: "Frites", barbe: "Barbe à papa", tambour: "Grosse caisse", plein: "Le plein pile", creneau: "Le créneau parfait" };
+// Succès : ce qu'on gagne en jouant. Le dernier récompense tous les autres.
+const WINS = [
+  ["carnet", "Carnet complet", "Obtenir tous les tampons du carnet."],
+  ["km", "Rouleur", "Parcourir 1 km au volant."],
+  ["bolide", "Pied au plancher", "Atteindre la vitesse maximale d'un véhicule."],
+  ["creneau", "Créneau parfait", "80 / 100 sur la place d'entraînement de la station."],
+  ["kangourou", "Kangourou", "Sauter 25 fois."],
+  ["zoo", "Ami des bêtes", "Se promener avec 5 compagnons différents."],
+  ["coiffe", "Tête d'affiche", "Essayer 4 coupes de cheveux."],
+  ["nuit", "Oiseau de nuit", "Se promener de nuit."],
+  ["photo", "Photographe", "Prendre une photo souvenir."],
+  ["canards", "Roi de la mare", "Pêcher 15 canards."],
+  ["crepes", "Chef crêpier", "80 points au stand de crêpes."],
+  ["frites", "Cornet plein", "Rattraper 25 frites."],
+  ["barbe", "Nuage de sucre", "Une barbe à papa énorme : 100 points."],
+  ["tambour", "Sens du rythme", "Tenir 8 tours à la grosse caisse."],
+  ["plein", "Le plein pile", "95 / 100 à la pompe de la station."],
+  ["tournee", "Tournée des stands", "Jouer aux six mini-jeux."],
+  ["chance", "Verni", "Tirer une « Grande chance » au belvédère."],
+  ["rencontre", "Bonjour voisin", "Croiser un autre promeneur."],
+  ["coucou", "Poli", "Saluer un autre promeneur (touches 1 à 4)."],
+  ["foule", "Il y a du monde", "Être au moins trois promeneurs en même temps."],
+  ["fidele", "Client fidèle", "Revenir se promener un autre jour."],
+  ["or", "Chercheur d'or", "Trouver le ticket d'or du jour : il change de cachette chaque jour."],
+  ["collection", "Collectionneur", "Trouver 5 tickets d'or, un par jour."],
+  ["legende", "Légende de Bonneplace", "Obtenir tous les autres succès."],
+];
+const RANKS = [[0, "Visiteur"], [4, "Habitué"], [9, "Citoyen de Bonneplace"], [16, "Pilier du parking"], [23, "Légende de Bonneplace"]];
+const EMOTES = ["Coucou !", "Bravo !", "On fait la course ?", "Suivez-moi !"];
+const PLAYER_KEY = "access.plan3d.joueur";
 const ROOF_TILES = ["#c8553d", "#2f4a7a", "#b5482f", "#3d5a80", "#a8452f", "#8a3b2e"];
 const FACADES = ["#ffffff", "#ffe9c9", "#dcebff", "#ffe1e7", "#e2f3da", "#fff3c4"];
 const FLOWERS = ["#04a5e5", "#40a02b", "#df8e1d", "#7287fd", "#fe640b", "#f6a5c0", "#ffd60a", "#f4f5f7"];
@@ -575,9 +649,9 @@ const CSS = `
 .p3d { position: relative; width: 100%; height: clamp(440px, 68vh, 780px); border-radius: 18px; overflow: hidden;
   background: #cfe9ff; isolation: isolate; user-select: none; -webkit-user-select: none; touch-action: none; }
 .p3d:fullscreen { height: 100vh; border-radius: 0; }
-.p3d canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; outline: none; }
-.p3d canvas.dragging { cursor: grabbing; }
-.p3d canvas.pointing { cursor: pointer; }
+.p3d > canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; outline: none; }
+.p3d > canvas.dragging { cursor: grabbing; }
+.p3d > canvas.pointing { cursor: pointer; }
 .p3d-layer { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 .p3d-tag { position: absolute; left: 0; top: 0; transform: translate(-50%, -100%); white-space: nowrap;
   display: flex; align-items: center; gap: 8px; padding: 5px 10px 5px 8px; border-radius: 999px;
@@ -673,6 +747,15 @@ const CSS = `
 .p3d.walking .p3d-carnet { display: inline-flex; }
 .p3d-carnet span { font-variant-numeric: tabular-nums; opacity: .92; }
 .p3d-carnet.p3d-photo { top: 104px; background: rgba(24,24,37,.86); }
+.p3d-carnet.p3d-hello { top: 144px; background: rgba(24,24,37,.86); }
+.p3d-online { left: 14px; top: 84px; padding: 7px 12px; display: none; align-items: center; gap: 8px; font-weight: 700; font-size: 12.5px; white-space: nowrap; }
+.p3d.walking .p3d-online.on, .p3d-online.watch { display: flex; }
+.p3d-online i { width: 9px; height: 9px; border-radius: 50%; background: #40a02b; box-shadow: 0 0 0 4px rgba(64,160,43,.25); }
+.p3d-online span { font-weight: 500; color: var(--subtext, #6c6f85); }
+.p3d-tag.who { background: rgba(30,102,245,.92); font-weight: 700; }
+.p3d-stamps li.win.done i { border-color: #f2b01e; background: #f2b01e; transform: none; }
+.p3d-stamps li.win.done b { text-decoration: none; }
+.p3d-panel table.p3d-scores td:last-child { color: var(--subtext, #6c6f85); }
 .p3d-panel img { display: block; width: 100%; border-radius: 12px; margin: 10px 0 4px; }
 .p3d-panel a.p3d-save { display: inline-block; margin-top: 6px; font-weight: 700; color: var(--blue, #1e66f5); }
 .p3d-panel p.p3d-lead { margin: 8px 0 4px; font-size: 14px; color: var(--text, #4c4f69); }
@@ -697,7 +780,7 @@ const CSS = `
   -webkit-tap-highlight-color: transparent; touch-action: none; }
 @media (pointer: coarse) { .p3d.walking .p3d-act { display: grid; } }
 .p3d-tag.bubble { background: #fff; color: #11111b; border-color: rgba(17,17,27,.18); font-weight: 800; }
-.p3d.walking canvas { cursor: crosshair; }
+.p3d.walking > canvas { cursor: crosshair; }
 .p3d.walking .p3d-legend { opacity: .92; }
 .p3d-fail { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center;
   color: var(--text, #4c4f69); background: var(--mantle, #e6e9ef); font: 600 15px/1.4 system-ui, sans-serif; }
@@ -724,6 +807,9 @@ const CSS = `
   .p3d-prompt { bottom: 84px; font-size: 14px; }
   .p3d-carnet { right: 10px; top: 98px; padding: 7px 11px; font-size: 12px; }
   .p3d-carnet.p3d-photo { top: 134px; }
+  .p3d-carnet.p3d-hello { top: 170px; }
+  .p3d-online { left: 10px; top: 98px; font-size: 11.5px; padding: 6px 10px; }
+  .p3d.walking .p3d-toast { top: 134px; }
   .p3d-toast { top: 98px; font-size: 12.5px; max-width: calc(100% - 130px); left: 10px; transform: none; text-align: left; }
   .p3d-panel { top: 10px; transform: translateX(-50%); max-height: calc(100% - 106px); }
   .p3d-panel.side { left: 10px; right: 10px; top: auto; bottom: 94px; transform: none; width: auto; max-height: 48%; padding: 14px; }
@@ -834,7 +920,7 @@ export function createParking3D(container, options) {
   tip.append(tipTitle, tipSub, tipMore);
   const hint = elem("div", "p3d-card p3d-hint", "Glisser : tourner · Molette : zoom · Clic droit ou Maj : déplacer");
   const HINT_ORBIT = hint.textContent;
-  const HINT_WALK = "ZQSD : marcher · Maj : courir · Espace : sauter · E : interagir · F : compagnon · C : carnet · P : photo · Échap : quitter";
+  const HINT_WALK = "ZQSD : marcher · Maj : courir · Espace : sauter · E : interagir · F : compagnon · 1-4 : saluer · C : carnet · P : photo · Échap : quitter";
   const HINT_DRIVE = "Z : accélérer · S : freiner, reculer · Q D : tourner · Espace : frein à main · E : descendre · Échap : quitter";
   const speedo = elem("div", "p3d-card p3d-speed");
   const speedoValue = elem("b", null, "0");
@@ -863,12 +949,19 @@ export function createParking3D(container, options) {
   const photoBtn = elem("button", "p3d-carnet p3d-photo", "Photo");
   photoBtn.type = "button";
   photoBtn.title = "Photo souvenir (P)";
+  const helloBtn = elem("button", "p3d-carnet p3d-hello", "Coucou");
+  helloBtn.type = "button";
+  helloBtn.title = "Saluer les autres promeneurs (touches 1 à 4)";
+  const onlineBox = elem("div", "p3d-card p3d-online");
+  const onlineName = elem("b");
+  const onlineCount = elem("span");
+  onlineBox.append(elem("i"), onlineName, onlineCount);
   const toastBox = elem("div", "p3d-card p3d-toast");
   toastBox.setAttribute("role", "status");
   const joy = elem("div", "p3d-joy");
   const joyKnob = elem("i");
   joy.appendChild(joyKnob);
-  container.append(labelLayer, head, tools, legend, hint, here, prompt, joy, speedo, actBtn, carnetBtn, photoBtn, toastBox, panel, tip);
+  container.append(labelLayer, head, tools, legend, hint, here, prompt, joy, speedo, actBtn, carnetBtn, photoBtn, helloBtn, onlineBox, toastBox, panel, tip);
 
   function toolButton(label, title, onClick, pressed) {
     const b = elem("button", null, label);
@@ -1113,7 +1206,8 @@ export function createParking3D(container, options) {
     y: 0, vy: 0, // saut
     drive: null, look: 0, fov: 58, // véhicule conduit, dernière fois qu'on a tourné la caméra
     yaw: 0, pitch: 0.4, dist: 7.5, keys: {}, joy: null, near: null, zone: null, panel: false,
-    say: 0, toast: 0, met: false, // bulle du promeneur, message du carnet, accueil déjà affiché
+    say: 0, toast: 0, met: false, zoom: null,
+    game: null, parked: false, fuel: 0, saveIn: 20, // mini-jeu en cours, créneau jugé, pompe utilisée, sauvegarde // bulle du promeneur, message du carnet, accueil déjà affiché
     dog: { x: SPAWN.x + 0.9, z: SPAWN.z - 0.5, y: 0, vy: 0, rot: 0, phase: 0, speed: 0, bark: 0, next: 5, tx: null, tz: null, roam: 0 },
   };
   function limb(parts) {
@@ -1128,77 +1222,104 @@ export function createParking3D(container, options) {
     parent.add(g);
     return g;
   }
+  // Formes arrondies : gélule, sphère, tronc de cône.
+  const caps = (r, len, color, t) => part(new THREE.CapsuleGeometry(r, len, 4, 10), color, t);
+  const orb = (r, color, t) => part(new THREE.SphereGeometry(r, 16, 12), color, t);
+  const tube = (r1, r2, len, color, t) => part(new THREE.CylinderGeometry(r1, r2, len, 16), color, t);
+  const shade = (color, k) => "#" + new THREE.Color(color).multiplyScalar(k).getHexString();
+  /* Un personnage : buste, bassin, cou, tête ovale avec un vrai visage (yeux,
+     sourcils, nez, bouche, oreilles), bras et jambes arrondis, mains,
+     chaussures. Les cheveux sont des volumes posés sur le crâne : chaque coupe
+     se reconnaît de face comme de dos. */
   function buildPerson(c) {
     const root = new THREE.Group(), body = new THREE.Group();
     root.add(body);
-    const hat = c.cap ? "cap" : c.hat || "none", cut = c.cut || "short", h = c.hair;
+    const hat = c.cap ? "cap" : c.hat || "none", cut = c.cut || "short", h = c.hair, bare = hat === "none";
     const parts = [
-      box(0.48, 0.62, 0.28, c.top, { y: 1.06 }),
-      box(0.5, 0.1, 0.3, c.hem || c.top, { y: 0.78 }),
-      box(0.3, 0.3, 0.3, c.skin, { y: 1.56 }), // tête
-      box(0.06, 0.05, 0.02, "#22252e", { x: -0.075, y: 1.58, z: 0.155 }),
-      box(0.06, 0.05, 0.02, "#22252e", { x: 0.075, y: 1.58, z: 0.155 }),
+      tube(0.215, 0.176, 0.5, c.top, { y: 1.14, sz: 0.62 }), // buste
+      orb(0.215, c.top, { y: 1.385, sy: 0.3, sz: 0.62 }), // épaules
+      tube(0.177, 0.178, 0.09, c.hem || c.top, { y: 0.865, sz: 0.64 }),
+      tube(0.172, 0.165, 0.13, c.pants, { y: 0.785, sz: 0.66 }), // bassin
+      tube(0.055, 0.06, 0.1, c.skin, { y: 1.455 }), // cou
+      orb(0.155, c.skin, { y: 1.6, sy: 1.12 }), // tête
+      orb(0.022, c.skin, { y: 1.585, z: 0.155 }), // nez
+      box(0.056, 0.015, 0.02, "#b5546a", { y: 1.532, z: 0.143 }), // bouche
     ];
-    const bare = hat === "none";
+    [-1, 1].forEach((sx) => {
+      parts.push(orb(0.03, c.skin, { x: sx * 0.152, y: 1.6, sy: 1.4, sz: 0.7 })); // oreille
+      parts.push(orb(0.027, "#ffffff", { x: sx * 0.058, y: 1.622, z: 0.142, sz: 0.6 }));
+      parts.push(orb(0.015, "#22252e", { x: sx * 0.058, y: 1.622, z: 0.153, sz: 0.6 }));
+      parts.push(box(0.055, 0.013, 0.02, shade(h, 0.7), { x: sx * 0.058, y: 1.666, z: 0.147, rz: sx * 0.07 })); // sourcil
+      parts.push(box(0.03, 0.014, 0.02, "#b5546a", { x: sx * 0.04, y: 1.541, z: 0.14, rz: sx * 0.55 })); // coin du sourire
+    });
+    // La coupe de cheveux. Sous un chapeau, le dessus disparaît mais le reste se voit.
+    const scalp = () => parts.push(orb(0.168, h, { y: 1.64, z: -0.03 }));
+    const fringe = () => { if (bare) parts.push(orb(0.075, h, { y: 1.722, z: 0.085, sx: 1.7, sy: 0.5, rx: 0.5 })); };
+    if (cut === "mohawk") {
+      parts.push(orb(0.158, shade(c.skin, 0.82), { y: 1.63, z: -0.02 })); // tempes rasées
+      if (bare) for (let k = 0; k < 6; k++) {
+        parts.push(part(new THREE.ConeGeometry(0.042, 0.22, 6), h, { y: 1.84 - k * k * 0.006, z: 0.1 - k * 0.048, rx: 0.3 - k * 0.13 }));
+      }
+    } else if (cut === "afro") {
+      if (bare) parts.push(orb(0.225, h, { y: 1.73, z: -0.07 }));
+      else { scalp(); [-1, 1].forEach((sx) => parts.push(orb(0.11, h, { x: sx * 0.17, y: 1.6, z: -0.05 }))); }
+    } else {
+      scalp();
+      if (cut === "short" || cut === "bob" || cut === "tail" || cut === "twin") fringe();
+      if (cut === "bob") parts.push(orb(0.185, h, { y: 1.57, z: -0.045, sy: 0.85 }));
+      if (cut === "long") {
+        parts.push(tube(0.15, 0.17, 0.46, h, { y: 1.38, z: -0.085, sz: 0.55 }));
+        [-1, 1].forEach((sx) => parts.push(caps(0.04, 0.26, h, { x: sx * 0.15, y: 1.43, z: 0.03 })));
+      }
+      if (cut === "bun") parts.push(orb(0.085, h, bare ? { y: 1.82, z: -0.07 } : { y: 1.6, z: -0.2 }));
+      if (cut === "tail") {
+        parts.push(orb(0.04, BRAND, { y: 1.7, z: -0.17 })); // l'élastique
+        parts.push(caps(0.045, 0.3, h, { y: 1.5, z: -0.24, rx: -0.3 }));
+      }
+      if (cut === "twin") [-1, 1].forEach((sx) => {
+        parts.push(orb(0.035, BRAND, { x: sx * 0.165, y: 1.66 }));
+        parts.push(caps(0.045, 0.22, h, { x: sx * 0.22, y: 1.5, rz: sx * 0.3 }));
+      });
+    }
     if (hat === "cap") {
       const color = c.cap || BRAND;
-      parts.push(box(0.36, 0.13, 0.36, color, { y: 1.75 }));
-      parts.push(box(0.3, 0.035, 0.18, color, { y: 1.705, z: 0.24 })); // visière
+      parts.push(orb(0.178, color, { y: 1.72, sy: 0.75 }));
+      parts.push(orb(0.11, color, { y: 1.705, z: 0.19, sy: 0.12, sz: 1.1, rx: 0.12 })); // visière
     } else if (hat === "straw") {
-      parts.push(cyl(0.42, 0.035, "#e8cf8a", { y: 1.725 }, 14)); // large bord
-      parts.push(cyl(0.2, 0.15, "#e8cf8a", { y: 1.81 }, 14));
-      parts.push(cyl(0.205, 0.045, BRAND, { y: 1.76 }, 14)); // ruban
+      parts.push(tube(0.36, 0.36, 0.025, "#e8cf8a", { y: 1.715 })); // large bord
+      parts.push(tube(0.17, 0.186, 0.13, "#e8cf8a", { y: 1.79 }));
+      parts.push(tube(0.188, 0.188, 0.04, BRAND, { y: 1.745 })); // ruban
     }
-    /* La coupe de cheveux. Sous un chapeau, le dessus disparaît mais la nuque,
-       les mèches et les couettes restent visibles. */
-    const top = (w, hh, d, y, z) => { if (bare) parts.push(box(w, hh, d, h, { y, z: z || 0 })); };
-    const nape = (len) => parts.push(box(0.34, len, 0.1, h, { y: 1.73 - len / 2, z: -0.13 }));
-    const fringe = () => { if (bare) parts.push(box(0.32, 0.07, 0.04, h, { y: 1.685, z: 0.16 })); };
-    const sides = (len) => [-1, 1].forEach((sx) => parts.push(box(0.05, len, 0.26, h, { x: sx * 0.17, y: 1.71 - len / 2, z: -0.03 })));
-    if (cut === "mohawk") {
-      top(0.34, 0.03, 0.34, 1.725);
-      top(0.09, 0.28, 0.4, 1.86, -0.01); // la crête
-      if (!bare) nape(0.1);
-    } else if (cut === "afro") {
-      top(0.5, 0.36, 0.48, 1.84, -0.02);
-      [-1, 1].forEach((sx) => parts.push(box(0.1, 0.3, 0.4, h, { x: sx * 0.2, y: 1.62, z: -0.04 })));
-      nape(0.34);
-    } else {
-      top(0.34, 0.12, 0.34, 1.74);
-      if (cut === "short") { nape(0.22); fringe(); }
-      if (cut === "bob") { nape(0.36); sides(0.34); fringe(); }
-      if (cut === "long") { nape(0.62); sides(0.56); }
-      if (cut === "bun") { nape(0.2); parts.push(box(0.18, 0.18, 0.18, h, bare ? { y: 1.88, z: -0.06 } : { y: 1.6, z: -0.25 })); }
-      if (cut === "tail") {
-        nape(0.2); fringe();
-        parts.push(box(0.1, 0.1, 0.1, BRAND, { y: 1.68, z: -0.22 })); // l'élastique
-        parts.push(box(0.11, 0.42, 0.1, h, { y: 1.48, z: -0.27, rx: -0.25 }));
-      }
-      if (cut === "twin") {
-        nape(0.2); fringe();
-        [-1, 1].forEach((sx) => {
-          parts.push(box(0.07, 0.07, 0.09, BRAND, { x: sx * 0.2, y: 1.66, z: -0.02 }));
-          parts.push(box(0.1, 0.34, 0.1, h, { x: sx * 0.25, y: 1.47, z: -0.02, rz: sx * 0.25 }));
-        });
-      }
+    if (c.pack) {
+      parts.push(box(0.3, 0.36, 0.13, c.pack, { y: 1.14, z: -0.2 }));
+      parts.push(orb(0.15, c.pack, { y: 1.32, z: -0.2, sy: 0.5, sz: 0.44 }));
+      [-1, 1].forEach((sx) => parts.push(box(0.04, 0.42, 0.02, shade(c.pack, 0.75), { x: sx * 0.12, y: 1.2, z: 0.135 })));
     }
-    if (c.pack) parts.push(box(0.36, 0.44, 0.16, c.pack, { y: 1.1, z: -0.21 }));
-    if (c.vest) [0.96, 1.2].forEach((y) => parts.push(box(0.5, 0.06, 0.3, "#d5d8de", { y }))); // bandes réfléchissantes
+    if (c.vest) [1.02, 1.24].forEach((y) => parts.push(tube(0.22, 0.212, 0.05, "#d5d8de", { y, sz: 0.63 }))); // bandes réfléchissantes
     body.add(limb(parts));
-    const leg = () => [box(0.19, 0.6, 0.22, c.pants, { y: -0.3 }), box(0.2, 0.14, 0.3, c.shoes, { y: -0.68, z: 0.04 })];
-    const arm = () => [box(0.14, 0.5, 0.16, c.sleeve || c.top, { y: -0.25 }), box(0.12, 0.12, 0.14, c.skin, { y: -0.56 })];
+    const leg = () => [caps(0.078, 0.5, c.pants, { y: -0.36 }), orb(0.085, c.shoes, { y: -0.735, z: 0.045, sy: 0.62, sz: 1.55 })];
+    const arm = () => [caps(0.058, 0.2, c.sleeve || c.top, { y: -0.14 }), caps(0.046, 0.2, c.sleeve || c.skin, { y: -0.38 }), orb(0.052, c.skin, { y: -0.56 })];
     return {
       root, body,
-      legL: pivot(body, -0.12, 0.76, 0, leg()), legR: pivot(body, 0.12, 0.76, 0, leg()),
-      armL: pivot(body, -0.31, 1.32, 0, arm()), armR: pivot(body, 0.31, 1.32, 0, arm()),
+      legL: pivot(body, -0.095, 0.8, 0, leg()), legR: pivot(body, 0.095, 0.8, 0, leg()),
+      armL: pivot(body, -0.262, 1.365, 0, arm()), armR: pivot(body, 0.262, 1.365, 0, arm()),
     };
   }
   // Le promeneur : sa tenue se choisit dans les boutiques du village (voir `openShop`).
   const look = loadLook();
-  const carnet = loadCarnet();
+  const progress = loadProgress();
+  const carnet = progress.stamps;
+  function saveProgress() {
+    store(CARNET_KEY, {
+      stamps: Array.from(progress.stamps), wins: Array.from(progress.wins), best: progress.best,
+      km: Math.round(progress.km * 1000) / 1000, jumps: progress.jumps,
+      pets: progress.pets, cuts: progress.cuts, played: progress.played, day: progress.day,
+      gold: progress.gold, goldDay: progress.goldDay,
+    });
+  }
   let bareHead = false; // chez le coiffeur, le chapeau se pose le temps de la coupe
   const playerLook = () => ({
-    top: look.top, hem: "#" + new THREE.Color(look.top).multiplyScalar(0.72).getHexString(), skin: "#f0c9a4", hair: look.hair,
+    top: look.top, hem: shade(look.top, 0.72), skin: look.skin, hair: look.hair,
     pants: look.pants, shoes: "#f4f5f7", pack: look.pack ? "#f2b01e" : null, hat: bareHead ? "none" : look.hat, cut: look.cut,
   });
   const player = buildPerson(playerLook());
@@ -1232,51 +1353,60 @@ export function createParking3D(container, options) {
     const root = new THREE.Group(), body = new THREE.Group();
     root.add(body);
     root.scale.setScalar(p.scale);
-    const torso = [box(0.17, 0.16, 0.36, p.fur, { y: 0.25 })];
-    if (p.collar) torso.push(box(0.19, 0.045, 0.06, p.collar, { y: 0.31, z: 0.16 }));
-    if (p.chest) torso.push(box(0.13, 0.1, 0.12, p.muzzle, { y: 0.2, z: 0.13 }));
+    const legColor = p.legs || p.fur, e = p.ears, eye = p.eye || "#15161a";
+    const torso = [caps(p.wool ? 0.13 : 0.085, p.wool ? 0.12 : 0.19, p.wool || p.fur, { y: 0.25, rx: Math.PI / 2 })];
+    if (p.shell) torso.push(orb(0.15, p.shell, { y: 0.3, sy: 0.75, sz: 1.2 }));
+    if (p.collar) torso.push(tube(0.078, 0.078, 0.035, p.collar, { y: 0.27, z: 0.15, rx: Math.PI / 2 }));
+    if (p.chest) torso.push(orb(0.07, p.muzzle, { y: 0.22, z: 0.13 }));
+    if (p.beak) [-1, 1].forEach((sx) => torso.push(orb(0.07, p.ear, { x: sx * 0.085, y: 0.27, sx: 0.35, sz: 1.5 }))); // ailes
     body.add(limb(torso));
-    const e = p.ears, eye = p.eye || "#15161a", earY = 0.12 + e[1] / 2;
-    const headG = pivot(body, 0, 0.34, 0.2, [
-      box(0.2, 0.18, 0.18, p.fur, { y: 0.06, z: 0.04 }),
-      box(0.1, 0.08, 0.1, p.muzzle, { y: 0.02, z: 0.17 }),
-      box(0.04, 0.035, 0.03, "#15161a", { y: 0.05, z: 0.225 }),
-      box(0.05, 0.06, 0.02, eye, { x: -0.055, y: 0.1, z: 0.135 }),
-      box(0.05, 0.06, 0.02, eye, { x: 0.055, y: 0.1, z: 0.135 }),
-      box(e[0], e[1], 0.03, p.ear, { x: -e[3], y: earY, z: 0.02, rz: e[2] }),
-      box(e[0], e[1], 0.03, p.ear, { x: e[3], y: earY, z: 0.02, rz: -e[2] }),
-    ]);
-    const paw = () => [box(0.045, 0.17, 0.045, p.fur, { y: -0.085 })];
-    const legs = [
-      pivot(body, -0.06, 0.17, 0.13, paw()), pivot(body, 0.06, 0.17, 0.13, paw()),
-      pivot(body, -0.06, 0.17, -0.13, paw()), pivot(body, 0.06, 0.17, -0.13, paw()),
-    ];
-    const t = p.tail, tailParts = [box(t[2], t[0], t[2], p.fur, { y: t[0] / 2 })];
-    if (p.tip) tailParts.push(box(t[2] + 0.006, t[0] * 0.32, t[2] + 0.006, p.tip, { y: t[0] * 0.85 }));
-    const tail = pivot(body, 0, 0.31, -0.18, tailParts);
+    const head = [orb(0.1, p.fur, { y: 0.07, z: 0.05 })];
+    if (p.beak) head.push(orb(0.045, p.beak, { y: 0.045, z: 0.16, sy: 0.45, sz: 1.3 }));
+    else {
+      head.push(orb(0.052, p.muzzle, { y: 0.035, z: 0.13, sz: 1.25 }));
+      head.push(orb(0.02, p.snout || "#15161a", p.snout ? { y: 0.04, z: 0.19, sx: 1.7, sy: 1.3 } : { y: 0.055, z: 0.19 }));
+    }
+    [-1, 1].forEach((sx) => {
+      if (p.patch) head.push(orb(0.032, p.patch, { x: sx * 0.045, y: 0.095, z: 0.122, sz: 0.5 }));
+      head.push(orb(0.017, eye, { x: sx * 0.045, y: 0.1, z: 0.135, sz: 0.6 }));
+      head.push(orb(0.006, "#ffffff", { x: sx * 0.041, y: 0.106, z: 0.146 })); // reflet
+      if (e[0] === "cone") head.push(part(new THREE.ConeGeometry(e[1], e[2], 8), p.ear, { x: sx * e[4], y: 0.13 + e[2] / 2, z: 0.03, rz: -sx * e[3], sz: 0.5 }));
+      else if (e[0] === "long") head.push(caps(e[1], e[2], p.ear, { x: sx * e[4], y: 0.15 + e[2] / 2, z: 0.02, rz: -sx * e[3] }));
+      else if (e[0] === "round") head.push(orb(e[1], p.ear, { x: sx * e[4], y: 0.15, z: 0.03, sz: 0.5 }));
+      else if (e[0] === "flop") head.push(orb(e[1], p.ear, { x: sx * e[4], y: 0.08, z: 0.04, sx: 0.45, sy: 1.5 }));
+    });
+    const headG = pivot(body, 0, 0.34, 0.2, head);
+    const paw = () => [caps(0.026, 0.1, legColor, { y: -0.075 }), orb(0.03, legColor, { y: -0.15, z: 0.01, sy: 0.6 })];
+    const spots = p.beak ? [[-0.045, 0], [0.045, 0]] : [[-0.055, 0.12], [0.055, 0.12], [-0.055, -0.12], [0.055, -0.12]];
+    const made = spots.map((sp) => pivot(body, sp[0], 0.17, sp[1], paw()));
+    const legs = p.beak ? [made[0], made[1], made[1], made[0]] : made; // deux pattes pour le canard
+    const t = p.tail, tailParts = [caps(t[2], t[0], p.fur, { y: t[0] / 2 + t[2] })];
+    if (p.tip) tailParts.push(orb(t[2] * 1.15, p.tip, { y: t[0] + t[2] }));
+    const tail = pivot(body, 0, 0.3, -0.19, tailParts);
     tail.rotation.x = t[1];
     return {
       root, body, head: headG, legs, tail, kind: PETS[kind] ? kind : "chihuahua", def: p,
-      wag: p.wag == null ? 0.65 : p.wag, top: (0.46 + e[1]) * Math.min(p.scale, 1.5),
+      wag: p.wag == null ? 0.65 : p.wag, top: (0.46 + (e[0] === "cone" || e[0] === "long" ? e[2] : 0.05)) * Math.min(p.scale, 1.5),
     };
   }
   const dog = buildPet(look.pet);
 
   // Véhicules en libre-service : un groupe par véhicule (hors flotte instanciée).
-  const rentals = RENTALS.map((def) => {
-    const built = MODELS[def.model].build();
+  function buildCar(model, color) {
+    const built = MODELS[model].build();
     const root = new THREE.Group(), body = new THREE.Group();
     root.add(body);
     const paintMat = M.paint.clone();
-    paintMat.color.set(def.color);
+    paintMat.color.set(color);
     [[built.paint, false, paintMat], [built.detail, true, M.detail], [built.lights, true, M.lights]].forEach((part, i) => {
       const mesh = new THREE.Mesh(merge(part[0], part[1]), part[2]);
       mesh.castShadow = i < 2;
       mesh.receiveShadow = i < 2;
       body.add(mesh);
     });
-    return { def, root, body, paintMat, x: def.x, z: RENTAL_Z, rot: Math.PI, v: 0, steer: 0 };
-  });
+    return { root, body, paintMat };
+  }
+  const rentals = RENTALS.map((def) => Object.assign(buildCar(def.model, def.color), { def, x: def.x, z: RENTAL_Z, rot: Math.PI, v: 0, steer: 0 }));
   // Phares du véhicule conduit, la nuit.
   const driveLight = new THREE.PointLight(0xfff2c2, 0, 34, 1.5);
 
@@ -1380,6 +1510,8 @@ export function createParking3D(container, options) {
     pops.length = 0;
     labelLayer.replaceChildren();
     signMats.length = 0;
+    net.others.forEach((o) => { if (o.car) o.car.paintMat.dispose(); }); // ils reviennent au prochain échange
+    net.others.clear();
 
     const L = computeLayout(zones);
     const group = new THREE.Group();
@@ -1520,7 +1652,7 @@ export function createParking3D(container, options) {
     const walls = [], roofLow = [], roofTop = [], bases = [], lanternGlow = [], lanternPools = [], lampions = [];
     const cityRnd = mulberry(2026);
     const stone = "#b9b4a6", wood = "#4a3528", gravel = "#e3dac4", white = "#f4f5f7";
-    const archSigns = [];
+    const archSigns = [], signBoards = [];
     const hill = { x: X0 + 76, z: R + 80, r: 31, rt: 11, h: 8 };
     const hillH = (x, z) => {
       const dd = Math.hypot(x - hill.x, z - hill.z);
@@ -1630,6 +1762,61 @@ export function createParking3D(container, options) {
     cityObstacles.push([vend.x - 0.6, vend.x + 0.6, vend.z - 0.42, vend.z + 0.42]);
     cityPoints.push({ x: vend.x, z: vend.z - 1.2, label: "Prendre une boisson au distributeur", action: drink });
 
+    // La Station Access, entre le parking et le village : auvent, pompes, recharge,
+    // boutique, et la place d'entraînement du « créneau parfait ».
+    const gs = { x: L.xMax + 34, z: R + 15 }, gz = gs.z - 3;
+    props.push(box(34, 0.05, 21, "#5a5f6b", { x: gs.x, y: 0.025, z: gs.z }));
+    [[-7, -3.6], [7, -3.6], [-7, 3.6], [7, 3.6]].forEach((c) => {
+      props.push(cyl(0.22, 4.6, white, { x: gs.x + c[0], y: 2.3, z: gz + c[1] }, 12));
+      cityObstacles.push([gs.x + c[0] - 0.25, gs.x + c[0] + 0.25, gz + c[1] - 0.25, gz + c[1] + 0.25]);
+    });
+    props.push(box(17.4, 0.5, 9.8, BRAND, { x: gs.x, y: 4.85, z: gz })); // l'auvent
+    props.push(box(17.5, 0.14, 9.9, white, { x: gs.x, y: 4.62, z: gz }));
+    [-3.6, 3.6].forEach((dx) => { // deux îlots, deux pompes chacun
+      props.push(box(1.2, 0.18, 4.6, stone, { x: gs.x + dx, y: 0.09, z: gz }));
+      [-1.25, 1.25].forEach((dz) => {
+        props.push(box(0.62, 1.5, 0.5, white, { x: gs.x + dx, y: 0.93, z: gz + dz }));
+        props.push(box(0.66, 0.22, 0.54, BRAND, { x: gs.x + dx, y: 1.79, z: gz + dz }));
+        [-1, 1].forEach((sx) => props.push(box(0.03, 0.34, 0.36, "#22252e", { x: gs.x + dx + sx * 0.32, y: 1.28, z: gz + dz })));
+        lanternGlow.push({ x: gs.x + dx, y: 4.5, z: gz + dz, sx: 1.7, sy: 0.08, sz: 0.5 });
+      });
+      cityObstacles.push([gs.x + dx - 0.6, gs.x + dx + 0.6, gz - 2.3, gz + 2.3]);
+    });
+    lanternPools.push({ x: gs.x, y: 0.07, z: gz, sx: 21, sz: 14 });
+    [-5.8, -1.4, 1.4, 5.8].forEach((dx) => cityPoints.push({
+      x: gs.x + dx, z: gz, label: "Faire le plein pile (mini-jeu)", action: () => openGame("plein", "station"),
+    }));
+    house(gs.x - 9.5, gs.z + 6.4, 9, 6, 1, "#2f4a7a", { wall: "#dcebff" }); // la boutique de la station
+    signBoards.push([5.6, 0.6, "BOUTIQUE DE LA STATION", "#fdf6e3", BRAND, gs.x - 9.5, 2.75, gs.z + 3.34, Math.PI]);
+    signBoards.push([9, 0.42, "STATION ACCESS", BRAND, "#ffffff", gs.x, 4.87, gz - 4.91, Math.PI]);
+    signBoards.push([9, 0.42, "STATION ACCESS", BRAND, "#ffffff", gs.x, 4.87, gz + 4.91, 0]);
+    const stTotem = { x: gs.x - 15.6, z: R + 6.4 }; // stTotem au bord de la route
+    props.push(box(0.36, 7.4, 0.36, "#3b4252", { x: stTotem.x, y: 3.7, z: stTotem.z }));
+    props.push(box(0.5, 2.3, 3.5, white, { x: stTotem.x, y: 6.1, z: stTotem.z }));
+    cityObstacles.push([stTotem.x - 0.3, stTotem.x + 0.3, stTotem.z - 0.3, stTotem.z + 0.3]);
+    [-1, 1].forEach((sx) => {
+      signBoards.push([3.3, 1.0, "STATION ACCESS", BRAND, "#ffffff", stTotem.x + sx * 0.26, 6.6, stTotem.z, (sx * Math.PI) / 2]);
+      signBoards.push([3.3, 0.7, "JEU : LE PLEIN PILE", "#ffd60a", "#22252e", stTotem.x + sx * 0.26, 5.6, stTotem.z, (sx * Math.PI) / 2]);
+    });
+    const evPost = { x: gs.x + 2, z: gs.z + 8.6 }; // borne de recharge, comme la zone Électrique du parking
+    props.push(box(0.5, 1.5, 0.36, white, { x: evPost.x, y: 0.75, z: evPost.z }));
+    props.push(box(0.52, 0.2, 0.38, KINDS.ELECTRIC.color, { x: evPost.x, y: 1.4, z: evPost.z }));
+    props.push(box(2.9, 0.03, 5.2, KINDS.ELECTRIC.color, { x: evPost.x, y: 0.055, z: evPost.z - 3.2 }));
+    cityObstacles.push([evPost.x - 0.3, evPost.x + 0.3, evPost.z - 0.25, evPost.z + 0.25]);
+    props.push(box(0.3, 3.9, 7.5, "#22252e", { x: gs.x + 16.4, y: 4.5, z: R + 8.2 })); // cadre du panneau des places libres
+    [-3, 3].forEach((dz) => {
+      props.push(box(0.3, 2.7, 0.3, "#3b4252", { x: gs.x + 16.4, y: 1.35, z: R + 8.2 + dz }));
+      cityObstacles.push([gs.x + 16.2, gs.x + 16.6, R + 8.2 + dz - 0.2, R + 8.2 + dz + 0.2]);
+    });
+    const bay = { x: gs.x + 12.6, z: gz, w: 3.0, d: 5.8 }; // place d'entraînement : se garer droit et au centre
+    [[0, -bay.d / 2, bay.w, 0.14], [0, bay.d / 2, bay.w, 0.14], [-bay.w / 2, 0, 0.14, bay.d], [bay.w / 2, 0, 0.14, bay.d]].forEach((ln) => {
+      props.push(box(ln[2], 0.03, ln[3], "#ffd60a", { x: bay.x + ln[0], y: 0.06, z: bay.z + ln[1] }));
+    });
+    props.push(box(0.14, 2.6, 0.14, "#3b4252", { x: bay.x + 2.2, y: 1.3, z: bay.z - 3.4 }));
+    signBoards.push([2.6, 0.9, "LE CRÉNEAU PARFAIT", "#ffd60a", "#22252e", bay.x + 2.2, 2.6, bay.z - 3.48, Math.PI]);
+    signBoards.push([2.6, 0.9, "LE CRÉNEAU PARFAIT", "#ffd60a", "#22252e", bay.x + 2.2, 2.6, bay.z - 3.32, 0]);
+    cityObstacles.push([bay.x + 2.05, bay.x + 2.35, bay.z - 3.55, bay.z - 3.25]);
+
     // 2. Le belvédère sur sa colline : ruelle, escalier sous cinq arches (une par zone), pavillon et cloche
     props.push(box(5, 0.04, 44.5, "#a8a397", { x: laneN, y: 0.02, z: R + 4.5 + 22.25 }));
     const hillGeo = new THREE.CylinderGeometry(hill.rt, hill.r, hill.h, 20, 1).toNonIndexed();
@@ -1708,7 +1895,7 @@ export function createParking3D(container, options) {
       [-1, 1].forEach((c) => lampions.push({ x: sx + dir * 1.25, y: 2.0, z: sz + c * 1.5, sx: 0.16, sy: 0.2, sz: 0.16 }));
       stallSigns.push({ text: def[0], x: sx + dir * 0.57, z: sz, ry: (dir * Math.PI) / 2, color: def[3] });
       cityObstacles.push([sx - 0.8, sx + 0.8, sz - 1.55, sz + 1.55]);
-      cityPoints.push({ x: sx + dir * 2.0, z: sz, label: def[1], action: () => say(def[2][Math.floor(Math.random() * def[2].length)]) });
+      cityPoints.push({ x: sx + dir * 2.0, z: sz, label: def[1] + " (mini-jeu)", action: () => { say(def[2][Math.floor(Math.random() * def[2].length)]); openGame(STALL_GAMES[i]); } });
     });
     [[-14.5, -10.5], [14.5, -10.5], [-14.5, 10.5], [14.5, 10.5]].forEach((c) => { // mâts et guirlandes d'ampoules
       const px = fete.x + c[0], pz = fete.z + c[1];
@@ -2017,6 +2204,22 @@ export function createParking3D(container, options) {
     stallSigns.forEach((sg) => board(2.5, 0.42, sg.text, "#fdf6e3", sg.color, sg.x, 0.55, sg.z, sg.ry));
     board(0.7, 0.26, "TICKET CHANCE", "#fdf6e3", BRAND, omi.x, top + 0.42, omi.z - 0.305, Math.PI);
     board(2.0, 0.5, MASCOT.toUpperCase() + " · NOTRE MASCOTTE", "#3b2a20", "#fdf6e3", mascot.x, 0.62, mascot.z - 1.16, Math.PI);
+    signBoards.forEach((b) => board(b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7], b[8]));
+    // Grand panneau au bord de la route : les vraies places libres du parking, en direct.
+    const liveCanvas = document.createElement("canvas");
+    liveCanvas.width = 512; liveCanvas.height = 256;
+    const liveTex = new THREE.CanvasTexture(liveCanvas);
+    liveTex.colorSpace = THREE.SRGBColorSpace;
+    textures.push(liveTex);
+    const liveMat = new THREE.MeshBasicMaterial({ map: liveTex, toneMapped: false });
+    const liveAt = { x: gs.x + 16.4, z: R + 8.2 };
+    [-1, 1].forEach((side) => {
+      const face = new THREE.Mesh(new THREE.PlaneGeometry(7.2, 3.6), liveMat);
+      face.position.set(liveAt.x + side * 0.16, 4.5, liveAt.z);
+      face.rotation.y = (side * Math.PI) / 2;
+      group.add(face);
+    });
+    const live = { ctx: liveCanvas.getContext("2d"), tex: liveTex, shown: "" };
     // Disques « P » des arches et du cube de la tour, lettres ACCESS de la colline
     archSigns.forEach((sg) => board(sg.size, sg.size, sg.text || "P", sg.bg || sg.color, sg.bg ? sg.color : "#ffffff", sg.x, sg.y, sg.z, sg.ry));
     board(9.4, 1.0, "BIENVENUE À " + CITY_NAME.toUpperCase(), BRAND, "#ffffff", X0 - 12.42, 8.4, ROAD_Z, -Math.PI / 2);
@@ -2204,7 +2407,22 @@ export function createParking3D(container, options) {
     rentals.forEach((r) => group.add(r.root));
     tag("Véhicules à conduire", -19.5, 4.9, RENTAL_Z + 3.7, null, true).node.style.background = "#d92b3a";
     tag(CITY_NAME, (X0 + cityX1) / 2, 46, ROAD_Z, null, true);
-    const city = { x0: X0, x1: cityX1, z0: vz0, z1: vz1, pond, hill, petals, koi, fireworks, gate: tx };
+    const city = { x0: X0, x1: cityX1, z0: vz0, z1: vz1, pond, hill, petals, koi, fireworks, gate: tx, bay, pumps: { x: gs.x, z: gz } };
+    // Le ticket d'or du jour : une cachette parmi douze, choisie par la date.
+    const hides = [
+      [mascot.x + 2.4, mascot.z + 1.6, 0], [pond.x, pond.z, 1.47], [hill.x + 5.2, hill.z + 8.4, hill.h], [fete.x - 13, fete.z + 9.4, 0],
+      [laneS + 44, R - 58, 0], [laneS + 47, R - 71, 0], [gs.x - 9.5, gs.z + 10.4, 0], [L.xMax - 2, D - 2.2, 0],
+      [pgx + 5.4, pgz - 5.4, 0], [X0 + 61.75, R - 24.6, 0], [tx - 4, R - 13, 0], [-23.5, RENTAL_Z + 5.6, 0],
+    ];
+    const today = new Date().toISOString().slice(0, 10), hide = hides[hash("or-" + today) % hides.length];
+    const goldMesh = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.36, 0.05), new THREE.MeshBasicMaterial({ color: 0xffd60a, toneMapped: false }));
+    goldMesh.position.set(hide[0], hide[2] + 1.15, hide[1]);
+    goldMesh.visible = progress.goldDay !== today;
+    group.add(goldMesh);
+    const goldTicket = { mesh: goldMesh, x: hide[0], z: hide[1], day: today };
+    // Étiquettes des autres promeneurs : créées et retirées au fil des arrivées.
+    const addTag = (text) => { const t = tag(text, 0, 0, 0, null, true); t.node.classList.add("who"); return t; };
+    const removeTag = (t) => { t.node.remove(); const i = tags.indexOf(t); if (i >= 0) tags.splice(i, 1); };
     const bounds = [L.cx - 150, cityX1 + 70, vz0 - 30, Math.max(D + 60, vz1 + 34)];
 
     // Ombres et caméra adaptées à la taille du parking
@@ -2233,7 +2451,7 @@ export function createParking3D(container, options) {
 
     lot = {
       L, group, zones, fleet, leds, rings, hover, gateIn, gateOut, textures, tags, resaSprites,
-      obstacles, points, dogTag, agentTag, playerTag, D, city, bounds, decor: [], seq: 0, pickDirty: true,
+      obstacles, points, dogTag, agentTag, playerTag, addTag, removeTag, live, gold: goldTicket, D, city, bounds, decor: [], seq: 0, pickDirty: true,
     };
     spawnTraffic();
   }
@@ -2638,6 +2856,12 @@ export function createParking3D(container, options) {
     if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || "")) return;
     // Dans un panneau ouvert, Entrée et Espace servent aux boutons qui ont le focus.
     if (t && t.tagName === "BUTTON" && panel.contains(t) && e.code !== "Escape") return;
+    if (walk.game && e.code !== "Escape") { // un mini-jeu est ouvert : les touches sont pour lui
+      walk.game.key(e.code, down);
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
     if (e.code === "Escape") {
       if (down) { if (walk.panel) closeResa(); else setWalk(false); }
     } else if (WALK_KEYS[e.code]) {
@@ -2648,6 +2872,8 @@ export function createParking3D(container, options) {
       if (down && !e.repeat) bark();
     } else if (e.code === "KeyC") {
       if (down && !e.repeat) { if (walk.panel) closeResa(); else openCarnet(); }
+    } else if (/^Digit[1-4]$/.test(e.code)) {
+      if (down && !e.repeat && !walk.panel) emote(Number(e.code.slice(5)) - 1);
     } else if (e.code === "KeyP") {
       if (down && !e.repeat) { if (walk.panel) closeResa(); else photo(); }
     } else {
@@ -2677,15 +2903,21 @@ export function createParking3D(container, options) {
     if (on) {
       walk.yaw = walk.rot; // caméra dans le dos du personnage
       walk.dog.next = 1.2;
+      net.wait = 0.1; // on rejoint les autres promeneurs tout de suite
       canvas.focus({ preventScroll: true });
       if (!walk.met) {
         walk.met = true;
+        const today = new Date().toISOString().slice(0, 10);
+        if (progress.day && progress.day !== today) win("fidele");
+        if (!progress.day) { progress.day = today; saveProgress(); }
         toast(carnet.size >= STAMPS.length
           ? "Carnet complet. Le village de " + CITY_NAME + " vous attend toujours, par la route de l'est."
           : "Carnet de tampons : " + STAMPS.length + " choses à découvrir, du parking au village. Touche C pour l'ouvrir.", 6);
       }
     } else {
       closeResa();
+      saveProgress();
+      net.wait = 0.2; // on redevient simple spectateur
       toastBox.classList.remove("on");
       walk.toast = 0; walk.say = 0;
       lot.playerTag.hidden = true;
@@ -2760,6 +2992,154 @@ export function createParking3D(container, options) {
     return 0.57 + 0.9 * (1 - (dz / 3.8) * (dz / 3.8));
   }
 
+  /* --- Les autres promeneurs (multijoueur) -----------------------------------------------
+     La page donne l'adresse de la route (`opts.multi`), sinon rien n'est envoyé.
+     En promenade, le plan envoie sa position et sa tenue et reçoit celles des
+     autres ; vu de haut, il les regarde seulement. Aucun texte libre : le
+     pseudo est attribué par le serveur, les saluts viennent d'une liste. */
+  const net = {
+    url: typeof opts.multi === "string" && opts.multi.charAt(0) === "/" ? opts.multi : null,
+    token: playerToken(), you: null, others: new Map(), wait: 0.4, busy: false, online: 0, emote: 0, emoteFor: 0, fails: 0,
+  };
+  function netDrop(id) {
+    const o = net.others.get(id);
+    if (!o) return;
+    o.group.traverse((node) => { if (node.geometry) node.geometry.dispose(); });
+    o.group.removeFromParent();
+    if (o.car) o.car.paintMat.dispose();
+    lot.removeTag(o.tag);
+    net.others.delete(id);
+  }
+  function netApply(players) {
+    const seen = new Set();
+    players.slice(0, 60).forEach((p) => {
+      if (!p || typeof p.id !== "string" || !p.look) return;
+      seen.add(p.id);
+      let o = net.others.get(p.id);
+      if (!o) {
+        o = { cur: { x: p.x, y: p.y, z: p.z, rot: p.rot }, phase: 0, group: new THREE.Group(), tag: lot.addTag(p.pseudo), sig: "" };
+        lot.group.add(o.group);
+        net.others.set(p.id, o);
+      }
+      const sig = JSON.stringify(p.look) + "|" + (p.drive || "");
+      if (o.sig !== sig) { // tenue, compagnon ou véhicule changés : on refait le modèle
+        o.sig = sig;
+        o.group.traverse((node) => { if (node.geometry) node.geometry.dispose(); });
+        o.group.clear();
+        if (o.car) o.car.paintMat.dispose();
+        const lk = p.look;
+        o.person = buildPerson({
+          top: lk.top, hem: shade(lk.top, 0.72), skin: lk.skin, hair: lk.hair, pants: lk.pants, shoes: "#f4f5f7",
+          pack: lk.pack ? "#f2b01e" : null, hat: lk.hat, cut: lk.cut,
+        });
+        o.pet = buildPet(lk.pet);
+        o.car = p.drive && MODELS[p.drive] ? buildCar(p.drive, lk.top) : null;
+        o.group.add(o.person.root, o.pet.root);
+        if (o.car) o.group.add(o.car.root);
+      }
+      o.goal = p;
+    });
+    Array.from(net.others.keys()).forEach((id) => { if (!seen.has(id)) netDrop(id); });
+  }
+  function netSync() {
+    net.busy = true;
+    const rv = walk.drive, lk = look;
+    const request = walk.on
+      ? fetch(net.url, {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "omit", cache: "no-store",
+        body: JSON.stringify({
+          token: net.token,
+          x: Math.round(walk.x * 100) / 100, z: Math.round(walk.z * 100) / 100,
+          y: Math.round((rv ? 0 : walk.y + groundAt(walk.x, walk.z)) * 100) / 100,
+          rot: Math.round(Math.atan2(Math.sin(walk.rot), Math.cos(walk.rot)) * 1000) / 1000,
+          speed: Math.round(Math.min(80, Math.abs(walk.speed)) * 10) / 10,
+          look: { top: lk.top, pants: lk.pants, hair: lk.hair, skin: lk.skin, hat: lk.hat, cut: lk.cut, pet: lk.pet, pack: lk.pack },
+          drive: rv ? rv.def.model : null,
+          emote: net.emoteFor > 0 ? net.emote : null,
+          stars: Math.min(99, progress.wins.size),
+        }),
+      })
+      : fetch(net.url, { credentials: "omit", cache: "no-store" }); // vu de haut : on regarde seulement
+    request
+      .then((res) => {
+        if (res.status === 403) net.url = null; // multijoueur coupé côté serveur
+        return res.ok ? res.json() : Promise.reject(new Error(String(res.status)));
+      })
+      .then((data) => {
+        net.fails = 0;
+        net.wait = walk.on ? clamp((data.nextMs || 700) / 1000, 0.3, 5) : 2.5;
+        net.you = data.you || net.you;
+        net.online = data.online || 0;
+        if (lot) netApply(Array.isArray(data.players) ? data.players : []);
+        if (walk.on && net.online >= 3) win("foule");
+      })
+      .catch(() => { net.fails++; net.wait = Math.min(20, 2 * net.fails); })
+      .finally(() => { net.busy = false; });
+  }
+  function emote(i) {
+    if (!walk.on || walk.drive) return;
+    say(EMOTES[i]);
+    net.emote = i;
+    net.emoteFor = 3.5;
+  }
+  helloBtn.addEventListener("click", () => emote(0));
+  function stepNet(dt) {
+    net.emoteFor = Math.max(0, net.emoteFor - dt);
+    if (net.url && active && !document.hidden) {
+      net.wait -= dt;
+      if (net.wait <= 0 && !net.busy) { net.wait = 6; netSync(); }
+    }
+    const L = lot.L;
+    onlineBox.classList.toggle("on", Boolean(net.url && net.you));
+    onlineBox.classList.toggle("watch", Boolean(net.url && !walk.on && net.others.size));
+    onlineName.textContent = walk.on && net.you ? net.you.pseudo : "Promeneurs";
+    onlineCount.textContent = net.online + " en ligne";
+    net.others.forEach((o) => {
+      const g = o.goal, c = o.cur, k = 1 - Math.exp(-dt * 7);
+      if (Math.hypot(g.x - c.x, g.z - c.z) > 30) { c.x = g.x; c.z = g.z; c.y = g.y; }
+      const moved = Math.hypot(g.x - c.x, g.z - c.z);
+      c.x = lerp(c.x, g.x, k); c.z = lerp(c.z, g.z, k); c.y = lerp(c.y, g.y, k);
+      c.rot = angleTo(c.rot, g.rot, k);
+      const speed = moved > 0.03 ? Math.min(g.speed, 9) : 0, sn = Math.sin(c.rot), cs = Math.cos(c.rot);
+      const car = o.car, onBike = car && g.drive === "scooter";
+      o.person.root.visible = !car || onBike;
+      o.pet.root.visible = !car;
+      if (car) {
+        car.root.position.set(c.x, 0, c.z);
+        car.root.rotation.y = c.rot;
+      }
+      if (onBike) {
+        o.person.root.position.set(c.x - sn * 0.25, 0.26, c.z - cs * 0.25);
+        o.person.root.rotation.set(0, c.rot, 0);
+        o.person.legL.rotation.x = o.person.legR.rotation.x = -1.35;
+        o.person.armL.rotation.x = o.person.armR.rotation.x = -1.15;
+      } else if (!car) {
+        o.phase += speed * dt * 2.4;
+        const stride = Math.min(1, speed / 4.3), swing = Math.sin(o.phase) * 0.8 * stride;
+        o.person.legL.rotation.x = swing; o.person.legR.rotation.x = -swing;
+        o.person.armL.rotation.x = -swing * 0.85; o.person.armR.rotation.x = swing * 0.85;
+        o.person.body.position.y = Math.abs(Math.sin(o.phase)) * 0.06 * stride;
+        o.person.root.position.set(c.x, c.y, c.z);
+        o.person.root.rotation.set(0, c.rot, 0);
+        const px = c.x - sn * 0.7 - cs * 0.6, pz = c.z - cs * 0.7 + sn * 0.6, trot = Math.min(1, speed / 3) * 0.9;
+        o.pet.root.position.set(px, groundAt(px, pz), pz);
+        o.pet.root.rotation.y = c.rot;
+        o.pet.legs[0].rotation.x = o.pet.legs[3].rotation.x = Math.sin(o.phase * 3.6) * trot;
+        o.pet.legs[1].rotation.x = o.pet.legs[2].rotation.x = -Math.sin(o.phase * 3.6) * trot;
+        o.pet.tail.rotation.z = Math.sin(performance.now() / 70) * o.pet.wag;
+      }
+      const hello = g.emote != null && EMOTES[g.emote] ? " : " + EMOTES[g.emote] : "";
+      const label = g.pseudo + (g.stars ? " ★" + g.stars : "") + hello;
+      if (o.label !== label) { o.label = label; o.tag.name.textContent = label; }
+      o.tag.pos.set(c.x - L.cx, c.y + (car && !onBike ? 2.7 : 2.2), c.z - L.cz);
+      if (walk.on) {
+        const near = Math.hypot(c.x - walk.x, c.z - walk.z);
+        if (near < 6) win("rencontre");
+        if (near < 12 && net.emoteFor > 0) win("coucou");
+      }
+    });
+  }
+
   // --- Bulles, carnet de tampons, boutiques ------------------------------------------------
   function say(text, secs) {
     lot.playerTag.name.textContent = text;
@@ -2771,7 +3151,7 @@ export function createParking3D(container, options) {
     walk.toast = secs || 4;
   }
   function refreshCarnet() {
-    carnetCount.textContent = carnet.size + "/" + STAMPS.length;
+    carnetCount.textContent = carnet.size + "/" + STAMPS.length + (progress.wins.size ? " · ★" + progress.wins.size : "");
   }
   refreshCarnet();
   /* Un tampon de plus au carnet (une seule fois chacun). Le dernier tire un feu
@@ -2781,16 +3161,99 @@ export function createParking3D(container, options) {
     const def = STAMPS.find((st) => st[0] === id);
     if (!def) return;
     carnet.add(id);
-    store(CARNET_KEY, Array.from(carnet));
+    saveProgress();
     refreshCarnet();
     if (carnet.size >= STAMPS.length) {
       toast("Carnet complet, bravo ! Pour venir pour de vrai, la borne de réservation est sur le parvis du parking.", 8);
       launchFireworks(7);
+      win("carnet", true);
     } else {
       toast("Tampon " + carnet.size + "/" + STAMPS.length + " : " + def[1].toLowerCase() + ".");
     }
   }
   // Bouquets tirés devant le promeneur, là où la caméra regarde.
+  /* Un succès de plus (une seule fois chacun). `quiet` : sans message, quand
+     un autre vient d'être affiché. */
+  function win(id, quiet) {
+    if (progress.wins.has(id) || !walk.on) return;
+    const def = WINS.find((w) => w[0] === id);
+    if (!def) return;
+    progress.wins.add(id);
+    saveProgress();
+    refreshCarnet();
+    if (!quiet) { toast("Succès : " + def[1] + " !", 5); launchFireworks(2); }
+    if (id !== "legende" && progress.wins.size >= WINS.length - 1) win("legende");
+  }
+  const rank = () => RANKS.filter((r) => progress.wins.size >= r[0]).pop()[1];
+  // Fin d'un mini-jeu (ou du créneau) : record, succès, score partagé avec les autres promeneurs.
+  function gameDone(id, score) {
+    const record = score > (progress.best[id] || 0);
+    progress.best[id] = Math.max(progress.best[id] || 0, score);
+    if (!progress.played.includes(id) && MINI[id]) progress.played.push(id);
+    saveProgress();
+    if (score >= GOALS[id]) win(id);
+    if (progress.played.length >= Object.keys(MINI).length) win("tournee");
+    if (net.url && score > 0) {
+      fetch(net.url + "/scores", {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "omit",
+        body: JSON.stringify({ token: net.token, game: id, score }),
+      }).catch(() => { /* hors ligne : le record reste sur l'appareil */ });
+    }
+    return record;
+  }
+  function openGame(id, stampId) {
+    const def = MINI[id];
+    if (!def) return;
+    if (stampId) stamp(stampId);
+    const mount = elem("div");
+    const result = elem("p", "p3d-luck", "Record : " + (progress.best[id] || 0) + " / " + def.max);
+    const replay = elem("button", null, "Rejouer");
+    replay.type = "button";
+    replay.style.display = "none";
+    replay.addEventListener("click", () => openGame(id));
+    showPanel(def.title, false, [panelTitle("J", def.title, BRAND), elem("p", null, def.help), mount, result, replay, panelClose()]);
+    walk.game = startGame(id, mount, {
+      sound,
+      onEnd(score) {
+        const record = gameDone(id, score);
+        result.textContent = "Score : " + score + " / " + def.max + (record ? ". Nouveau record !" : ". Record : " + progress.best[id]) +
+          (score >= GOALS[id] ? "" : " — succès à " + GOALS[id] + ".");
+        replay.style.display = "";
+        if (id === "plein") walk.fuel = 8;
+      },
+    });
+  }
+  /* Le panneau de la station affiche les places libres du parking (les vraies,
+     dès que Parking répond), et le ticket d'or du jour tourne dans sa cachette. */
+  function stepLive(now) {
+    const live = lot.live, free = lot.zones.reduce((n, zone) => n + Math.max(0, zone.cap - zone.taken), 0);
+    const shown = free + ":" + data.source;
+    if (live.shown !== shown) {
+      live.shown = shown;
+      const g = live.ctx;
+      g.fillStyle = BRAND; g.fillRect(0, 0, 512, 256);
+      g.fillStyle = "#ffffff"; g.textAlign = "center";
+      g.font = "800 30px system-ui, sans-serif"; g.fillText("PARKING ACCESS", 256, 46);
+      g.font = "900 128px system-ui, sans-serif"; g.fillText(String(free), 256, 166);
+      g.font = "800 34px system-ui, sans-serif"; g.fillText(free > 1 ? "PLACES LIBRES" : "PLACE LIBRE", 256, 208);
+      g.fillStyle = "#ffd60a"; g.font = "700 22px system-ui, sans-serif";
+      g.fillText(data.source === "live" ? "en direct · réservez à la borne" : "démonstration", 256, 240);
+      live.tex.needsUpdate = true;
+    }
+    const gold = lot.gold;
+    if (!gold.mesh.visible) return;
+    gold.mesh.rotation.y = now * 2.4;
+    gold.mesh.position.y += Math.sin(now * 3) * 0.002;
+    if (!walk.on || walk.drive || Math.hypot(walk.x - gold.x, walk.z - gold.z) > 1.7) return;
+    gold.mesh.visible = false;
+    progress.goldDay = gold.day;
+    progress.gold++;
+    saveProgress();
+    toast("Ticket d'or du jour trouvé ! " + progress.gold + " au total. Il change de cachette chaque jour : revenez demain.", 7);
+    launchFireworks(4);
+    win("or", true);
+    if (progress.gold >= 5) win("collection", true);
+  }
   function launchFireworks(count) {
     const fw = lot.city.fireworks;
     fw.left = count; fw.next = 0;
@@ -2862,8 +3325,7 @@ export function createParking3D(container, options) {
   const dong = () => sound([[196, 0.16], [392.6, 0.07], [588, 0.035]], 2.4);
   function bassDrum() {
     say("Boum ! Boum ! Tchak-boum !", 3);
-    sound([[92, 0.3, 0], [92, 0.3, 0.42], [110, 0.22, 0.78], [110, 0.22, 0.94], [92, 0.32, 1.14]], 0.34, "triangle");
-    stamp("fete");
+    openGame("tambour", "fete");
   }
   function greetMascot() {
     say("Bonjour " + MASCOT + " !");
@@ -2879,6 +3341,7 @@ export function createParking3D(container, options) {
       panelClose("Merci"),
     ]);
     stamp("chance");
+    if (draw[0] === "Grande chance") win("chance");
   }
   /* Photo souvenir : l'image du plan, avec un bandeau. Elle reste dans la page
      (rien n'est envoyé) ; un lien permet de l'enregistrer. */
@@ -2908,6 +3371,7 @@ export function createParking3D(container, options) {
     save.href = url;
     save.download = "souvenir-" + (inTown ? "bonneplace" : "parking") + ".jpg";
     showPanel("Photo souvenir", false, [panelTitle("P", "Photo souvenir", "#b5651d"), img, save, panelClose()]);
+    win("photo");
   }
   photoBtn.addEventListener("click", () => { if (walk.panel) closeResa(); else photo(); });
   function ringBell() {
@@ -2930,6 +3394,7 @@ export function createParking3D(container, options) {
     return close;
   }
   function showPanel(label, side, nodes) {
+    if (walk.game) { walk.game.stop(); walk.game = null; }
     panel.replaceChildren();
     nodes.forEach((n) => panel.appendChild(n));
     panel.setAttribute("aria-label", label);
@@ -2961,6 +3426,8 @@ export function createParking3D(container, options) {
     swapModel(player, buildPerson(playerLook()));
     store(LOOK_KEY, look);
     stamp(stampId);
+    if (!progress.cuts.includes(look.cut)) { progress.cuts.push(look.cut); saveProgress(); }
+    if (progress.cuts.length >= 4) win("coiffe");
   }
   function changePet(kind) {
     look.pet = kind;
@@ -2968,16 +3435,21 @@ export function createParking3D(container, options) {
     store(LOOK_KEY, look);
     bark();
     stamp("ami");
+    if (!progress.pets.includes(kind)) { progress.pets.push(kind); saveProgress(); }
+    if (progress.pets.length >= 5) win("zoo");
   }
   /* Boutiques du village : tout est offert, rien n'est payé ni envoyé. Le
      personnage se tourne vers la caméra pour qu'on voie le résultat. */
   function openShop(kind, facing) {
     if (facing != null) { walk.rot = facing; walk.yaw = facing + Math.PI; }
     if (kind === "coiffure" && look.hat !== "none") { bareHead = true; swapModel(player, buildPerson(playerLook())); }
+    // La caméra s'approche : le visage chez le coiffeur, la silhouette ailleurs.
+    walk.zoom = kind === "coiffure" ? { dist: 2.1, pitch: 0.06, y: 1.58 } : { dist: 4.4, pitch: 0.2, y: 1.15 };
     const set = (field, stampId) => (value) => { look[field] = value; redress(stampId); };
     let nodes;
     if (kind === "tenue") {
       nodes = [panelTitle("A", "Boutique Access", BRAND), elem("p", null, "Aux couleurs du parking. Servez-vous : tout est offert.")]
+        .concat(choices("Carnation", SKINS, look.skin, set("skin", "look"), true))
         .concat(choices("Haut", TOPS, look.top, set("top", "look"), true))
         .concat(choices("Pantalon", PANTS, look.pants, set("pants", "look"), true))
         .concat(choices("Couvre-chef", HATS, look.hat, set("hat", "look")))
@@ -2993,25 +3465,53 @@ export function createParking3D(container, options) {
     nodes.push(panelClose("C'est parfait"));
     showPanel(kind === "tenue" ? "Boutique Access" : kind === "coiffure" ? "Coiffure Le Créneau" : "Animalerie du Copilote", true, nodes);
   }
-  function openCarnet() {
-    const list = elem("ul", "p3d-stamps");
-    STAMPS.forEach((st) => {
-      const done = carnet.has(st[0]);
-      const li = elem("li", done ? "done" : null);
-      li.append(elem("i", null, done ? "✓" : ""), elem("b", null, st[1]), elem("span", null, st[2]));
-      list.appendChild(li);
-    });
-    const full = carnet.size >= STAMPS.length;
-    showPanel("Carnet de tampons", false, [
-      panelTitle(String(carnet.size), "Carnet de tampons", "#d92b3a"),
-      elem("p", null, full
+  function openCarnet(tab) {
+    tab = tab || "tampons";
+    const tabs = choices("Carnet", [["tampons", "Tampons " + carnet.size + "/" + STAMPS.length],
+      ["succes", "Succès " + progress.wins.size + "/" + WINS.length], ["scores", "Scores"]], tab, openCarnet);
+    const nodes = [panelTitle("★", "Carnet de " + (net.you ? net.you.pseudo : "promenade"), "#d92b3a"), tabs[1]];
+    const listOf = (items, done, cls) => {
+      const list = elem("ul", "p3d-stamps");
+      items.forEach((it) => {
+        const ok = done.has(it[0]);
+        const li = elem("li", (cls || "") + (ok ? " done" : ""));
+        li.append(elem("i", null, ok ? (cls ? "★" : "✓") : ""), elem("b", null, it[1]), elem("span", null, it[2]));
+        list.appendChild(li);
+      });
+      return list;
+    };
+    if (tab === "tampons") {
+      nodes.push(elem("p", null, carnet.size >= STAMPS.length
         ? "Carnet complet, bravo ! Vous connaissez le parking et son village par cœur."
-        : STAMPS.length + " choses à découvrir, du parking au village de " + CITY_NAME + ". " + carnet.size + " sur " + STAMPS.length + " pour l'instant."),
-      list,
-      elem("p", null, "Envie de venir pour de vrai ? La borne de réservation, sur le parvis, montre les places à réserver cette heure. " +
-        "Le carnet est un jeu, gardé sur cet appareil : il ne donne droit à aucun tarif."),
-      panelClose(),
-    ]);
+        : STAMPS.length + " choses à découvrir, du parking au village de " + CITY_NAME + "."), listOf(STAMPS, carnet));
+    } else if (tab === "succes") {
+      nodes.push(elem("p", null, "Votre rang : " + rank() + ". Les autres promeneurs voient votre nombre d'étoiles. " +
+        (progress.goldDay === new Date().toISOString().slice(0, 10) ? "Ticket d'or du jour : trouvé." : "Un ticket d'or est caché quelque part aujourd'hui.")), listOf(WINS, progress.wins, "win"));
+    } else {
+      const table = elem("table", "p3d-scores"), head = elem("tr");
+      ["Jeu", "Votre record", "Meilleur en ligne"].forEach((hh) => head.appendChild(elem("th", null, hh)));
+      table.appendChild(head);
+      const cells = {};
+      Object.keys(GOALS).forEach((game) => {
+        const row = elem("tr");
+        cells[game] = elem("td", null, net.url ? "…" : "hors ligne");
+        row.append(elem("td", null, GAME_NAMES[game]), elem("td", null, progress.best[game] != null ? String(progress.best[game]) : "—"), cells[game]);
+        table.appendChild(row);
+      });
+      nodes.push(elem("p", null, "Les scores en ligne sont ceux des promeneurs depuis le dernier redémarrage du service."), table);
+      if (net.url) {
+        fetch(net.url + "/scores", { credentials: "omit", cache: "no-store" })
+          .then((res) => (res.ok ? res.json() : Promise.reject(new Error(String(res.status)))))
+          .then((data) => Object.keys(cells).forEach((game) => {
+            const top = data.scores && data.scores[game] && data.scores[game][0];
+            cells[game].textContent = top ? top.score + " · " + top.pseudo : "personne encore";
+          }))
+          .catch(() => Object.keys(cells).forEach((game) => { cells[game].textContent = "indisponible"; }));
+      }
+    }
+    nodes.push(elem("p", null, "Envie de venir pour de vrai ? La borne de réservation, sur le parvis, montre les places à réserver cette heure. " +
+      "Le carnet est un jeu, gardé sur cet appareil : il ne donne droit à aucun tarif."), panelClose());
+    showPanel("Carnet de promenade", false, nodes);
   }
   carnetBtn.addEventListener("click", () => { if (walk.panel) closeResa(); else openCarnet(); });
 
@@ -3020,7 +3520,7 @@ export function createParking3D(container, options) {
      à la guérite, salue le promeneur et complimente le chien. */
   function agentSay(kind) {
     let lines = AGENT_SAYS[kind];
-    if (kind === "dog") lines = lines.concat("Oh, un " + dog.def.name.toLowerCase() + " !");
+    if (kind === "dog") lines = lines.concat("Oh, " + (dog.def.une ? "une " : "un ") + dog.def.name.toLowerCase() + " !");
     lot.agentTag.name.textContent = lines[Math.floor(Math.random() * lines.length)];
     npc.say = 2.6;
   }
@@ -3148,6 +3648,7 @@ export function createParking3D(container, options) {
     speedo.classList.remove("on");
   }
   const leaveAction = { label: "Descendre du véhicule", action: exitVehicle };
+  const pumpAction = { label: "Faire le plein pile (mini-jeu)", action: () => openGame("plein", "station") };
   const rentalActions = rentals.map((rv) => ({ rv, label: "Conduire " + rv.def.label, action: () => enterVehicle(rv) }));
   ["pointerdown", "pointerup", "pointercancel", "pointerleave"].forEach((type) => {
     actBtn.addEventListener(type, (e) => { walk.keys.Space = type === "pointerdown"; e.preventDefault(); });
@@ -3209,6 +3710,19 @@ export function createParking3D(container, options) {
     // La caméra se replace dans l'axe du véhicule, sauf si on vient de regarder ailleurs.
     if (now - walk.look > 1.6) walk.yaw = angleTo(walk.yaw, rv.rot, 1 - Math.exp(-dt * 3.2));
     speedoValue.textContent = String(Math.round(Math.abs(rv.v) * 3.6));
+    // Succès du volant, et la place d'entraînement : arrêté dedans, on est noté.
+    progress.km += (Math.abs(rv.v) * dt) / 1000;
+    if (progress.km >= 1) win("km");
+    if (rv.v >= def.max * 0.97) win("bolide");
+    const bay = lot.city.bay, inBay = Math.abs(rv.x - bay.x) < bay.w / 2 && Math.abs(rv.z - bay.z) < bay.d / 2;
+    if (!inBay) walk.parked = false;
+    else if (!walk.parked && Math.abs(rv.v) < 0.15 && def.model !== "scooter") {
+      walk.parked = true;
+      const off = Math.hypot(rv.x - bay.x, (rv.z - bay.z) * 0.6);
+      const score = clamp(Math.round(100 - off * 48 - Math.abs(Math.sin(rv.rot)) * 150), 0, 100);
+      toast("Créneau : " + score + " / 100" + (score >= GOALS.creneau ? ". Parfait !" : ". Garez-vous droit, bien au centre."), 5);
+      gameDone("creneau", score);
+    }
   }
   function openResa() {
     const title = panelTitle("R", "Borne de réservation");
@@ -3251,7 +3765,9 @@ export function createParking3D(container, options) {
   function closeResa() {
     panel.classList.remove("on");
     if (walk.panel) walk.near = false; // l'invite revient à la prochaine image
+    if (walk.game) { walk.game.stop(); walk.game = null; }
     if (bareHead) { bareHead = false; swapModel(player, buildPerson(playerLook())); }
+    walk.zoom = null;
     walk.panel = false;
   }
   prompt.addEventListener("click", () => { if (walk.panel) closeResa(); else interact(); });
@@ -3288,7 +3804,11 @@ export function createParking3D(container, options) {
     if (!driving) walk.speed = lerp(walk.speed, goal, 1 - Math.exp(-dt * 11));
     // Saut (Espace) : le chien saute avec son maître.
     if (!driving) {
-      if (k.Space && walk.on && !walk.panel && walk.y === 0) { walk.vy = 5.8; if (d.y === 0) d.vy = 4.4; }
+      if (k.Space && walk.on && !walk.panel && walk.y === 0) {
+        walk.vy = 5.8;
+        if (d.y === 0) d.vy = 4.4;
+        if (++progress.jumps >= 25) win("kangourou");
+      }
       walk.vy -= 17 * dt;
       walk.y = Math.max(0, walk.y + walk.vy * dt);
       if (walk.y === 0) walk.vy = 0;
@@ -3399,12 +3919,13 @@ export function createParking3D(container, options) {
     if (!walk.on) return;
     const L = lot.L, rv = walk.drive;
     // Caméra dans le dos, un peu au-dessus ; plus loin et plus large en voiture.
-    const dist = rv ? rv.def.cam * (walk.dist / 7.5) : walk.dist;
-    const cp = Math.cos(walk.pitch), px = walk.x - L.cx, pz = walk.z - L.cz;
+    const zoom = rv ? null : walk.zoom, pitch = zoom ? zoom.pitch : walk.pitch, aim = zoom ? zoom.y : 1.5;
+    const dist = zoom ? zoom.dist : rv ? rv.def.cam * (walk.dist / 7.5) : walk.dist;
+    const cp = Math.cos(pitch), px = walk.x - L.cx, pz = walk.z - L.cz;
     const lift = rv ? 0 : walk.y * 0.6 + groundAt(walk.x, walk.z);
-    walkCam.set(px - Math.sin(walk.yaw) * dist * cp, 1.6 + lift + dist * Math.sin(walk.pitch), pz - Math.cos(walk.yaw) * dist * cp);
+    walkCam.set(px - Math.sin(walk.yaw) * dist * cp, aim + 0.1 + lift + dist * Math.sin(pitch), pz - Math.cos(walk.yaw) * dist * cp);
     camera.position.lerp(walkCam, 1 - Math.exp(-dt * 12));
-    camera.lookAt(px, 1.5 + lift, pz);
+    camera.lookAt(px, aim + lift, pz);
     const fov = 58 + (rv ? clamp(Math.abs(rv.v), 0, 30) * 0.5 : 0);
     walk.fov = lerp(walk.fov, fov, 1 - Math.exp(-dt * 4));
     if (Math.abs(camera.fov - walk.fov) > 0.05) { camera.fov = walk.fov; camera.updateProjectionMatrix(); }
@@ -3412,7 +3933,8 @@ export function createParking3D(container, options) {
     // Ce qu'on peut utiliser ici, et la zone où l'on se trouve.
     let near = null, best = 2.6;
     if (rv) {
-      if (Math.abs(rv.v) < 2.5) near = leaveAction;
+      const pump = lot.city.pumps;
+      if (Math.abs(rv.v) < 2.5) near = walk.fuel <= 0 && Math.hypot(rv.x - pump.x, rv.z - pump.z) < 7.5 ? pumpAction : leaveAction;
     } else {
       lot.points.forEach((pt) => {
         const dd = Math.hypot(pt.x - walk.x, pt.z - walk.z);
@@ -3432,6 +3954,10 @@ export function createParking3D(container, options) {
     const c = lot.city;
     const inTown = !zone && walk.x > c.x0 - 14 && walk.x < c.x1 + 14 && walk.z > c.z0 && walk.z < c.z1;
     if (zone && !rv) stamp("parking");
+    if (night > 0.5) win("nuit");
+    walk.fuel = Math.max(0, walk.fuel - dt);
+    walk.saveIn -= dt;
+    if (walk.saveIn <= 0) { walk.saveIn = 20; saveProgress(); }
     if (walk.x > c.gate && walk.x < c.gate + 8 && Math.abs(walk.z - ROAD_Z) < 7) stamp("arche");
     if (c.pond && !rv && Math.abs(walk.x - c.pond.x) < 1.1 && Math.abs(walk.z - c.pond.z) < 1.6) stamp("pont");
     const key = zone ? zone.name + ":" + zone.taken + ":" + zone.cap : inTown ? "ville" : "";
@@ -3672,6 +4198,8 @@ export function createParking3D(container, options) {
       fish.rotation.y = -a;
     });
     stepFireworks(dt);
+    stepNet(dt);
+    stepLive(now);
     // Promeneur et chien (toujours animés) ; en promenade, la caméra les suit.
     stepWalk(dt, now);
     sun.target.position.set(0, 0, 0);
@@ -3826,6 +4354,14 @@ export function createParking3D(container, options) {
         },
         look: Object.assign({}, look),
         carnet: Array.from(carnet),
+        wins: Array.from(progress.wins),
+        gold: lot ? { x: Math.round(lot.gold.x * 10) / 10, z: Math.round(lot.gold.z * 10) / 10, hidden: lot.gold.mesh.visible, found: progress.gold } : null,
+        best: Object.assign({}, progress.best),
+        game: Boolean(walk.game),
+        net: {
+          on: Boolean(net.url), you: net.you ? net.you.pseudo : null, online: net.online,
+          others: Array.from(net.others.values()).map((o) => ({ pseudo: o.goal.pseudo, x: Math.round(o.cur.x * 10) / 10, z: Math.round(o.cur.z * 10) / 10, drive: o.goal.drive || null })),
+        },
         fireworks: lot ? lot.city.fireworks.left : 0,
         city: lot ? { x0: Math.round(lot.city.x0), x1: Math.round(lot.city.x1) } : null,
         agent: { x: Math.round(npc.x * 10) / 10, z: Math.round(npc.z * 10) / 10, moving: Boolean(npc.path), says: npc.say > 0 && lot ? lot.agentTag.name.textContent : null },
@@ -3833,6 +4369,9 @@ export function createParking3D(container, options) {
     },
     dispose() {
       api.setActive(false);
+      if (walk.game) walk.game.stop();
+      net.url = null;
+      net.others.forEach((o) => { if (o.car) o.car.paintMat.dispose(); });
       window.removeEventListener("keydown", keyDown, true);
       window.removeEventListener("keyup", keyUp, true);
       window.removeEventListener("blur", keyBlur);

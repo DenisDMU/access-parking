@@ -30,7 +30,9 @@ from src.infrastructure.logging_config import correlation_id_var
 
 CORRELATION_HEADER = "X-Correlation-ID"
 _VALID_CORRELATION_ID = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
-_QUIET_PREFIXES = ("/health", "/static", "/favicon.ico")
+# La promenade multijoueur envoie une position plusieurs fois par seconde et
+# par visiteur : elle noierait le journal.
+_QUIET_PREFIXES = ("/health", "/static", "/favicon.ico", "/api/v1/borne/promenade")
 
 logger = logging.getLogger("access.http")
 

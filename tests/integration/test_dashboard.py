@@ -125,12 +125,66 @@ def test_plan_3d_village_boutiques_et_carnet(client):
         assert pet in source
     # Tenue, compagnon et carnet restent sur l'appareil : deux clés, une seule
     # écriture, et le module n'envoie rien (ni tenue, ni photo souvenir).
-    assert "access.plan3d.look" in source and "access.plan3d.carnet" in source
+    for key in ("access.plan3d.look", "access.plan3d.carnet", "access.plan3d.joueur"):
+        assert key in source
     assert source.count("localStorage.setItem") == 1
-    for word in ("fetch(", "XMLHttpRequest", "sendBeacon", "WebSocket"):
-        assert word not in source
     # Le carnet est un jeu : il ne promet aucun avantage tarifaire.
     assert "il ne donne droit à aucun tarif" in source
+
+
+def test_plan_3d_multijoueur_sans_cle_ni_texte_libre(client):
+    """Le plan ne parle qu'à la route que la page lui donne, sans clé ni cookie."""
+
+    source = client.get("/static/parking3d.js").text
+    # Quatre appels, tous vers la route du multijoueur : ma position, le
+    # regard d'un spectateur, un score, les meilleurs scores.
+    assert source.count("fetch(") == 4
+    assert source.count("fetch(net.url") == 4
+    assert source.count('credentials: "omit"') == 4
+    for word in ("X-API-Key", "XMLHttpRequest", "sendBeacon", "WebSocket", "document.cookie"):
+        assert word not in source
+    # Pseudo attribué par le serveur, saluts choisis dans une liste : aucune saisie.
+    assert "const EMOTES" in source
+    for tag in ("<input", "<textarea", 'elem("input"', 'elem("textarea"'):
+        assert tag not in source
+    for page in ("/static/dashboard.html", "/static/borne.html"):
+        html = client.get(page).text
+        assert 'multi: "/api/v1/borne/promenade"' in html
+        assert 'import("/static/parking3d.js?v=' in html
+
+
+def test_plan_3d_succes_station_et_surprises(client):
+    source = client.get("/static/parking3d.js").text
+    for name in (
+        "const WINS",
+        "function win(",
+        "function gameDone",
+        "function openGame",
+        "function stepLive",
+    ):
+        assert name in source
+    assert "STATION ACCESS" in source and "PLACES LIBRES" in source
+    for pet in ("cochon:", "panda:", "mouton:", "tortue:", "canard:"):
+        assert pet in source
+
+
+def test_mini_jeux_servis_sans_ressource_externe(client):
+    from src.infrastructure.promenade_room import GAMES
+
+    response = client.get("/static/promenade-jeux.js")
+    assert response.status_code == 200 and "javascript" in response.headers["content-type"]
+    source = response.text
+    assert "export function startGame" in source and "export const GAMES" in source
+    for word in ("https://", "http://", "innerHTML", "fetch(", "localStorage"):
+        assert word not in source
+    # Les jeux du navigateur et les plafonds du serveur vont ensemble.
+    for game, maximum in GAMES.items():
+        if game == "creneau":  # jugé dans le plan 3D, pas dans un panneau
+            continue
+        assert f"  {game}: {{" in source
+        assert f"max: {maximum}" in source
+    plan = client.get("/static/parking3d.js").text
+    assert 'from "./promenade-jeux.js?v=' in plan
 
 
 def test_dashboard_propose_de_liberer_les_vehicules_presents(client):

@@ -4,6 +4,34 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.17.0] — 2026-11-25 — Promenade multijoueur, mini-jeux et succès
+
+### Ajouté
+- Promenade multijoueur : on voit les autres visiteurs se promener (tenue,
+  compagnon, véhicule), avec un pseudo attribué par Access et leur nombre
+  de succès ; quatre saluts au choix (touches 1 à 4). Vu de haut et dans le
+  dashboard, on les regarde. Routes publiques `POST` et `GET
+  /borne/promenade`, `GET` et `POST /borne/promenade/scores` ; réglages
+  `PROMENADE_MULTI`, `PROMENADE_CAPACITY`, `RATE_LIMIT_PROMENADE`.
+- Six mini-jeux (`promenade-jeux.js`) : pêche aux canards, crêpes, frites,
+  barbe à papa, grosse caisse, « plein pile ». Records sur l'appareil,
+  meilleurs scores partagés.
+- Station Access sur la route du village : pompes, recharge, boutique,
+  place d'entraînement du « créneau parfait », et un grand panneau des
+  places libres du parking, en direct.
+- Vingt-quatre succès et un rang ; carnet à trois onglets (tampons, succès,
+  scores) ; un ticket d'or caché chaque jour à un endroit différent.
+- Cinq compagnons de plus : cochon, panda, mouton, tortue, canard.
+
+### Modifié
+- Personnage refait : formes arrondies, visage (yeux, sourcils, nez,
+  sourire, oreilles), mains, chaussures, carnation au choix ; les huit
+  coupes de cheveux se reconnaissent de face comme de dos, et la caméra
+  s'approche dans les boutiques. Compagnons arrondis eux aussi.
+- Les stands de la fête et la grosse caisse lancent un vrai jeu.
+- Le plan n'appelle que les routes `/borne/promenade` données par la page,
+  sans clé ni cookie ; ces appels ne sont pas journalisés un par un.
+
 ## [4.16.0] — 2026-11-25 — Bonneplace, le village du parking
 
 ### Ajouté
