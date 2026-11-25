@@ -20,7 +20,7 @@
 | | |
 |---|---|
 | **Rôle** | Décide si un véhicule peut entrer/sortir du parking et coordonne les échanges avec Vehicles, Booking, Parking, Pricing, Payment (aucune donnée métier des autres services). |
-| **Version actuelle** | `4.22.0` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
+| **Version actuelle** | `4.23.0` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
 | **Dernière mise à jour** | 24 novembre 2026 (plaques de tous pays ; Parking 1.5.0 : catégories et occupation ; borne client ; Vehicles par plaque) |
 | **URL du service déployé** | https://access-api-a1u7.onrender.com |
 | **Documentation Swagger/OpenAPI** | https://access-api-a1u7.onrender.com/docs (ReDoc : `/redoc`, spec brute : `/openapi.json`) |
@@ -73,7 +73,7 @@
 | **Observabilité** | ✅ Correlation ID propagé à tous les services et événements, logs par décision, `/metrics` Prometheus (techniques + métier + intégration), config Prometheus fournie, `/health` avec version et commit | [section 9](#métriques-prometheus) |
 | **CI/CD et déploiement** | ✅ GitHub Actions (lint → tests → bandit → pip-audit → gitleaks), déploiement Render après CI verte, smoke test de l'instance déployée (version vérifiée), CHANGELOG, Dependabot | [section 9](#intégration-continue-cicd), [section 14](#14-déploiement-sur-render) |
 | **Sécurité** | ✅ Clé API (comparaison en temps constant) sur toutes les routes sauf `/health`, clé borne limitée au passage d'un véhicule, refus de démarrer en production avec une clé faible, validation stricte, erreurs sans stack trace, en-têtes de sécurité, CORS restreint, rate limiting, secrets hors Git, plaque jamais stockée/publiée/renvoyée/loggée (test dédié) | [section 10](#10-sécurité) |
-| **Version** | `4.22.0` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
+| **Version** | `4.23.0` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
 | **Dernière mise à jour** | 24 novembre 2026 | |
 
 ### Suivi des jalons
@@ -968,14 +968,14 @@ Renseignez votre `X-API-Key` dans le champ prévu (stockée uniquement dans le
   recharge, boutique, place d'entraînement du « créneau parfait » (on se
   gare, on est noté sur 100), et un **grand panneau qui affiche en direct
   les places libres du parking**.
-  **Onze mini-jeux** (souris, doigt ou clavier) : jeu des paires au café,
+  **Douze mini-jeux** (souris, doigt ou clavier) : course de canards au spa, jeu des paires au café,
   passage piéton au bistrot, chasse aux olives à la pizzeria, « Feu
   vert ! » chez le glacier, éclate-ballons à la fête, pêche aux canards, crêpes,
   frites et barbe à papa aux stands de la fête, grosse caisse au kiosque,
   « plein pile » à la pompe. Records gardés sur l'appareil, meilleurs
   scores partagés entre promeneurs.
   **Carnet** (touche C), en trois onglets : quinze **tampons** à
-  découvrir, quarante-sept **succès** (au volant, aux mini-jeux, en
+  découvrir, cinquante-trois **succès**, dont cinq secrets (au volant, aux mini-jeux, en
   rencontrant d'autres promeneurs, en revenant un autre jour) avec un rang
   qui monte, et les scores. Un **ticket d'or** est caché chaque jour à un
   endroit différent. Une **photo souvenir** (touche P) s'enregistre depuis

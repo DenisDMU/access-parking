@@ -4,6 +4,14 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.23.0] — 2026-11-25 — Succès secrets, course de canards
+
+### Ajouté
+- Cinq succès secrets, affichés « ??? » tant qu'ils ne sont pas trouvés, et
+  un succès pour le nouveau jeu : cinquante-trois en tout.
+- Douzième mini-jeu : la course de canards, au Spa du Point Mort.
+- Des papillons au-dessus des fleurs du village.
+
 ## [4.22.0] — 2026-11-25 — Kingfarm, monde courbé, sons
 
 ### Ajouté
