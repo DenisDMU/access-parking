@@ -20,7 +20,7 @@
 | | |
 |---|---|
 | **Rôle** | Décide si un véhicule peut entrer/sortir du parking et coordonne les échanges avec Vehicles, Booking, Parking, Pricing, Payment (aucune donnée métier des autres services). |
-| **Version actuelle** | `4.25.0` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
+| **Version actuelle** | `4.27.0` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
 | **Dernière mise à jour** | 24 novembre 2026 (plaques de tous pays ; Parking 1.5.0 : catégories et occupation ; borne client ; Vehicles par plaque) |
 | **URL du service déployé** | https://access-api-a1u7.onrender.com |
 | **Documentation Swagger/OpenAPI** | https://access-api-a1u7.onrender.com/docs (ReDoc : `/redoc`, spec brute : `/openapi.json`) |
@@ -44,9 +44,9 @@
 - [x] Voir l'état du parking vu par Access : véhicules présents, dernières décisions, santé et version du service (dashboard + `GET /access/presences`).
 - [x] Refuser une sortie datée avant l'entrée (cas limite, jamais transmis à Pricing/Payment).
 - [x] Tracer chaque requête dans les logs par un correlation ID (`X-Correlation-ID`, reçu ou généré, renvoyé dans la réponse) et le **transmettre** à chaque service appelé et dans chaque événement publié.
-- [x] Exposer des métriques métier Prometheus (décisions, refus par motif, paiements, montants, véhicules présents, appels aux autres services, événements publiés).
-- [x] Protéger toutes les routes (sauf `/health`) par clé API ; clé borne distincte, limitée au passage d'un véhicule.
-- [x] Exposer la version et le commit déployés (`/health`) et des métriques d'exploitation (`/metrics`).
+- [x] Exposer des métriques métier Prometheus (opérations du parking, décisions, refus par motif, paiements, montants, véhicules présents, appels aux autres services, événements publiés).
+- [x] Protéger toutes les routes par clé API (sauf `/health` et `/metrics`, qui ne livrent que l'état et des compteurs) ; clé borne distincte, limitée au passage d'un véhicule.
+- [x] Exposer la version et le commit déployés (`/health`) et des métriques d'exploitation (`/metrics`, lisible par le Prometheus de chaque équipe).
 - [x] Conserver les données (stationnements, décisions, événements) dans une base Postgres (Neon) qui survit aux redémarrages.
 - [x] Plafonner la durée facturée à 7 jours et compter tout début de minute (règles 2.4 et 2.5).
 - [x] Vérifier une réservation via le vrai service **Booking** (`GET /reservations/active`, à l'heure du passage) ; la place est prise dans le quota « réservation » de Parking, et la sortie ne refait pas payer le créneau déjà réglé (seul un dépassement est facturé).
@@ -69,11 +69,11 @@
 | **API** | ✅ REST documentée (`/docs`), entrées/sorties validées, erreurs normalisées, `/health` | [section 11](#11-endpoints) |
 | **Intégration** | ✅ Les 5 services réels (Vehicles, Booking, Parking, Pricing, Payment, en REST) ; événements publiés sur RabbitMQ (bus d'équipe) | [section 5](#5-brancher-un-vrai-microservice-à-la-place-dun-mock), [section 6](#6-publication-dévénements--webhook-ou-rabbitmq) |
 | **UI** | ✅ Borne client `/borne` (entrée/sortie, clavier à l'écran, ticket, clair/sombre, mobile) et dashboard servi par Access : borne d'entrée/sortie, état du parking (présences, occupation vue par Parking, décisions, santé), journal d'événements, recherche | [section 12](#12-borne-et-journal-de-bord-dashboard) |
-| **Qualité** | ✅ 465 tests (unitaires + intégration), entrées invalides et cas limites couverts, `ruff` (lint + format), script de vérification reproductible | [section 9](#9-tests-et-qualité) |
-| **Observabilité** | ✅ Correlation ID propagé à tous les services et événements, logs par décision, `/metrics` Prometheus (techniques + métier + intégration), config Prometheus fournie, `/health` avec version et commit | [section 9](#métriques-prometheus) |
+| **Qualité** | ✅ 483 tests (unitaires + intégration), entrées invalides et cas limites couverts, `ruff` (lint + format), script de vérification reproductible | [section 9](#9-tests-et-qualité) |
+| **Observabilité** | ✅ Correlation ID propagé à tous les services et événements, logs par décision, `/metrics` Prometheus (techniques + métier + intégration), Prometheus et Grafana fournis ([`tp/prometheus`](tp/prometheus/README.md)), `/health` avec version et commit | [section 9](#métriques-prometheus) |
 | **CI/CD et déploiement** | ✅ GitHub Actions (lint → tests → bandit → pip-audit → gitleaks), déploiement Render après CI verte, smoke test de l'instance déployée (version vérifiée), CHANGELOG, Dependabot | [section 9](#intégration-continue-cicd), [section 14](#14-déploiement-sur-render) |
 | **Sécurité** | ✅ Clé API (comparaison en temps constant) sur toutes les routes sauf `/health`, clé borne limitée au passage d'un véhicule, refus de démarrer en production avec une clé faible, validation stricte, erreurs sans stack trace, en-têtes de sécurité, CORS restreint, rate limiting, secrets hors Git, plaque jamais stockée/publiée/renvoyée/loggée (test dédié) | [section 10](#10-sécurité) |
-| **Version** | `4.25.0` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
+| **Version** | `4.27.0` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
 | **Dernière mise à jour** | 24 novembre 2026 | |
 
 ### Suivi des jalons
@@ -87,7 +87,7 @@
 | 9 — Qualité et fiabilité | 18 novembre (après-midi) | ✅ Validation renforcée, cas limites, logs avec correlation ID, smoke test |
 | 10-11 — Revue de code et d'intégration | 24 novembre | ✅ Dossier préparé : [docs/REVUE.md](docs/REVUE.md) (contrats, échanges, workflows, écarts constatés) |
 | 12 — Traçabilité | 25 novembre (matin) | ✅ Correlation ID reçu ou généré, loggé, transmis à tous les services appelés et dans les événements |
-| 13 — Observabilité | 25 novembre (après-midi) | ✅ `/metrics` : métriques techniques, métier et d'intégration ; [config Prometheus](monitoring/prometheus.yml) |
+| 13 — Observabilité | 25 novembre (après-midi) | ✅ `/metrics` : métriques techniques, métier et d'intégration ; [config Prometheus](tp/prometheus/prometheus.yml) |
 | 14 — CI/CD et déploiement | 27 novembre (matin) | ✅ CI 5 étapes, déploiement après CI verte, smoke test de l'instance déployée, CHANGELOG |
 | 15 — Sécurisation | 27 novembre (après-midi) | ✅ Authentification, validation, secrets, erreurs, en-têtes de sécurité |
 | 16-18 — Synthèse et présentation | 16 et 18 décembre | ⏳ À préparer |
@@ -112,6 +112,8 @@
 14. [Déploiement sur Render](#14-déploiement-sur-render)
 15. [Rejoindre l'équipe : brancher vos microservices](#15-rejoindre-léquipe--brancher-vos-microservices)
 16. [Écarts assumés par rapport à la spec](#16-écarts-assumés-par-rapport-à-la-spec)
+17. [TP Splunk (à côté du service)](#17-tp-splunk-à-côté-du-service)
+18. [TP Prometheus (supervision des microservices)](#18-tp-prometheus-supervision-des-microservices)
 
 ---
 
@@ -503,7 +505,7 @@ ACCESS_TEST_DATABASE_URL=<url Postgres> pytest tests/integration   # idem contre
 pytest -v            # détail de chaque cas
 ```
 
-Couverture (465 tests) :
+Couverture (483 tests) :
 
 - **Unitaires** — matrice complète de la règle de compatibilité
   véhicule/place, règle de présence, règle d'accessibilité ; chaque use case
@@ -546,7 +548,7 @@ précédente, `needs:` dans le workflow) et doivent **tous** passer — si une
 | Job | Outil | Ce qu'il vérifie |
 |---|---|---|
 | Lint | `ruff` | Erreurs, imports, bugs probables, règles de sécurité, **formatage homogène** (config : `ruff.toml`) |
-| Tests | `pytest` | Les 465 tests unitaires + intégration, sans aucun secret |
+| Tests | `pytest` | Les 483 tests unitaires + intégration, sans aucun secret |
 | Sécurité du code | `bandit` | Analyse statique (SAST) : injections, appels dangereux, secrets en dur… |
 | Dépendances | `pip-audit` | Vulnérabilités connues (CVE) dans `requirements.txt` |
 | Secrets | `gitleaks` | Aucun secret (clé API, URL CloudAMQP…) dans tout l'historique git |
@@ -682,11 +684,15 @@ d'une entrée refusée :
 
 ### Métriques Prometheus
 
-`GET /metrics` (clé API requise), format Prometheus :
+`GET /metrics`, format Prometheus, servi par `prometheus_client`. **Lisible
+sans clé** : le Prometheus de chaque équipe doit pouvoir superviser Access,
+et la réponse ne contient que des agrégats (voir [section 10](#10-sécurité)).
 
 | Métrique | Type | Ce qu'elle mesure |
 |---|---|---|
-| `http_requests_total`, `http_request_duration_seconds` | technique | Requêtes reçues par route, méthode, code ; latences |
+| `http_requests_total{method,handler,status}` | technique | Requêtes reçues par méthode, **gabarit de route** (`/api/v1/access/requests/{request_id}`, jamais le chemin reçu ; `none` pour une adresse inconnue) et classe de statut (`2xx`, `4xx`, `5xx`) : de quoi séparer succès et erreurs |
+| `http_request_duration_seconds` | technique | Latences par gabarit de route |
+| `parking_operations_total{operation,result}` | métier | Opérations du parking : `entry`, `exit`, `forced_exit` (sortie forcée par l'exploitation) × `authorized`, `refused`, `confirmation_required`. Séries présentes à zéro dès le démarrage |
 | `access_decisions_total{type,result}` | métier | Entrées/sorties autorisées, refusées, en confirmation |
 | `access_refusals_total{type,reason}` | métier | Refus par motif (déjà présent, aucune place, paiement refusé…) |
 | `access_payments_total{outcome}` | métier | Paiements acceptés, refusés, indisponibles |
@@ -697,21 +703,31 @@ d'une entrée refusée :
 | `access_events_published_total{channel,event_type,outcome}` | intégration | Événements diffusés (RabbitMQ / webhook), succès ou échec |
 
 Les étiquettes ne contiennent jamais d'identifiant (véhicule, demande,
-correlation ID) : valeurs bornées, aucune donnée personnelle.
+correlation ID) ni de plaque : valeurs bornées, aucune donnée personnelle.
+`/health`, `/metrics` et `/static` ne sont pas comptés dans
+`http_requests_total` : les lectures de Prometheus (toutes les 15 s) et la
+sonde de Render ne gonflent pas l'activité mesurée. `/metrics` est hors
+limitation de débit et hors du log d'accès courant. Les compteurs vivent en
+mémoire : ils repartent de zéro à chaque redémarrage du service (`rate()` et
+`increase()` s'en accommodent).
 
-**Visualiser avec Prometheus** ([`monitoring/prometheus.yml`](monitoring/prometheus.yml),
-Prometheus ≥ 3.0, ex. `brew install prometheus`) :
+Architecture : Prometheus reste dans `infrastructure/metrics.py`. Le domaine
+et les cas d'usage ne l'importent pas ; les routes enregistrent la décision
+rendue par le cas d'usage (`record_decision`, `record_forced_exit`).
+
+**Visualiser avec Prometheus** : le dossier [`tp/prometheus`](tp/prometheus/README.md)
+fournit l'image, la configuration (Access et les cinq autres services) et un
+tableau de bord Grafana — pas-à-pas dans [`PROMETHEUS.md`](PROMETHEUS.md) :
 
 ```bash
-printf '%s' '<clé API Render>' > monitoring/access_api_key
+cd tp/prometheus && ./demarrer.sh
 ```
 
-```bash
-prometheus --config.file=monitoring/prometheus.yml --storage.tsdb.path=/tmp/prometheus-access
-```
+Puis <http://localhost:9090> — requêtes utiles :
 
-Puis http://localhost:9090 — requêtes utiles :
-
+- `up` — quels services répondent
+- `sum by (job) (rate(http_requests_total[2m]))` — requêtes par seconde
+- `sum by (operation, result) (increase(parking_operations_total[5m]))` — opérations métier récentes
 - `sum by (result) (increase(access_decisions_total[1h]))` — décisions de la dernière heure
 - `sum by (reason) (increase(access_refusals_total[1h]))` — pourquoi on refuse
 - `sum by (service, outcome) (rate(access_outgoing_requests_total[5m]))` — santé des services appelés
@@ -729,8 +745,8 @@ Puis http://localhost:9090 — requêtes utiles :
   publics, la clé d'exploitation n'y est donc jamais saisie. La clé borne
   n'ouvre **que** `POST /access/requests` (faire passer un véhicule) : elle
   est refusée (401) sur l'historique, les présences, les événements,
-  l'occupation Parking, la vérification de plaque, `/access/borne/key` et
-  `/metrics`. Seule la clé d'exploitation permet d'obtenir la clé borne
+  l'occupation Parking, la vérification de plaque et `/access/borne/key`.
+  Seule la clé d'exploitation permet d'obtenir la clé borne
   (`GET /access/borne/key`, jamais loggée), pour mettre une borne en
   service depuis le dashboard. Elle doit faire 16 caractères au
   moins et différer d'`API_KEY` (sinon Access refuse de démarrer en
@@ -787,8 +803,18 @@ Puis http://localhost:9090 — requêtes utiles :
   limitée à l'URL du service sur Render), méthodes `GET`/`POST` et en-têtes
   `Content-Type`/`X-API-Key` uniquement, sans credentials (l'authentification
   passe par l'en-tête, pas par des cookies).
-- **Métriques protégées** : `/metrics` expose des informations
-  d'exploitation, donc il exige la clé API comme le reste.
+- **Métriques lisibles sans clé, par décision (4.26.0)** : `/metrics` est lu
+  par le Prometheus des autres équipes, comme `/health`. Ce choix tient à ce
+  que la route ne livre que des agrégats : compteurs, jauges et histogrammes
+  dont chaque étiquette a un ensemble de valeurs borné (méthode, gabarit de
+  route, classe de statut, opération, résultat, motif constant, nom de
+  service). Aucune plaque, aucun identifiant de véhicule ou de demande, aucun
+  chemin brut : une adresse inconnue est comptée sous `none`. Des tests
+  balaient toute l'exposition après des passages réussis, refusés et
+  invalides (`tests/integration/test_metrics.py`). Ce qui devient visible de
+  tous : le volume d'activité, la répartition des refus par motif, le
+  montant total encaissé et la version de Python. Jusqu'en 4.24.0 la route
+  exigeait la clé d'exploitation.
 - **Rate limiting** : `POST /access/requests` limité (`RATE_LIMIT_ACCESS_REQUESTS`,
   `20/minute` par défaut) via `slowapi`.
 - **Gestion d'erreurs centralisée** : `main.py` intercepte `HTTPException`,
@@ -829,7 +855,7 @@ Préfixe `/api/v1` (sauf `/health` et `/metrics`).
 | POST | `/access/vehicles/known` | Oui | Vérifie si une plaque (`{"licensePlate": …}`) est connue de Vehicles, sans la créer ni rien persister |
 | GET | `/access/events` | Oui | Liste les événements publiés (outbox, démo/observabilité) |
 | GET | `/health` | Non | Healthcheck (API + DB) + moteur de base, version et SHA du commit déployé |
-| GET | `/metrics` | Oui | Métriques Prometheus (requêtes, latences, codes HTTP par route) |
+| GET | `/metrics` | Non | Métriques Prometheus, lues par le Prometheus de chaque équipe : `http_requests_total` (méthode, gabarit de route, classe de statut), `parking_operations_total` (opération, résultat), latences, métriques métier et d'intégration. Uniquement des agrégats, aucune plaque ni identifiant ; hors limitation de débit ; ne compte pas ses propres lectures |
 
 Documentation interactive complète (schémas, exemples, codes d'erreur) sur
 `/docs`. Toutes les réponses portent l'en-tête `X-Correlation-ID` (voir
@@ -1461,3 +1487,15 @@ règle RGPD de non-circulation de la plaque brute, qu'Access transmet à Vehicle
 À lire d'abord : [`SPLUNK.md`](SPLUNK.md), le pas-à-pas. Le dossier [`tp/splunk`](tp/splunk/README.md) contient le TP « Installer Splunk
 en local avec Docker » : Dockerfile, scripts de démarrage et d'arrêt, notice.
 Il ne fait pas partie du service Access et n'est pas déployé sur Render.
+
+## 18. TP Prometheus (supervision des microservices)
+
+À lire d'abord : [`PROMETHEUS.md`](PROMETHEUS.md), le pas-à-pas. Le dossier
+[`tp/prometheus`](tp/prometheus/README.md) contient le TP « Observabilité
+avec Prometheus » : le `Dockerfile` du sujet, `prometheus.yml` (Access en
+ligne, les cinq autres microservices, un Access local pour simuler une
+panne), les scripts de démarrage et d'arrêt, et en bonus un Grafana avec sa
+source de données et son tableau de bord provisionnés. Côté service, le TP
+s'appuie sur `GET /metrics` ([section 9](#métriques-prometheus)). Prometheus
+et Grafana tournent sur l'ordinateur de qui fait la démonstration : ils ne
+sont pas déployés sur Render.

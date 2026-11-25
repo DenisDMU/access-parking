@@ -14,7 +14,7 @@
    et des identifiants pseudonymisés. */
 
 import * as THREE from "./vendor/three-0.160.0.module.min.js";
-import { GAMES as MINI, startGame } from "./promenade-jeux.js?v=4.25.0";
+import { GAMES as MINI, startGame } from "./promenade-jeux.js?v=4.27.0";
 
 // --- Catégories de Parking → zones du plan -----------------------------------
 

@@ -111,12 +111,17 @@ for method, path in [
     ("GET", "/api/v1/access/events"),
     ("GET", "/api/v1/access/parking"),
     ("GET", "/api/v1/access/borne/key"),
-    ("GET", "/metrics"),
     ("POST", "/api/v1/access/requests"),
     ("POST", "/api/v1/access/vehicles/known"),
 ]:
     code = call(method, f"{A}{path}", {} if method == "POST" else None)[0]
     check(f"{method} {path} → 401", code == 401, code)
+code, raw, _ = call("GET", f"{A}/metrics")
+check(
+    "/metrics lisible sans clé (compteurs du TP Prometheus)",
+    code == 200 and "http_requests_total" in raw and "parking_operations_total" in raw,
+    code,
+)
 code, raw, headers = call("GET", f"{A}/api/v1/borne/status")
 check("borne publique ouverte", json.loads(raw) == {"publicAccess": True})
 low = {k.lower(): v for k, v in headers.items()}

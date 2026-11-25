@@ -65,7 +65,7 @@ class PromenadeStateIn(BaseModel):
     speed: float = Field(ge=0, le=80, allow_inf_nan=False)
     look: PromenadeLook
     drive: str | None = Field(default=None, pattern=WORD, description="Véhicule conduit")
-    # Ajouté en 4.25 ; absent des pages encore ouvertes sur l'ancienne version.
+    # Ajouté en 4.27 ; absent des pages encore ouvertes sur l'ancienne version.
     tune: PromenadeTune | None = Field(default=None, description="Tuning du véhicule conduit")
     emote: int | None = Field(default=None, ge=0, le=7, description="Salut choisi dans une liste")
     ride: str | None = Field(

@@ -4,7 +4,7 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
-## [4.25.0] — 2026-11-25 — KingPar Tuning
+## [4.27.0] — 2026-11-25 — KingPar Tuning
 
 ### Ajouté
 - **KingPar Tuning**, un atelier en face de la station : bâtiment, podium
@@ -29,6 +29,36 @@ sémantique (majeure = contrat d'API cassé).
 - La voiture d'un autre promeneur prend la peinture de son tuning ; sans
   tuning (page restée sur l'ancienne version), elle garde la couleur de son
   haut, comme avant.
+## [4.26.0] — 2026-11-25 — TP Prometheus : supervision des microservices
+
+### Ajouté
+- Compteur métier `parking_operations_total{operation,result}` : entrées,
+  sorties et sorties forcées par l'exploitation, autorisées, refusées ou en
+  attente de confirmation. Les séries existent à zéro dès le démarrage.
+- Dossier `tp/prometheus` : le `Dockerfile` du sujet, `prometheus.yml`
+  (Access en ligne, Parking, Vehicles, Booking, Pricing, Payment, un Access
+  local pour simuler une panne), `demarrer.sh` et `arreter.sh`. Interface
+  sur `127.0.0.1:9090`, mesures gardées dans un volume.
+- Bonus Grafana (`./demarrer.sh --grafana`) : source Prometheus et tableau de
+  bord « Parking Management — supervision » provisionnés, lecture seule sans
+  connexion, aucun mot de passe dans le dépôt.
+- Guide `PROMETHEUS.md` : quoi lancer, les trois requêtes PromQL
+  (disponibilité, requêtes par seconde, erreurs et opérations métier), la
+  démonstration UP/DOWN, quoi montrer au rendu.
+
+### Modifié
+- `GET /metrics` se lit désormais **sans clé**, pour que le Prometheus de
+  chaque équipe puisse superviser Access. La route ne livre que des
+  agrégats : aucune plaque, aucun identifiant, routes comptées par gabarit.
+  Elle est servie directement par `prometheus_client` (version figée),
+  hors limitation de débit, hors du log d'accès courant, et ne compte pas
+  ses propres lectures.
+- Scripts de vérification en ligne et agent `securite` alignés sur ce choix
+  (`/metrics` n'est plus attendu en 401).
+
+### Retiré
+- `monitoring/prometheus.yml` (lecture avec clé), remplacé par
+  `tp/prometheus/prometheus.yml`.
 
 ## [4.24.0] — 2026-11-25 — Sons enregistrés
 

@@ -1,18 +1,27 @@
 """Métriques Prometheus d'Access (jalon 13 — observabilité).
 
-Les métriques **techniques** HTTP entrantes (requêtes, latences, codes par
-route) sont produites par `prometheus-fastapi-instrumentator` (voir
-`interfaces/api/main.py`). Ce module ajoute :
+Les métriques **techniques** HTTP entrantes (`http_requests_total`, latences,
+codes par gabarit de route) sont produites par
+`prometheus-fastapi-instrumentator` (voir `interfaces/api/main.py`) ; la route
+`GET /metrics` est servie par `prometheus_client`
+(`interfaces/api/routers/metrics_router.py`). Ce module ajoute :
 
-- les métriques **métier** : décisions d'entrée/sortie par résultat et par
-  motif, paiements par issue, montants encaissés, véhicules présents ;
+- les métriques **métier** : opérations du parking (`parking_operations_total`),
+  décisions d'entrée/sortie par résultat et par motif, paiements par issue,
+  montants encaissés, véhicules présents ;
 - les métriques d'**intégration** : appels sortants vers chaque service de
   l'équipe (issue, durée) et publication des événements.
 
 Toutes les étiquettes ont un ensemble de valeurs **borné** (types, résultats,
 motifs constants du code, noms de services) : jamais d'identifiant de
 véhicule, de demande ni de correlation ID, pour ne pas exploser la
-cardinalité ni exposer de donnée personnelle.
+cardinalité ni exposer de donnée personnelle. `/metrics` étant lisible sans
+clé, c'est une règle de sécurité autant que de bonne tenue de Prometheus.
+
+Architecture : Prometheus reste un détail d'infrastructure. Le domaine et les
+cas d'usage ne l'importent pas ; ce sont les routes, qui reçoivent la décision
+rendue par le cas d'usage, qui appellent `record_decision` /
+`record_forced_exit`.
 """
 
 from __future__ import annotations
@@ -22,6 +31,38 @@ from collections.abc import Callable, Iterator
 from prometheus_client import REGISTRY, Counter, Histogram
 from prometheus_client.core import GaugeMetricFamily
 from prometheus_client.registry import Collector
+
+# Compteur métier du TP « Observabilité avec Prometheus » : une ligne par
+# opération du parking et par issue. Nom sans préfixe `access_`, imposé par
+# le sujet, pour que toutes les équipes exposent la même métrique.
+PARKING_OPERATIONS = Counter(
+    "parking_operations_total",
+    "Opérations métier traitées par Access, par opération et résultat",
+    ["operation", "result"],
+)
+
+OPERATION_ENTRY = "entry"
+OPERATION_EXIT = "exit"
+OPERATION_FORCED_EXIT = "forced_exit"
+RESULT_AUTHORIZED = "authorized"
+RESULT_REFUSED = "refused"
+RESULT_CONFIRMATION = "confirmation_required"
+
+# Séries créées à zéro dès le démarrage : la métrique est visible avant le
+# premier passage, et `rate()` / `increase()` voient le tout premier incrément
+# (une série qui apparaît directement à 1 ne compte pas dans une dérivée).
+_KNOWN_OPERATIONS = (
+    (OPERATION_ENTRY, RESULT_AUTHORIZED),
+    (OPERATION_ENTRY, RESULT_REFUSED),
+    (OPERATION_ENTRY, RESULT_CONFIRMATION),
+    (OPERATION_EXIT, RESULT_AUTHORIZED),
+    (OPERATION_EXIT, RESULT_REFUSED),
+    (OPERATION_EXIT, RESULT_CONFIRMATION),
+    (OPERATION_FORCED_EXIT, RESULT_AUTHORIZED),
+    (OPERATION_FORCED_EXIT, RESULT_REFUSED),
+)
+for _operation, _result in _KNOWN_OPERATIONS:
+    PARKING_OPERATIONS.labels(operation=_operation, result=_result)
 
 ACCESS_DECISIONS = Counter(
     "access_decisions_total",
@@ -74,8 +115,17 @@ def record_decision(request_type: int, result: int, reason: str | None) -> None:
     type_label = REQUEST_TYPE_LABEL.get(int(request_type), "unknown")
     result_label = RESULT_LABEL.get(int(result), "unknown")
     ACCESS_DECISIONS.labels(type=type_label, result=result_label).inc()
+    PARKING_OPERATIONS.labels(operation=type_label, result=result_label).inc()
     if result_label != "authorized":
         ACCESS_REFUSALS.labels(type=type_label, reason=reason or "inconnu").inc()
+
+
+def record_forced_exit(released: bool) -> None:
+    """Sortie forcée par l'exploitation : `refused` si le véhicule désigné
+    n'était pas présent (rien n'a été modifié)."""
+
+    result = RESULT_AUTHORIZED if released else RESULT_REFUSED
+    PARKING_OPERATIONS.labels(operation=OPERATION_FORCED_EXIT, result=result).inc()
 
 
 def status_outcome(status_code: int) -> str:
