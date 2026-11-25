@@ -486,3 +486,14 @@ def test_confirm_disability_impossible_en_mode_par_plaque():
     seen = []
     client = _client(lambda r: seen.append(r) or httpx.Response(200), lookup_path=_PLATE_PATH)
     assert client.confirm_disability(_PSEUDO_ID) is False and seen == []
+
+
+def test_discover_routes_ignore_les_routes_vers_un_autre_hote():
+    """Un Swagger modifié ne doit jamais faire partir la plaque ailleurs."""
+
+    for bad in ("@exemple.invalid/c", "//exemple.invalid/c", "/a/../../c", "/c?x=1", "https://x/c"):
+        assert discover_routes(_openapi(bad, "/api/vehicle/{vehicleId}")) is None
+    # La route sûre est toujours trouvée à côté d'une route piégée.
+    openapi = _openapi("/api/vehicle/create", "/api/vehicle/{vehicleId}")
+    openapi["paths"]["@exemple.invalid/x"] = openapi["paths"]["/api/vehicle/create"]
+    assert discover_routes(openapi) == ("/api/vehicle/create", "/api/vehicle/{vehicleId}")

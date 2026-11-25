@@ -133,3 +133,65 @@ def test_pays_pris_en_compte(client):
         "AB-123-CD" not in client.vehicles.registry
         or not client.vehicles.registry["AB-123-CD"].disability_permit
     )
+
+
+# --- Revue de sécurité du 25/11 -------------------------------------------------------
+
+
+def test_validation_refusee_sans_entree_pmr_en_attente(client):
+    """Le code agent seul ne suffit pas : impossible de faire enregistrer
+    n'importe quelle plaque comme PMR chez Vehicles."""
+
+    response = _validate(client)
+    assert response.status_code == 409
+    assert "Mobilité réduite" in response.json()["detail"]
+    assert client.vehicles.confirmed == []
+    assert PLATE not in response.text
+
+
+def test_validation_refusee_apres_le_delai(client, monkeypatch):
+    from datetime import timedelta
+
+    from src.application.use_cases import confirm_disability_by_agent as module
+
+    _pmr_entry(client)
+    monkeypatch.setattr(module, "PENDING_WINDOW", timedelta(seconds=-1))
+    assert _validate(client).status_code == 409
+    assert client.vehicles.confirmed == []
+
+
+def test_entree_standard_ne_permet_pas_de_valider_pmr(client):
+    client.post(PASSAGE, json={"licensePlate": PLATE, "type": 1, "vehicleType": "STANDARD"})
+    client.post(PASSAGE, json={"licensePlate": PLATE, "type": 2})
+    assert _validate(client).status_code == 409
+
+
+def test_borne_tres_sollicitee_503(client, monkeypatch):
+    import threading
+
+    from src.interfaces.api.routers import borne_router
+
+    full = threading.BoundedSemaphore(1)
+    full.acquire()
+    monkeypatch.setattr(borne_router, "_slots", full)
+    for response in (
+        client.post(PASSAGE, json={"licensePlate": PLATE, "type": 1}),
+        _validate(client),
+    ):
+        assert response.status_code == 503
+        assert response.json()["detail"] == borne_router.BORNE_BUSY
+    full.release()
+    assert client.post(PASSAGE, json={"licensePlate": PLATE, "type": 1}).status_code == 200
+
+
+def test_place_rendue_meme_en_cas_d_erreur(client, monkeypatch):
+    import threading
+
+    from src.interfaces.api.routers import borne_router
+
+    one = threading.BoundedSemaphore(1)
+    monkeypatch.setattr(borne_router, "_slots", one)
+    client.vehicles.available = False
+    client.post(PASSAGE, json={"licensePlate": PLATE, "type": 1})
+    assert one.acquire(blocking=False)  # la place a bien été rendue
+    one.release()

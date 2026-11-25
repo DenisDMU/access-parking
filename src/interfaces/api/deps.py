@@ -274,5 +274,8 @@ def get_check_vehicle_known_use_case(
 def get_confirm_disability_use_case(
     vehicles_port: VehiclesServicePort = Depends(get_vehicles_port),
     entry_use_case: ProcessEntryRequest = Depends(get_process_entry_request_use_case),
+    access_repo: AccessRepositoryPort = Depends(get_access_repository),
 ) -> ConfirmDisabilityByAgent:
-    return ConfirmDisabilityByAgent(vehicles_port=vehicles_port, entry_use_case=entry_use_case)
+    return ConfirmDisabilityByAgent(
+        vehicles_port=vehicles_port, entry_use_case=entry_use_case, access_repo=access_repo
+    )

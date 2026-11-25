@@ -51,6 +51,10 @@ _SENT = {scenario["licensePlate"] for scenario in _SCENARIOS} | {
     "123ABC75",
     "IT:AB456CD",  # identité envoyée à Vehicles pour la plaque italienne
     "AB456CD",
+    "BO-111-RN",
+    "BO-222-RN",
+    "BO-333-RN",
+    "DE:BO222RN",
 }
 
 
@@ -96,6 +100,32 @@ def test_no_plate_in_responses_tables_events_or_logs(client, caplog):
         assert validated.json()["result"] == 1
         assert not PLATE.search(validated.text)
 
+        # Borne publique : entrée et sortie, erreurs de saisie, code faux (revue du 25/11).
+        for passage in (
+            {"licensePlate": "BO-111-RN", "type": 1},
+            {"licensePlate": "BO-111-RN", "type": 2},
+        ):
+            response = client.post("/api/v1/borne/passages", json=passage)
+            assert response.status_code == 200 and not PLATE.search(response.text), response.text
+        for path, body in (
+            ("/api/v1/borne/passages", {"licensePlate": "BO-222-RN"}),
+            ("/api/v1/borne/passages", {"licensePlate": "BO-222-RN", "type": 1, "country": "DE"}),
+            ("/api/v1/borne/pmr-validation", {"licensePlate": "BO-222-RN"}),
+            (
+                "/api/v1/borne/pmr-validation",
+                {"licensePlate": "BO-222-RN", "country": "DE", "agentCode": "1"},
+            ),
+        ):
+            response = client.post(path, json=body)
+            assert response.status_code == 422 and not PLATE.search(response.text), response.text
+        for body in ({"type": 1}, {"licensePlate": "BO-222-RN", "country": "US"}):
+            response = client.post("/api/v1/access/vehicles/known", json=body, headers=AUTH_HEADERS)
+            assert response.status_code == 422 and not PLATE.search(response.text), response.text
+        wrong = client.post(
+            "/api/v1/borne/pmr-validation", json={"licensePlate": "BO-333-RN", "agentCode": "999"}
+        )
+        assert wrong.status_code == 403 and not PLATE.search(wrong.text)
+
         client.vehicles.available = False
         down = client.post(URL, json=_SCENARIOS[2], headers=AUTH_HEADERS)
         assert not PLATE.search(down.text)
@@ -104,7 +134,12 @@ def test_no_plate_in_responses_tables_events_or_logs(client, caplog):
     assert events.json(), "des événements doivent avoir été publiés"
     assert not PLATE.search(events.text)
 
-    leaked_logs = [r.getMessage() for r in caplog.records if PLATE.search(r.getMessage())]
+    # Message et trace d'exception éventuelle.
+    leaked_logs = [
+        r.getMessage()
+        for r in caplog.records
+        if PLATE.search(r.getMessage()) or (r.exc_text and PLATE.search(r.exc_text))
+    ]
     assert leaked_logs == []
 
     engine = client.test_engine

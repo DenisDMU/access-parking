@@ -1184,6 +1184,11 @@
         });
       }
       if (res.status === 429) { agentHint("Trop d'essais : patientez une minute.", true); agentTimeout(); return null; }
+      if (res.status === 409) {
+        // Plus d'entrée PMR en attente pour ce véhicule (délai de 5 min dépassé).
+        agentHint("Délai dépassé : refaites l'entrée en choisissant « Mobilité réduite ».", true);
+        agentTimeout(); return null;
+      }
       if (!res.ok) { agentHint("Enregistrement impossible pour le moment. Réessayez.", true); agentTimeout(); return null; }
       return res.json().then(function (data) {
         pendingPmr = null;

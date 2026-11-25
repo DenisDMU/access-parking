@@ -313,7 +313,7 @@ class BornePmrValidationIn(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
         json_schema_extra={
-            "examples": [{"licensePlate": "AB-123-CD", "country": "FR", "agentCode": "123"}]
+            "examples": [{"licensePlate": "AB-123-CD", "country": "FR", "agentCode": "0000"}]
         },
     )
 
@@ -437,7 +437,7 @@ class HealthOut(BaseModel):
         description="Moteur de base utilisé (sqlite ou postgresql) — jamais l'URL",
     )
     uptime_seconds: int = Field(alias="uptimeSeconds", examples=[1234])
-    version: str = Field(examples=["4.13.0"])
+    version: str = Field(examples=["4.13.1"])
     commit: str = Field(examples=["b742756d0c1e9f4a8b3c2d1e0f9a8b7c6d5e4f3a"])
     booking: str = Field(
         examples=["réel"],
