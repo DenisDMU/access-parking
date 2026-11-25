@@ -983,9 +983,9 @@ Renseignez votre `X-API-Key` dans le champ prévu (stockée uniquement dans le
   **Défis amicaux** : près d'un autre promeneur, la touche E ouvre une
   roulette : morpion, pierre-feuille-ciseaux ou pile ou face. L'autre
   accepte ou non ; le serveur arbitre la partie.
-  **Suppositofarm**, au sud des champs : des carottes à ramasser, des
-  arbres à abattre à coups de poing, une mini-grotte où extraire des
-  minerais. Tout repousse au bout d'un moment.
+  **Kingfarm**, au sud des champs : un potager de citrouilles à cueillir,
+  un verger à abattre à coups de poing, une mine à ciel ouvert (portail en
+  bois, wagonnet) où extraire des minerais. Tout repousse au bout d'un moment.
   Les animaux et le décor suivent le style doux des personnages : maisons
   aux murs crème à poutres de bois, toits à deux pans en tuiles arrondies
   avec pignons et faîtière, portes arrondies, haies, boîtes aux lettres,
