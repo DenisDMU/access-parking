@@ -1,0 +1,18 @@
+Voix de la pub du gros bouton rouge (dossier `sons/pub/`)
+
+Ces six fichiers sont des répliques écrites pour le plan 3D et lues par une
+synthèse vocale libre, Piper (https://github.com/OHF-Voice/piper1-gpl), avec
+deux voix françaises du projet Piper (https://huggingface.co/rhasspy/piper-voices) :
+
+- `fr_FR-siwis-medium` : 1-ticket, 2-ticket, 5-ticket, 6-kingpar.
+  Entraînée sur le « SIWIS French Speech Synthesis Database »
+  (Université d'Édimbourg, https://datashare.is.ed.ac.uk/handle/10283/2353),
+  licence Creative Commons Attribution 4.0 (CC BY 4.0).
+- `fr_FR-mls-medium`, locuteurs 28 et 91 : 3-agent, 4-jo.
+  Entraînée sur « Multilingual LibriSpeech » (http://openslr.org/94/),
+  licence Creative Commons Attribution 4.0 (CC BY 4.0).
+
+Les enregistrements ont été égalisés en volume et convertis en AAC (.m4a).
+Le programme Piper et les modèles de voix ne sont pas dans ce dépôt : seuls
+les fichiers audio produits y figurent. Ce sont des voix de synthèse : aucune
+personne réelle n'a été enregistrée pour ce projet.

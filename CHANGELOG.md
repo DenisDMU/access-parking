@@ -4,6 +4,24 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.28.0] — 2026-11-25 — Le gros bouton rouge et sa pub
+
+### Ajouté
+- Un **gros bouton rouge** sur un îlot au milieu de la route, devant le
+  parking, sous une étiquette « Ne pas appuyer ».
+- Il lance une **publicité KingPar** tournée dans le décor : six plans de
+  caméra, bandes de cinéma, sous-titres, feux d'artifice, carton final avec
+  le logo, bouton « Passer la pub ». L'agent et Jo, le mécano, saluent la
+  caméra ; une voiture tourne sur le podium du tuning.
+- **Voix enregistrées** pour les acteurs (six répliques, `static/sons/pub/`,
+  environ 200 Ko) : synthèse vocale libre Piper, voix françaises sous
+  licence CC BY 4.0 (mention dans `LICENCE.txt`). En secours : la synthèse
+  vocale de l'appareil (voix locale seulement), puis la voix chantonnée.
+- Un succès secret de plus (cinquante-huit en tout, sept secrets).
+
+### Modifié
+- Les fichiers `.m4a` sont servis avec le type `audio/mp4`.
+
 ## [4.27.2] — 2026-11-25 — `/metrics` de nouveau protégé
 
 ### Sécurité

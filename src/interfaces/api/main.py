@@ -8,6 +8,7 @@ routers. Lancer avec :
 from __future__ import annotations
 
 import logging
+import mimetypes
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -188,6 +189,9 @@ async def borne_old_url(request: Request) -> RedirectResponse:
     return RedirectResponse(url=f"/borne{query}", status_code=301)
 
 
+# Voix de la pub du plan 3D : le type des `.m4a` dépend du système (absent ou
+# fantaisiste selon les machines), et les réponses portent `nosniff`.
+mimetypes.add_type("audio/mp4", ".m4a")
 app.mount("/static", StaticFiles(directory=_STATIC_DIR), name="static")
 
 
