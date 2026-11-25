@@ -4,6 +4,38 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.16.0] — 2026-11-25 — Bonneplace, le village du parking
+
+### Ajouté
+- Plan 3D, mode « Promenade » : le personnage saute (Espace) ; trois
+  véhicules en libre-service se conduisent (camping-car, berline, scooter),
+  avec compteur de vitesse, collisions et barrières qui se lèvent ; le
+  compagnon monte à bord.
+- Un agent du parking fait sa ronde tout seul : il inspecte les véhicules
+  garés, va au-devant d'une arrivée, fait une pause à la guérite, salue le
+  promeneur.
+- Bonneplace, le village du parking, au bout de la route : arche d'entrée,
+  statue de la mascotte, rue de huit commerces, belvédère et sa cloche en
+  haut d'un escalier sous cinq arches (une par zone), Tour Access, étang et
+  passerelle, place de la fête, champs de fleurs, fermes, lettres ACCESS
+  sur la colline. Fenêtres, bornes lumineuses et guirlandes s'allument la
+  nuit.
+- Trois boutiques où tout est offert : Boutique Access (tenue), Coiffure
+  Le Créneau (huit coupes, huit couleurs), Animalerie du Copilote (cinq
+  compagnons : chihuahua, chat, shiba, lapin, renard).
+- Carnet de tampons (touche C) : treize choses à découvrir, du parking au
+  village ; feu d'artifice au dernier tampon. Tickets chance au belvédère,
+  grosse caisse et stands à la fête, distributeur de boissons.
+- Photo souvenir (touche P), à enregistrer depuis la page.
+- Borne de réservation du décor : nombre de places libres à l'instant et
+  atouts du parking, avant le détail par zone.
+
+### Modifié
+- Le promeneur démarre toujours sur le parvis du parking. Tenue, compagnon
+  et carnet sont gardés dans le navigateur de l'appareil (`localStorage`) ;
+  le module n'envoie rien. Le carnet est un jeu, sans avantage tarifaire.
+- « F » appelle le compagnon choisi (il n'aboie plus forcément).
+
 ## [4.15.0] — 2026-11-25 — Libérer un véhicule présent
 
 ### Ajouté

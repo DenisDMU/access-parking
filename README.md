@@ -20,7 +20,7 @@
 | | |
 |---|---|
 | **Rôle** | Décide si un véhicule peut entrer/sortir du parking et coordonne les échanges avec Vehicles, Booking, Parking, Pricing, Payment (aucune donnée métier des autres services). |
-| **Version actuelle** | `4.15.0` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
+| **Version actuelle** | `4.16.0` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
 | **Dernière mise à jour** | 24 novembre 2026 (plaques de tous pays ; Parking 1.5.0 : catégories et occupation ; borne client ; Vehicles par plaque) |
 | **URL du service déployé** | https://access-api-a1u7.onrender.com |
 | **Documentation Swagger/OpenAPI** | https://access-api-a1u7.onrender.com/docs (ReDoc : `/redoc`, spec brute : `/openapi.json`) |
@@ -69,11 +69,11 @@
 | **API** | ✅ REST documentée (`/docs`), entrées/sorties validées, erreurs normalisées, `/health` | [section 11](#11-endpoints) |
 | **Intégration** | ✅ Les 5 services réels (Vehicles, Booking, Parking, Pricing, Payment, en REST) ; événements publiés sur RabbitMQ (bus d'équipe) | [section 5](#5-brancher-un-vrai-microservice-à-la-place-dun-mock), [section 6](#6-publication-dévénements--webhook-ou-rabbitmq) |
 | **UI** | ✅ Borne client `/borne` (entrée/sortie, clavier à l'écran, ticket, clair/sombre, mobile) et dashboard servi par Access : borne d'entrée/sortie, état du parking (présences, occupation vue par Parking, décisions, santé), journal d'événements, recherche | [section 12](#12-borne-et-journal-de-bord-dashboard) |
-| **Qualité** | ✅ 417 tests (unitaires + intégration), entrées invalides et cas limites couverts, `ruff` (lint + format), script de vérification reproductible | [section 9](#9-tests-et-qualité) |
+| **Qualité** | ✅ 419 tests (unitaires + intégration), entrées invalides et cas limites couverts, `ruff` (lint + format), script de vérification reproductible | [section 9](#9-tests-et-qualité) |
 | **Observabilité** | ✅ Correlation ID propagé à tous les services et événements, logs par décision, `/metrics` Prometheus (techniques + métier + intégration), config Prometheus fournie, `/health` avec version et commit | [section 9](#métriques-prometheus) |
 | **CI/CD et déploiement** | ✅ GitHub Actions (lint → tests → bandit → pip-audit → gitleaks), déploiement Render après CI verte, smoke test de l'instance déployée (version vérifiée), CHANGELOG, Dependabot | [section 9](#intégration-continue-cicd), [section 14](#14-déploiement-sur-render) |
 | **Sécurité** | ✅ Clé API (comparaison en temps constant) sur toutes les routes sauf `/health`, clé borne limitée au passage d'un véhicule, refus de démarrer en production avec une clé faible, validation stricte, erreurs sans stack trace, en-têtes de sécurité, CORS restreint, rate limiting, secrets hors Git, plaque jamais stockée/publiée/renvoyée/loggée (test dédié) | [section 10](#10-sécurité) |
-| **Version** | `4.15.0` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
+| **Version** | `4.16.0` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
 | **Dernière mise à jour** | 24 novembre 2026 | |
 
 ### Suivi des jalons
@@ -503,7 +503,7 @@ ACCESS_TEST_DATABASE_URL=<url Postgres> pytest tests/integration   # idem contre
 pytest -v            # détail de chaque cas
 ```
 
-Couverture (417 tests) :
+Couverture (419 tests) :
 
 - **Unitaires** — matrice complète de la règle de compatibilité
   véhicule/place, règle de présence, règle d'accessibilité ; chaque use case
@@ -546,7 +546,7 @@ précédente, `needs:` dans le workflow) et doivent **tous** passer — si une
 | Job | Outil | Ce qu'il vérifie |
 |---|---|---|
 | Lint | `ruff` | Erreurs, imports, bugs probables, règles de sécurité, **formatage homogène** (config : `ruff.toml`) |
-| Tests | `pytest` | Les 417 tests unitaires + intégration, sans aucun secret |
+| Tests | `pytest` | Les 419 tests unitaires + intégration, sans aucun secret |
 | Sécurité du code | `bandit` | Analyse statique (SAST) : injections, appels dangereux, secrets en dur… |
 | Dépendances | `pip-audit` | Vulnérabilités connues (CVE) dans `requirements.txt` |
 | Secrets | `gitleaks` | Aucun secret (clé API, URL CloudAMQP…) dans tout l'historique git |
@@ -923,14 +923,36 @@ Renseignez votre `X-API-Key` dans le champ prévu (stockée uniquement dans le
   **Mode « Promenade »** : un bouton fait incarner un personnage vu de
   dos, suivi de son chihuahua, pour parcourir le parking comme dans un jeu
   (ZQSD ou flèches pour marcher, Maj pour courir, souris pour regarder,
-  E pour interagir, F pour faire aboyer le chien, Échap pour quitter ;
-  manette tactile sur écran tactile). On contourne les véhicules garés, les
+  E pour interagir, F pour appeler son compagnon, Espace pour sauter,
+  Échap pour quitter ; manette tactile sur écran tactile). On contourne les véhicules garés, les
   haies et le mobilier ; la zone où l'on se trouve s'affiche avec son
   occupation. Une **borne de réservation** est posée sur un parvis près de
   l'entrée : elle indique, zone par zone, les places encore réservables
   chez Booking pour l'heure en cours et les véhicules entrés avec une
   réservation. Sur la borne publique, s'approcher de la borne d'entrée ou
-  de sortie du décor et appuyer sur E lance le vrai parcours.
+  de sortie du décor et appuyer sur E lance le vrai parcours. La borne de
+  réservation affiche en tête le **nombre de places libres** à l'instant
+  et les atouts du parking.
+  **Un agent du parking** (gilet jaune) fait sa ronde tout seul : il
+  inspecte les véhicules garés, va au-devant d'une arrivée, salue le
+  promeneur. **Trois véhicules en libre-service** (camping-car, berline,
+  scooter) se conduisent ; les barrières se lèvent devant eux et le
+  compagnon monte à bord.
+  **Bonneplace, le village du parking**, se rejoint par la route, à pied
+  ou au volant. Le promeneur démarre toujours sur le parvis du parking.
+  Le village est aux couleurs d'Access : grande arche d'entrée, statue de
+  la mascotte, rue commerçante, belvédère au sommet d'un escalier sous
+  cinq arches (une par zone du parking), Tour Access à cinq étages, étang
+  et passerelle, place de la fête, champs de fleurs, lettres ACCESS sur
+  la colline. Trois boutiques servent vraiment, et **tout y est offert** :
+  Boutique Access (haut, pantalon, couvre-chef, sac), Coiffure Le Créneau
+  (huit coupes, huit couleurs), Animalerie du Copilote (chihuahua, chat,
+  shiba, lapin, renard). Un **carnet de tampons** (touche C) liste treize
+  choses à découvrir, du parking au village ; le dernier tampon tire un
+  feu d'artifice. Une **photo souvenir** (touche P) s'enregistre depuis la
+  page. Tenue, compagnon et carnet sont gardés dans le navigateur de
+  l'appareil ; le module n'envoie rien. Le carnet est un jeu : il ne donne
+  droit à aucun tarif.
   Occupation redemandée toutes les 10 s tant que l'onglet est ouvert, rendu
   3D arrêté dès qu'on le quitte. Aucune plaque : le plan ne connaît que des
   compteurs et des identifiants pseudonymisés.
@@ -1033,8 +1055,8 @@ visible par tout le monde, sans clé. C'est le même module que l'onglet
 places prises, mises de côté, véhicules entrés avec une réservation),
 aucun véhicule ni identifiant, donc pas de
 détail au survol sur l'origine d'un véhicule. Toujours de jour à
-l'arrivée (bouton « Nuit » disponible), avec le mode « Promenade » et la
-borne de réservation décrits plus haut. Le dock disparaît pendant l'envoi d'un passage et dans les
+l'arrivée (bouton « Nuit » disponible), avec le mode « Promenade », le
+village de Bonneplace et la borne de réservation décrits plus haut. Le dock disparaît pendant l'envoi d'un passage et dans les
 réglages ; quitter le plan arrête son rendu.
 
 **Mise en service : aucune.** Le lien

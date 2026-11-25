@@ -96,6 +96,43 @@ def test_plan_3d_mode_promenade(client):
     assert "onUseBorne" in source  # la borne du décor lance le vrai parcours
 
 
+def test_plan_3d_saut_conduite_et_agent(client):
+    """On saute, on conduit trois véhicules, un agent fait sa ronde tout seul."""
+
+    source = client.get("/static/parking3d.js").text
+    assert "Space" in source  # saut à pied, frein à main au volant
+    for name in (
+        "const RENTALS",
+        "function stepDrive",
+        "function enterVehicle",
+        "function stepAgent",
+    ):
+        assert name in source
+    # Un trajet d'un seul point (agent déjà arrivé) ne doit pas arrêter l'animation.
+    assert "if (P.length < 2)" in source
+
+
+def test_plan_3d_village_boutiques_et_carnet(client):
+    """Bonneplace, le village du parking : boutiques offertes, compagnons, carnet."""
+
+    source = client.get("/static/parking3d.js").text
+    assert 'const CITY_NAME = "Bonneplace"' in source
+    for shop in ("BOUTIQUE ACCESS", "COIFFURE LE CRÉNEAU", "ANIMALERIE DU COPILOTE"):
+        assert shop in source
+    for name in ("function openShop", "function buildPet", "function stamp", "function photo"):
+        assert name in source
+    for pet in ("chihuahua:", "chat:", "shiba:", "lapin:", "renard:"):
+        assert pet in source
+    # Tenue, compagnon et carnet restent sur l'appareil : deux clés, une seule
+    # écriture, et le module n'envoie rien (ni tenue, ni photo souvenir).
+    assert "access.plan3d.look" in source and "access.plan3d.carnet" in source
+    assert source.count("localStorage.setItem") == 1
+    for word in ("fetch(", "XMLHttpRequest", "sendBeacon", "WebSocket"):
+        assert word not in source
+    # Le carnet est un jeu : il ne promet aucun avantage tarifaire.
+    assert "il ne donne droit à aucun tarif" in source
+
+
 def test_dashboard_propose_de_liberer_les_vehicules_presents(client):
     html = client.get("/static/dashboard.html").text
     assert 'id="releaseAll"' in html and "Tout libérer" in html

@@ -343,9 +343,118 @@ const FOOT = {
 };
 const WALK_KEYS = {
   KeyW: 1, KeyA: 1, KeyS: 1, KeyD: 1, ArrowUp: 1, ArrowDown: 1, ArrowLeft: 1, ArrowRight: 1,
-  ShiftLeft: 1, ShiftRight: 1,
+  ShiftLeft: 1, ShiftRight: 1, Space: 1,
 };
-const BARKS = ["Ouaf !", "Wif !", "Ouaf ouaf !", "Grrr… ouaf !", "Waf !"];
+// Véhicules en libre-service, à conduire (garés près de l'entrée, hors du parking :
+// ils ne comptent pas dans l'occupation). Vitesses en m/s.
+const RENTALS = [
+  { model: "camper", name: "Camping-car", label: "le camping-car", color: "#f4f5f7", x: -23.5, max: 18, acc: 5.5, r: 1.3, half: 2.3, cam: 13.5 },
+  { model: "sedan", name: "Berline", label: "la berline", color: "#d92b3a", x: -19.5, max: 28, acc: 10.5, r: 1.02, half: 1.45, cam: 9.5 },
+  { model: "scooter", name: "Scooter", label: "le scooter", color: "#f2b01e", x: -15.5, max: 15, acc: 7.5, r: 0.45, half: 0.45, cam: 6.5 },
+];
+const RENTAL_Z = -5.4;
+// La ville, à l'est du parking, le long de la route (mètres).
+const CITY_GAP = 70, CITY_PITCH = 48, CITY_COLS = 4, CITY_AVENUE = 44;
+// Le village du parking : « la bonne place », comme celle qu'on y trouve.
+const CITY_NAME = "Bonneplace";
+const BRAND = "#1e66f5"; // le bleu d'Access
+const MASCOT = "Ticket"; // le chihuahua, mascotte du parking
+// Échoppes de la rue : trois servent vraiment (tenues, coiffure, compagnon), tout y est offert.
+const SHOPS = ["BISTROT DU PARVIS", "BOUTIQUE ACCESS", "CAFÉ LA BARRIÈRE", "ANIMALERIE DU COPILOTE", "COIFFURE LE CRÉNEAU", "PIZZERIA DU ROND-POINT", "GLACES DU FEU VERT", "SPA DU POINT MORT"];
+const SHOP_SAYS = {
+  "BISTROT DU PARVIS": "Le plat du jour, bien garni !", "CAFÉ LA BARRIÈRE": "Un café, et la barrière se lève.",
+  "PIZZERIA DU ROND-POINT": "Une pizza bien ronde, comme le rond-point.",
+  "GLACES DU FEU VERT": "Pistache-menthe : feu vert pour la gourmandise !", "SPA DU POINT MORT": "Aaah… au point mort, on se détend.",
+};
+const SHOP_LABELS = {
+  "BISTROT DU PARVIS": "Commander le plat du jour", "CAFÉ LA BARRIÈRE": "Prendre un café", "PIZZERIA DU ROND-POINT": "Goûter la pizza",
+  "GLACES DU FEU VERT": "Prendre une glace", "SPA DU POINT MORT": "Jeter un œil au spa",
+  "BOUTIQUE ACCESS": "Changer de tenue (tout est offert)", "COIFFURE LE CRÉNEAU": "Passer chez le coiffeur (offert)",
+  "ANIMALERIE DU COPILOTE": "Choisir un compagnon à l'animalerie",
+};
+const SHOP_PANELS = { "BOUTIQUE ACCESS": "tenue", "COIFFURE LE CRÉNEAU": "coiffure", "ANIMALERIE DU COPILOTE": "compagnon" };
+const DRINKS = ["Clonk ! Une limonade bien fraîche.", "Clonk ! Un café en canette.", "Clonk ! Un jus de pomme."];
+const TOPS = ["#1e66f5", "#1e9e8f", "#d92b3a", "#f2b01e", "#8839ef", "#f4f5f7", "#22252e", "#f6a5c0", "#3d8a3a"];
+const PANTS = ["#27408b", "#22252e", "#6b4a35", "#8b909c", "#3d8a3a", "#b23a48"];
+const HAIRS = ["#3b2a20", "#15161a", "#e3c26a", "#c2552d", "#b9bec9", "#f6a5c0", "#3f7fd9", "#3fa34d"];
+const HATS = [["none", "Aucun"], ["cap", "Casquette Access"], ["straw", "Chapeau de paille"]];
+const CUTS = [["short", "Courte"], ["bob", "Carré"], ["long", "Longue"], ["tail", "Queue-de-cheval"], ["twin", "Couettes"], ["bun", "Chignon"], ["afro", "Afro"], ["mohawk", "Crête"]];
+const PETS = {
+  chihuahua: { name: "Chihuahua", fur: "#d9a066", ear: "#b07a45", muzzle: "#f0d9b5", scale: 1.4, ears: [0.11, 0.22, 0.45, 0.13], tail: [0.17, -0.6, 0.03], collar: "#e0283a", barks: ["Ouaf !", "Wif !", "Ouaf ouaf !", "Grrr… ouaf !", "Waf !"] },
+  chat: { name: "Chat", fur: "#9aa0a6", ear: "#7d848c", muzzle: "#f4f5f7", scale: 1.4, ears: [0.07, 0.1, 0.2, 0.075], tail: [0.34, -0.9, 0.035], eye: "#3fa34d", wag: 0.25, barks: ["Miaou !", "Mrrr…", "Miaou ?"] },
+  shiba: { name: "Shiba", fur: "#d98a3d", ear: "#b86f2c", muzzle: "#fdf6e3", scale: 1.95, ears: [0.07, 0.11, 0.12, 0.075], tail: [0.16, 0.5, 0.05], chest: true, collar: "#1e66f5", barks: ["Wouf !", "Ouaf ouaf !", "Wouf wouf !"] },
+  lapin: { name: "Lapin", fur: "#f4f5f7", ear: "#f6c1cf", muzzle: "#f4f5f7", scale: 1.5, ears: [0.05, 0.26, 0.08, 0.055], tail: [0.06, 0, 0.07], hop: true, wag: 0, barks: ["Pouic !", "Snif snif.", "…"] },
+  renard: { name: "Renard", fur: "#e2711d", ear: "#22252e", muzzle: "#fdf6e3", scale: 1.65, ears: [0.08, 0.14, 0.15, 0.08], tail: [0.36, -0.25, 0.08], tip: "#fdf6e3", chest: true, wag: 0.3, barks: ["Yip !", "Glap glap !", "Yip yip !"] },
+};
+// Stands de la fête : enseigne, invite, répliques.
+const STALLS = [
+  ["CRÊPES", "Commander une crêpe", ["Une crêpe au sucre, toute chaude !"], "#8c2f39"],
+  ["FRITES", "Prendre un cornet de frites", ["Un cornet de frites bien dorées."], "#b5651d"],
+  ["BARBE À PAPA", "Prendre une barbe à papa", ["Une barbe à papa plus grosse que la tête !"], "#c2558a"],
+  ["PÊCHE AUX CANARDS", "Jouer à la pêche aux canards", ["Raté… le canard a filé !", "Attrapé ! Le canard numéro 7.", "Presque ! Encore un essai ?"], "#1f6f5c"],
+];
+// Tickets chance : les prédictions du belvédère (un jeu, comme le carnet).
+const LUCK = [
+  ["Grande chance", "Une place vous attend tout près de l'entrée."],
+  ["Grande chance", "Aujourd'hui, toutes les barrières se lèvent devant vous."],
+  ["Chance", "Feu vert sur toute la route du retour."],
+  ["Chance", "Votre compagnon aura droit à une friandise."],
+  ["Petite chance", "Pensez à réserver : la place sera la vôtre."],
+  ["Chance à venir", "L'heure creuse cache toujours un créneau libre."],
+  ["Chance à venir", "Les arbres refleuriront ; revenez les voir."],
+];
+// Carnet de tampons : des choses à faire, du parking au village.
+const STAMPS = [
+  ["parking", "Visiter une allée du parking", "Entrez par le portique et marchez entre les places."],
+  ["resa", "Consulter la borne de réservation", "Sur le parvis, à gauche de l'entrée."],
+  ["agent", "Saluer l'agent du parking", "Il fait sa ronde en gilet jaune."],
+  ["volant", "Prendre le volant", "Trois véhicules attendent en libre-service."],
+  ["arche", "Passer sous la grande arche", "Suivez la route vers l'est."],
+  ["mascotte", "Saluer " + MASCOT + ", la mascotte", "Sa statue dorée garde l'entrée du village."],
+  ["boisson", "Prendre une boisson", "Un distributeur, dans la rue du village."],
+  ["cloche", "Sonner la cloche du belvédère", "En haut de l'escalier aux cinq arches."],
+  ["pont", "Traverser la passerelle bleue", "Dans le jardin de la tour, au-dessus de l'étang."],
+  ["look", "Changer de tenue ou de coiffure", "Boutique Access ou coiffeur : tout est offert."],
+  ["ami", "Choisir un compagnon", "À l'animalerie du village."],
+  ["fete", "Frapper la grosse caisse de la fête", "Sur la place aux guirlandes, derrière la rue."],
+  ["chance", "Tirer un ticket chance", "Au belvédère : une prédiction sur ticket."],
+];
+// Tenue, coiffure, compagnon et carnet : gardés sur l'appareil, rien n'est envoyé.
+const LOOK_KEY = "access.plan3d.look";
+const CARNET_KEY = "access.plan3d.carnet";
+const LOOK_DEFAULT = { top: TOPS[0], pants: PANTS[0], hair: HAIRS[0], hat: "none", cut: "short", pack: true, pet: "chihuahua" };
+function loadLook() {
+  const look = Object.assign({}, LOOK_DEFAULT);
+  try {
+    const raw = JSON.parse(window.localStorage.getItem(LOOK_KEY) || "{}") || {};
+    // On ne reprend que des valeurs connues : le stockage n'est pas une source sûre.
+    if (TOPS.includes(raw.top)) look.top = raw.top;
+    if (PANTS.includes(raw.pants)) look.pants = raw.pants;
+    if (HAIRS.includes(raw.hair)) look.hair = raw.hair;
+    if (HATS.some((h) => h[0] === raw.hat)) look.hat = raw.hat;
+    if (CUTS.some((c) => c[0] === raw.cut)) look.cut = raw.cut;
+    if (typeof raw.pack === "boolean") look.pack = raw.pack;
+    if (Object.prototype.hasOwnProperty.call(PETS, raw.pet)) look.pet = raw.pet;
+  } catch (err) { /* stockage indisponible : tenue par défaut */ }
+  return look;
+}
+function loadCarnet() {
+  const done = new Set();
+  try {
+    const raw = JSON.parse(window.localStorage.getItem(CARNET_KEY) || "[]");
+    if (Array.isArray(raw)) raw.forEach((id) => { if (STAMPS.some((st) => st[0] === id)) done.add(id); });
+  } catch (err) { /* stockage indisponible : carnet vierge */ }
+  return done;
+}
+function store(key, value) {
+  try { window.localStorage.setItem(key, JSON.stringify(value)); } catch (err) { /* non bloquant */ }
+}
+const FIREWORKS = ["#ff5d8f", "#ffd166", "#7bdff2", "#b8f2a0", "#f7aef8", "#ffffff", "#ff9f1c"];
+const ROOF_TILES = ["#c8553d", "#2f4a7a", "#b5482f", "#3d5a80", "#a8452f", "#8a3b2e"];
+const FACADES = ["#ffffff", "#ffe9c9", "#dcebff", "#ffe1e7", "#e2f3da", "#fff3c4"];
+const FLOWERS = ["#04a5e5", "#40a02b", "#df8e1d", "#7287fd", "#fe640b", "#f6a5c0", "#ffd60a", "#f4f5f7"];
+const BLOSSOM = ["#ffb7c5", "#ff9eb5", "#ffc9d6", "#f8a5c2", "#ffd3de"];
+const AWNINGS = ["#2b3a67", "#8c2f39", "#1f6f5c", "#b5651d", "#5b3a8c", "#2f6690", "#9c3d54", "#3a5a40"];
 // Borne de réservation et point d'arrivée du promeneur (repère du parking).
 const RESA_KIOSK = { x: -8.6, z: -3.4 };
 const SPAWN = { x: -8.6, z: -6.4 };
@@ -383,6 +492,7 @@ function makePath(pts, radius) {
 }
 function pathAt(path, s, out) {
   const { P, cum } = path;
+  if (P.length < 2) { out.x = P[0][0]; out.z = P[0][1]; return; } // trajet d'un seul point : déjà arrivé
   s = clamp(s, 0, path.total);
   let i = 1;
   while (i < cum.length - 1 && cum[i] < s) i++;
@@ -525,6 +635,9 @@ const CSS = `
 .p3d-panel { left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(430px, calc(100% - 28px)); max-height: calc(100% - 28px);
   overflow: auto; padding: 18px; display: none; z-index: 6; }
 .p3d-panel.on { display: block; }
+.p3d-panel, .p3d-toast { background: linear-gradient(var(--glass-hi, rgba(255,255,255,.72)), var(--glass-hi, rgba(255,255,255,.72))),
+  linear-gradient(var(--glass-hi, rgba(255,255,255,.72)), var(--glass-hi, rgba(255,255,255,.72))),
+  linear-gradient(145deg, var(--glass-hi, rgba(255,255,255,.72)), var(--glass-lo, rgba(255,255,255,.46))); }
 .p3d-panel h3 { margin: 0 0 4px; font-size: 19px; display: flex; align-items: center; gap: 9px; }
 .p3d-panel h3 i { font: 800 13px/22px system-ui, sans-serif; font-style: normal; width: 22px; height: 22px; border-radius: 7px; text-align: center; color: #fff; background: #1e66f5; }
 .p3d-panel p { margin: 6px 0 12px; color: var(--subtext, #6c6f85); font-size: 13px; }
@@ -535,10 +648,54 @@ const CSS = `
 .p3d-panel td i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 8px; background: var(--c); }
 .p3d-panel button { all: unset; cursor: pointer; display: block; margin: 14px 0 0 auto; padding: 9px 16px; border-radius: 11px;
   font: 700 13.5px/1 system-ui, sans-serif; color: var(--on-accent, #fff); background: var(--blue, #1e66f5); }
+.p3d-panel.side { left: auto; right: 14px; transform: translateY(-50%); width: min(340px, calc(100% - 28px)); }
+.p3d-panel h4 { margin: 14px 0 7px; font-size: 11.5px; letter-spacing: .05em; text-transform: uppercase; color: var(--subtext, #6c6f85); }
+.p3d-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.p3d-panel button.p3d-sw { display: inline-block; margin: 0; padding: 0; width: 32px; height: 32px; border-radius: 50%; background: var(--c);
+  border: 2px solid rgba(255,255,255,.85); box-shadow: 0 0 0 1px rgba(17,17,27,.22); }
+.p3d-panel button.p3d-chip { display: inline-block; margin: 0; padding: 8px 12px; border-radius: 999px; font-weight: 600;
+  color: var(--text, #4c4f69); background: var(--field, rgba(204,208,218,.42)); }
+.p3d-panel button.p3d-sw[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--blue, #1e66f5); }
+.p3d-panel button.p3d-chip[aria-pressed="true"] { color: var(--on-accent, #fff); background: var(--blue, #1e66f5); }
+.p3d-panel button:focus-visible { outline: 2px solid var(--blue, #1e66f5); outline-offset: 2px; }
+.p3d-stamps { list-style: none; margin: 0; padding: 0; }
+.p3d-stamps li { display: grid; grid-template-columns: 26px 1fr; gap: 0 10px; align-items: center; padding: 7px 2px; border-top: 1px solid var(--hairline, rgba(76,79,105,.12)); }
+.p3d-stamps li i { grid-row: 1 / 3; width: 24px; height: 24px; border-radius: 50%; box-sizing: border-box; border: 2px dashed var(--subtext, #6c6f85);
+  font: 800 13px/20px system-ui, sans-serif; font-style: normal; text-align: center; color: #fff; }
+.p3d-stamps li.done i { border: 2px solid #d92b3a; background: #d92b3a; transform: rotate(-12deg); }
+.p3d-stamps li b { font-weight: 600; }
+.p3d-stamps li span { font-size: 12px; color: var(--subtext, #6c6f85); }
+.p3d-stamps li.done b { text-decoration: line-through; text-decoration-color: rgba(217,43,58,.6); }
+.p3d-carnet { all: unset; cursor: pointer; pointer-events: auto; position: absolute; right: 14px; top: 64px; display: none; align-items: center; gap: 8px;
+  padding: 8px 13px; border-radius: 999px; font: 700 13px/1 system-ui, -apple-system, "Segoe UI", sans-serif; color: #fff;
+  background: #d92b3a; border: 1px solid rgba(255,255,255,.4); box-shadow: 0 8px 22px rgba(0,0,0,.28); z-index: 4; }
+.p3d-carnet:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.p3d.walking .p3d-carnet { display: inline-flex; }
+.p3d-carnet span { font-variant-numeric: tabular-nums; opacity: .92; }
+.p3d-carnet.p3d-photo { top: 104px; background: rgba(24,24,37,.86); }
+.p3d-panel img { display: block; width: 100%; border-radius: 12px; margin: 10px 0 4px; }
+.p3d-panel a.p3d-save { display: inline-block; margin-top: 6px; font-weight: 700; color: var(--blue, #1e66f5); }
+.p3d-panel p.p3d-lead { margin: 8px 0 4px; font-size: 14px; color: var(--text, #4c4f69); }
+.p3d-panel p.p3d-lead b { font-size: 30px; line-height: 1; margin-right: 6px; font-variant-numeric: tabular-nums; color: #2a9d4b; }
+.p3d-panel p.p3d-luck { margin: 14px 0 4px; font-size: 17px; font-weight: 700; color: var(--text, #4c4f69); }
+.p3d-perks { margin: 4px 0 12px; padding: 0 0 0 18px; font-size: 13px; }
+.p3d-perks li { margin: 3px 0; }
+.p3d-toast { left: 50%; top: 62px; transform: translateX(-50%); padding: 9px 15px; display: none; font-weight: 700; text-align: center;
+  max-width: min(460px, calc(100% - 28px)); z-index: 5; }
+.p3d-toast.on { display: block; }
 .p3d-joy { position: absolute; left: 0; top: 0; width: 120px; height: 120px; margin: -60px 0 0 -60px; border-radius: 50%; display: none;
   background: rgba(255,255,255,.16); border: 2px solid rgba(255,255,255,.55); pointer-events: none; z-index: 3; }
 .p3d-joy.on { display: block; }
 .p3d-joy i { position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -26px 0 0 -26px; border-radius: 50%; background: rgba(255,255,255,.85); box-shadow: 0 4px 12px rgba(0,0,0,.3); }
+.p3d-speed { right: 14px; bottom: 56px; padding: 10px 14px; display: none; align-items: baseline; gap: 8px; }
+.p3d-speed.on { display: flex; }
+.p3d-speed b { font-size: 26px; line-height: 1; font-variant-numeric: tabular-nums; min-width: 2ch; text-align: right; }
+.p3d-speed span { color: var(--subtext, #6c6f85); font-size: 12.5px; }
+.p3d-act { all: unset; cursor: pointer; pointer-events: auto; position: absolute; right: 22px; bottom: 150px; width: 74px; height: 74px;
+  border-radius: 50%; display: none; place-items: center; text-align: center; font: 800 13px/1.1 system-ui, sans-serif; color: #11111b;
+  background: rgba(255,255,255,.86); border: 2px solid rgba(17,17,27,.18); box-shadow: 0 8px 22px rgba(0,0,0,.3); z-index: 4;
+  -webkit-tap-highlight-color: transparent; touch-action: none; }
+@media (pointer: coarse) { .p3d.walking .p3d-act { display: grid; } }
 .p3d-tag.bubble { background: #fff; color: #11111b; border-color: rgba(17,17,27,.18); font-weight: 800; }
 .p3d.walking canvas { cursor: crosshair; }
 .p3d.walking .p3d-legend { opacity: .92; }
@@ -565,6 +722,11 @@ const CSS = `
   .p3d.walking .p3d-head { display: none; }
   .p3d.walking .p3d-legend { display: none; }
   .p3d-prompt { bottom: 84px; font-size: 14px; }
+  .p3d-carnet { right: 10px; top: 98px; padding: 7px 11px; font-size: 12px; }
+  .p3d-carnet.p3d-photo { top: 134px; }
+  .p3d-toast { top: 98px; font-size: 12.5px; max-width: calc(100% - 130px); left: 10px; transform: none; text-align: left; }
+  .p3d-panel { top: 10px; transform: translateX(-50%); max-height: calc(100% - 106px); }
+  .p3d-panel.side { left: 10px; right: 10px; top: auto; bottom: 94px; transform: none; width: auto; max-height: 48%; padding: 14px; }
 }
 `;
 function injectStyle() {
@@ -672,7 +834,14 @@ export function createParking3D(container, options) {
   tip.append(tipTitle, tipSub, tipMore);
   const hint = elem("div", "p3d-card p3d-hint", "Glisser : tourner · Molette : zoom · Clic droit ou Maj : déplacer");
   const HINT_ORBIT = hint.textContent;
-  const HINT_WALK = "ZQSD ou flèches : marcher · Maj : courir · Souris : regarder · E : interagir · F : faire aboyer · Échap : quitter";
+  const HINT_WALK = "ZQSD : marcher · Maj : courir · Espace : sauter · E : interagir · F : compagnon · C : carnet · P : photo · Échap : quitter";
+  const HINT_DRIVE = "Z : accélérer · S : freiner, reculer · Q D : tourner · Espace : frein à main · E : descendre · Échap : quitter";
+  const speedo = elem("div", "p3d-card p3d-speed");
+  const speedoValue = elem("b", null, "0");
+  const speedoUnit = elem("span", null, "km/h");
+  speedo.append(speedoValue, speedoUnit);
+  const actBtn = elem("button", "p3d-act", "Sauter");
+  actBtn.type = "button";
   const here = elem("div", "p3d-card p3d-here");
   const hereDot = elem("i");
   const hereName = elem("b");
@@ -686,10 +855,20 @@ export function createParking3D(container, options) {
   const panel = elem("div", "p3d-card p3d-panel");
   panel.setAttribute("role", "dialog");
   panel.setAttribute("aria-label", "Borne de réservation");
+  const carnetBtn = elem("button", "p3d-carnet");
+  carnetBtn.type = "button";
+  carnetBtn.title = "Carnet de tampons : des choses à découvrir, du parking au village (C)";
+  const carnetCount = elem("span");
+  carnetBtn.append(document.createTextNode("Carnet"), carnetCount);
+  const photoBtn = elem("button", "p3d-carnet p3d-photo", "Photo");
+  photoBtn.type = "button";
+  photoBtn.title = "Photo souvenir (P)";
+  const toastBox = elem("div", "p3d-card p3d-toast");
+  toastBox.setAttribute("role", "status");
   const joy = elem("div", "p3d-joy");
   const joyKnob = elem("i");
   joy.appendChild(joyKnob);
-  container.append(labelLayer, head, tools, legend, hint, here, prompt, joy, panel, tip);
+  container.append(labelLayer, head, tools, legend, hint, here, prompt, joy, speedo, actBtn, carnetBtn, photoBtn, toastBox, panel, tip);
 
   function toolButton(label, title, onClick, pressed) {
     const b = elem("button", null, label);
@@ -779,6 +958,12 @@ export function createParking3D(container, options) {
   const envNight = buildEnv(SKY.night);
 
   // --- Matériaux partagés -------------------------------------------------------------
+  // Pastille ronde aux bords doux : pétales de cerisier, étincelles du feu d'artifice.
+  const dotTexture = canvasTexture(64, (ctx, w) => {
+    const g = ctx.createRadialGradient(w / 2, w / 2, 0, w / 2, w / 2, w / 2);
+    g.addColorStop(0, "rgba(255,255,255,1)"); g.addColorStop(0.55, "rgba(255,255,255,.95)"); g.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = g; ctx.fillRect(0, 0, w, w);
+  });
   const M = {
     paint: new THREE.MeshStandardMaterial({ roughness: 0.34, metalness: 0.3, envMapIntensity: 1.1 }),
     detail: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.25, envMapIntensity: 0.9 }),
@@ -796,6 +981,43 @@ export function createParking3D(container, options) {
     screen: new THREE.MeshBasicMaterial({ color: 0x64d7f0, toneMapped: false }),
     boothGlass: new THREE.MeshStandardMaterial({ color: 0x1b2836, roughness: 0.2, metalness: 0.4, emissive: 0xffc56b, emissiveIntensity: 0 }),
     post: new THREE.MeshStandardMaterial({ color: 0x2a2d38, roughness: 0.7 }),
+    // Village : tuiles et pierre (teintées par instance), façades à volets bleus dont
+    // les fenêtres s'éclairent la nuit, pétales des arbres en fleurs, guirlandes.
+    roofTile: new THREE.MeshStandardMaterial({ roughness: 0.78, envMapIntensity: 0.35 }),
+    stone: new THREE.MeshStandardMaterial({ color: 0xb9b4a6, roughness: 0.95, envMapIntensity: 0.25 }),
+    petal: new THREE.PointsMaterial({ color: 0xffc4d6, size: 0.55, sizeAttenuation: true, transparent: true, opacity: 0.95, depthWrite: false, map: dotTexture, alphaTest: 0.25 }),
+    chochin: new THREE.MeshBasicMaterial({ color: 0xf2c14e, toneMapped: false }), // ampoules des guirlandes
+    soil: new THREE.MeshStandardMaterial({ color: 0x8f7355, roughness: 1, envMapIntensity: 0.2 }),
+    hill: new THREE.MeshStandardMaterial({ color: 0x86c46a, flatShading: true, roughness: 1, envMapIntensity: 0.3 }),
+    water: new THREE.MeshStandardMaterial({ color: 0x8fc7b8, roughness: 0.12, metalness: 0.3, envMapIntensity: 1.3 }),
+    far: new THREE.MeshLambertMaterial({ flatShading: true, fog: false }),
+    spark: new THREE.PointsMaterial({ size: 1.5, map: dotTexture, sizeAttenuation: true, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, toneMapped: false }),
+    koi: new THREE.MeshStandardMaterial({ color: 0xff7a1a, roughness: 0.5 }),
+    house: (() => {
+      const draw = (glow) => (ctx, w) => {
+        const r = (x, y, rw, rh, c) => { ctx.fillStyle = c; ctx.fillRect(x * w, y * w, rw * w, rh * w); };
+        if (glow) {
+          r(0, 0, 1, 1, "#000000");
+          r(0.16, 0.2, 0.24, 0.44, "#ffcf7a"); r(0.6, 0.2, 0.24, 0.44, "#ffcf7a");
+          return;
+        }
+        r(0, 0, 1, 1, "#f7f2e8"); // enduit (teinté par maison)
+        r(0, 0.88, 1, 0.12, "#b9b2a4"); // soubassement
+        r(0, 0, 1, 0.045, "#ffffff"); // corniche
+        [0.16, 0.6].forEach((x) => { // fenêtres à volets bleus, jardinière fleurie
+          r(x - 0.02, 0.18, 0.28, 0.48, "#ffffff");
+          r(x, 0.2, 0.24, 0.44, "#a9cdee");
+          r(x + 0.113, 0.2, 0.014, 0.44, "#ffffff"); r(x, 0.41, 0.24, 0.014, "#ffffff");
+          r(x - 0.085, 0.18, 0.06, 0.48, BRAND); r(x + 0.265, 0.18, 0.06, 0.48, BRAND);
+          r(x - 0.02, 0.665, 0.28, 0.05, "#7a5a3c");
+          for (let k = 0; k < 5; k++) r(x - 0.005 + k * 0.055, 0.64, 0.035, 0.035, k % 2 ? "#ff7aa8" : "#ffd60a");
+        });
+      };
+      return new THREE.MeshStandardMaterial({
+        map: canvasTexture(256, draw(false)), emissiveMap: canvasTexture(256, draw(true)),
+        emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.9, envMapIntensity: 0.3,
+      });
+    })(),
     resa: new THREE.SpriteMaterial({
       map: canvasTexture(128, (ctx, s) => {
         ctx.fillStyle = "rgba(17,17,27,0.28)"; roundRect(ctx, 10, 14, s - 16, s - 16, 26); ctx.fill();
@@ -888,8 +1110,11 @@ export function createParking3D(container, options) {
   // --- Promenade : un personnage et son chihuahua, vus à la troisième personne --------
   const walk = {
     on: false, x: SPAWN.x, z: SPAWN.z, rot: 0, speed: 0, phase: 0, still: 0,
+    y: 0, vy: 0, // saut
+    drive: null, look: 0, fov: 58, // véhicule conduit, dernière fois qu'on a tourné la caméra
     yaw: 0, pitch: 0.4, dist: 7.5, keys: {}, joy: null, near: null, zone: null, panel: false,
-    dog: { x: SPAWN.x + 0.9, z: SPAWN.z - 0.5, rot: 0, phase: 0, speed: 0, bark: 0, next: 5, tx: null, tz: null, roam: 0 },
+    say: 0, toast: 0, met: false, // bulle du promeneur, message du carnet, accueil déjà affiché
+    dog: { x: SPAWN.x + 0.9, z: SPAWN.z - 0.5, y: 0, vy: 0, rot: 0, phase: 0, speed: 0, bark: 0, next: 5, tx: null, tz: null, roam: 0 },
   };
   function limb(parts) {
     const mesh = new THREE.Mesh(merge(parts, true), M.props);
@@ -903,54 +1128,157 @@ export function createParking3D(container, options) {
     parent.add(g);
     return g;
   }
-  const player = (() => {
+  function buildPerson(c) {
     const root = new THREE.Group(), body = new THREE.Group();
     root.add(body);
-    body.add(limb([
-      box(0.48, 0.62, 0.28, "#1e9e8f", { y: 1.06 }), // sweat
-      box(0.5, 0.1, 0.3, "#157a6f", { y: 0.78 }),
-      box(0.3, 0.3, 0.3, "#f0c9a4", { y: 1.56 }), // tête
-      box(0.34, 0.12, 0.34, "#3b2a20", { y: 1.74 }), // cheveux
-      box(0.34, 0.22, 0.1, "#3b2a20", { y: 1.62, z: -0.13 }),
+    const hat = c.cap ? "cap" : c.hat || "none", cut = c.cut || "short", h = c.hair;
+    const parts = [
+      box(0.48, 0.62, 0.28, c.top, { y: 1.06 }),
+      box(0.5, 0.1, 0.3, c.hem || c.top, { y: 0.78 }),
+      box(0.3, 0.3, 0.3, c.skin, { y: 1.56 }), // tête
       box(0.06, 0.05, 0.02, "#22252e", { x: -0.075, y: 1.58, z: 0.155 }),
       box(0.06, 0.05, 0.02, "#22252e", { x: 0.075, y: 1.58, z: 0.155 }),
-      box(0.36, 0.44, 0.16, "#f2b01e", { y: 1.1, z: -0.21 }), // sac à dos
-    ]));
-    const leg = () => [box(0.19, 0.6, 0.22, "#27408b", { y: -0.3 }), box(0.2, 0.14, 0.3, "#f4f5f7", { y: -0.68, z: 0.04 })];
-    const arm = () => [box(0.14, 0.5, 0.16, "#1e9e8f", { y: -0.25 }), box(0.12, 0.12, 0.14, "#f0c9a4", { y: -0.56 })];
+    ];
+    const bare = hat === "none";
+    if (hat === "cap") {
+      const color = c.cap || BRAND;
+      parts.push(box(0.36, 0.13, 0.36, color, { y: 1.75 }));
+      parts.push(box(0.3, 0.035, 0.18, color, { y: 1.705, z: 0.24 })); // visière
+    } else if (hat === "straw") {
+      parts.push(cyl(0.42, 0.035, "#e8cf8a", { y: 1.725 }, 14)); // large bord
+      parts.push(cyl(0.2, 0.15, "#e8cf8a", { y: 1.81 }, 14));
+      parts.push(cyl(0.205, 0.045, BRAND, { y: 1.76 }, 14)); // ruban
+    }
+    /* La coupe de cheveux. Sous un chapeau, le dessus disparaît mais la nuque,
+       les mèches et les couettes restent visibles. */
+    const top = (w, hh, d, y, z) => { if (bare) parts.push(box(w, hh, d, h, { y, z: z || 0 })); };
+    const nape = (len) => parts.push(box(0.34, len, 0.1, h, { y: 1.73 - len / 2, z: -0.13 }));
+    const fringe = () => { if (bare) parts.push(box(0.32, 0.07, 0.04, h, { y: 1.685, z: 0.16 })); };
+    const sides = (len) => [-1, 1].forEach((sx) => parts.push(box(0.05, len, 0.26, h, { x: sx * 0.17, y: 1.71 - len / 2, z: -0.03 })));
+    if (cut === "mohawk") {
+      top(0.34, 0.03, 0.34, 1.725);
+      top(0.09, 0.28, 0.4, 1.86, -0.01); // la crête
+      if (!bare) nape(0.1);
+    } else if (cut === "afro") {
+      top(0.5, 0.36, 0.48, 1.84, -0.02);
+      [-1, 1].forEach((sx) => parts.push(box(0.1, 0.3, 0.4, h, { x: sx * 0.2, y: 1.62, z: -0.04 })));
+      nape(0.34);
+    } else {
+      top(0.34, 0.12, 0.34, 1.74);
+      if (cut === "short") { nape(0.22); fringe(); }
+      if (cut === "bob") { nape(0.36); sides(0.34); fringe(); }
+      if (cut === "long") { nape(0.62); sides(0.56); }
+      if (cut === "bun") { nape(0.2); parts.push(box(0.18, 0.18, 0.18, h, bare ? { y: 1.88, z: -0.06 } : { y: 1.6, z: -0.25 })); }
+      if (cut === "tail") {
+        nape(0.2); fringe();
+        parts.push(box(0.1, 0.1, 0.1, BRAND, { y: 1.68, z: -0.22 })); // l'élastique
+        parts.push(box(0.11, 0.42, 0.1, h, { y: 1.48, z: -0.27, rx: -0.25 }));
+      }
+      if (cut === "twin") {
+        nape(0.2); fringe();
+        [-1, 1].forEach((sx) => {
+          parts.push(box(0.07, 0.07, 0.09, BRAND, { x: sx * 0.2, y: 1.66, z: -0.02 }));
+          parts.push(box(0.1, 0.34, 0.1, h, { x: sx * 0.25, y: 1.47, z: -0.02, rz: sx * 0.25 }));
+        });
+      }
+    }
+    if (c.pack) parts.push(box(0.36, 0.44, 0.16, c.pack, { y: 1.1, z: -0.21 }));
+    if (c.vest) [0.96, 1.2].forEach((y) => parts.push(box(0.5, 0.06, 0.3, "#d5d8de", { y }))); // bandes réfléchissantes
+    body.add(limb(parts));
+    const leg = () => [box(0.19, 0.6, 0.22, c.pants, { y: -0.3 }), box(0.2, 0.14, 0.3, c.shoes, { y: -0.68, z: 0.04 })];
+    const arm = () => [box(0.14, 0.5, 0.16, c.sleeve || c.top, { y: -0.25 }), box(0.12, 0.12, 0.14, c.skin, { y: -0.56 })];
     return {
       root, body,
       legL: pivot(body, -0.12, 0.76, 0, leg()), legR: pivot(body, 0.12, 0.76, 0, leg()),
       armL: pivot(body, -0.31, 1.32, 0, arm()), armR: pivot(body, 0.31, 1.32, 0, arm()),
     };
-  })();
-  const dog = (() => {
+  }
+  // Le promeneur : sa tenue se choisit dans les boutiques du village (voir `openShop`).
+  const look = loadLook();
+  const carnet = loadCarnet();
+  let bareHead = false; // chez le coiffeur, le chapeau se pose le temps de la coupe
+  const playerLook = () => ({
+    top: look.top, hem: "#" + new THREE.Color(look.top).multiplyScalar(0.72).getHexString(), skin: "#f0c9a4", hair: look.hair,
+    pants: look.pants, shoes: "#f4f5f7", pack: look.pack ? "#f2b01e" : null, hat: bareHead ? "none" : look.hat, cut: look.cut,
+  });
+  const player = buildPerson(playerLook());
+  // Remplace un modèle (promeneur, compagnon) sans changer l'objet que tout le monde tient.
+  function swapModel(holder, next) {
+    const parent = holder.root.parent;
+    next.root.position.copy(holder.root.position);
+    next.root.rotation.copy(holder.root.rotation);
+    next.root.visible = holder.root.visible;
+    holder.root.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
+    holder.root.removeFromParent();
+    Object.assign(holder, next);
+    if (parent) parent.add(holder.root);
+  }
+  // L'agent du parking : gilet jaune, casquette, et sa propre volonté (voir `stepAgent`).
+  const agent = buildPerson({ top: "#ffd60a", sleeve: "#1f2a44", skin: "#e8b88f", hair: "#2b2018", pants: "#1f2a44", shoes: "#15161a", cap: "#1f2a44", vest: true });
+  const npc = { x: LANE + 0.35, z: 6, rot: 0, phase: 0, speed: 0, path: null, s: 0, wait: 2, say: 0, greet: 0, target: null, hold: 0 };
+  const AGENT_SAYS = {
+    inspect: ["Bien garé.", "Rien à signaler.", "Hmm…", "Tout est en ordre.", "Jolie voiture.", "Ticket en règle."],
+    moto: ["Belle bécane.", "Antivol bien mis."],
+    pause: ["Petite pause.", "Un café, et j'y retourne."],
+    hello: ["Bonjour !", "Bonne journée !", "Besoin d'aide ?", "Bienvenue au parking."],
+    dog: ["Qu'il est mignon !", "Il est sage, au moins ?", "Tenu en laisse, hein ?"],
+    guide: ["Par ici, votre place vous attend.", "Une arrivée ! J'y vais."],
+    full: ["C'est complet par ici."],
+    calm: ["Quel calme…", "Belle journée."],
+  };
+  // Le compagnon : chihuahua par défaut, à changer à l'animalerie du village.
+  function buildPet(kind) {
+    const p = PETS[kind] || PETS.chihuahua;
     const root = new THREE.Group(), body = new THREE.Group();
     root.add(body);
-    root.scale.setScalar(1.4);
-    const fur = "#d9a066", dark = "#b07a45";
-    body.add(limb([
-      box(0.17, 0.16, 0.36, fur, { y: 0.25 }),
-      box(0.19, 0.045, 0.06, "#e0283a", { y: 0.31, z: 0.16 }), // collier
-    ]));
+    root.scale.setScalar(p.scale);
+    const torso = [box(0.17, 0.16, 0.36, p.fur, { y: 0.25 })];
+    if (p.collar) torso.push(box(0.19, 0.045, 0.06, p.collar, { y: 0.31, z: 0.16 }));
+    if (p.chest) torso.push(box(0.13, 0.1, 0.12, p.muzzle, { y: 0.2, z: 0.13 }));
+    body.add(limb(torso));
+    const e = p.ears, eye = p.eye || "#15161a", earY = 0.12 + e[1] / 2;
     const headG = pivot(body, 0, 0.34, 0.2, [
-      box(0.2, 0.18, 0.18, fur, { y: 0.06, z: 0.04 }),
-      box(0.1, 0.08, 0.1, "#f0d9b5", { y: 0.02, z: 0.17 }),
+      box(0.2, 0.18, 0.18, p.fur, { y: 0.06, z: 0.04 }),
+      box(0.1, 0.08, 0.1, p.muzzle, { y: 0.02, z: 0.17 }),
       box(0.04, 0.035, 0.03, "#15161a", { y: 0.05, z: 0.225 }),
-      box(0.05, 0.06, 0.02, "#15161a", { x: -0.055, y: 0.1, z: 0.135 }), // gros yeux
-      box(0.05, 0.06, 0.02, "#15161a", { x: 0.055, y: 0.1, z: 0.135 }),
-      box(0.11, 0.22, 0.03, dark, { x: -0.13, y: 0.23, z: 0.02, rz: 0.45 }), // oreilles géantes
-      box(0.11, 0.22, 0.03, dark, { x: 0.13, y: 0.23, z: 0.02, rz: -0.45 }),
+      box(0.05, 0.06, 0.02, eye, { x: -0.055, y: 0.1, z: 0.135 }),
+      box(0.05, 0.06, 0.02, eye, { x: 0.055, y: 0.1, z: 0.135 }),
+      box(e[0], e[1], 0.03, p.ear, { x: -e[3], y: earY, z: 0.02, rz: e[2] }),
+      box(e[0], e[1], 0.03, p.ear, { x: e[3], y: earY, z: 0.02, rz: -e[2] }),
     ]);
-    const paw = () => [box(0.045, 0.17, 0.045, fur, { y: -0.085 })];
+    const paw = () => [box(0.045, 0.17, 0.045, p.fur, { y: -0.085 })];
     const legs = [
       pivot(body, -0.06, 0.17, 0.13, paw()), pivot(body, 0.06, 0.17, 0.13, paw()),
       pivot(body, -0.06, 0.17, -0.13, paw()), pivot(body, 0.06, 0.17, -0.13, paw()),
     ];
-    const tail = pivot(body, 0, 0.31, -0.18, [box(0.03, 0.17, 0.03, fur, { y: 0.085 })]);
-    tail.rotation.x = -0.6;
-    return { root, body, head: headG, legs, tail };
-  })();
+    const t = p.tail, tailParts = [box(t[2], t[0], t[2], p.fur, { y: t[0] / 2 })];
+    if (p.tip) tailParts.push(box(t[2] + 0.006, t[0] * 0.32, t[2] + 0.006, p.tip, { y: t[0] * 0.85 }));
+    const tail = pivot(body, 0, 0.31, -0.18, tailParts);
+    tail.rotation.x = t[1];
+    return {
+      root, body, head: headG, legs, tail, kind: PETS[kind] ? kind : "chihuahua", def: p,
+      wag: p.wag == null ? 0.65 : p.wag, top: (0.46 + e[1]) * Math.min(p.scale, 1.5),
+    };
+  }
+  const dog = buildPet(look.pet);
+
+  // Véhicules en libre-service : un groupe par véhicule (hors flotte instanciée).
+  const rentals = RENTALS.map((def) => {
+    const built = MODELS[def.model].build();
+    const root = new THREE.Group(), body = new THREE.Group();
+    root.add(body);
+    const paintMat = M.paint.clone();
+    paintMat.color.set(def.color);
+    [[built.paint, false, paintMat], [built.detail, true, M.detail], [built.lights, true, M.lights]].forEach((part, i) => {
+      const mesh = new THREE.Mesh(merge(part[0], part[1]), part[2]);
+      mesh.castShadow = i < 2;
+      mesh.receiveShadow = i < 2;
+      body.add(mesh);
+    });
+    return { def, root, body, paintMat, x: def.x, z: RENTAL_Z, rot: Math.PI, v: 0, steer: 0 };
+  });
+  // Phares du véhicule conduit, la nuit.
+  const driveLight = new THREE.PointLight(0xfff2c2, 0, 34, 1.5);
 
   // --- Construction du parking -------------------------------------------------------
   function displayZones(zones) {
@@ -1042,7 +1370,8 @@ export function createParking3D(container, options) {
 
   function buildLot(zones) {
     if (lot) {
-      lot.group.remove(player.root, dog.root); // gardés d'un plan à l'autre
+      lot.group.remove(player.root, dog.root, agent.root, driveLight); // gardés d'un plan à l'autre
+      rentals.forEach((r) => lot.group.remove(r.root));
       disposeTree(lot.group);
       lot.textures.forEach((t) => t.dispose());
       signMats.forEach((m) => m.dispose());
@@ -1175,6 +1504,335 @@ export function createParking3D(container, options) {
     lampAt(-2.0, -0.4);
     lampAt(LANE + 3.2, -6.5);
 
+    // Libre-service : trois véhicules à conduire, sur leur aire, à gauche du parvis
+    props.push(box(13.6, 0.1, 6.8, "#4a4e5c", { x: -19.5, y: 0.05, z: RENTAL_Z }));
+    [-25.7, -21.5, -17.5, -13.3].forEach((x) => props.push(box(0.12, 0.02, 5.6, "#f2f3f5", { x, y: 0.11, z: RENTAL_Z })));
+    props.push(cyl(0.08, 3.4, "#30343f", { x: -19.5, y: 1.7, z: RENTAL_Z + 3.7 }, 8));
+    props.push(box(5.0, 1.1, 0.14, "#d92b3a", { x: -19.5, y: 3.5, z: RENTAL_Z + 3.7 }));
+
+    // Bonneplace, le village du parking, à l'est : une rue commerçante le long de la route,
+    // le belvédère sur sa colline au nord (escalier aux cinq arches, une par zone du
+    // parking), le jardin de la Tour Access (étang, passerelle), la place de la fête,
+    // des champs de fleurs et quelques fermes au sud, les lettres ACCESS sur la colline.
+    const X0 = L.xMax + CITY_GAP, cityX1 = X0 + 190, R = ROAD_Z;
+    const vz0 = R - 86, vz1 = R + 116; // emprise du village
+    const cityObstacles = [], cityTrees = [], shopSigns = [], cityPoints = [], cityLeaves = [];
+    const walls = [], roofLow = [], roofTop = [], bases = [], lanternGlow = [], lanternPools = [], lampions = [];
+    const cityRnd = mulberry(2026);
+    const stone = "#b9b4a6", wood = "#4a3528", gravel = "#e3dac4", white = "#f4f5f7";
+    const archSigns = [];
+    const hill = { x: X0 + 76, z: R + 80, r: 31, rt: 11, h: 8 };
+    const hillH = (x, z) => {
+      const dd = Math.hypot(x - hill.x, z - hill.z);
+      return dd >= hill.r ? 0 : dd <= hill.rt ? hill.h : hill.h * (1 - (dd - hill.rt) / (hill.r - hill.rt));
+    };
+    // Maison : socle de pierre, étages droits séparés par une corniche, toit à quatre
+    // pans avec sa cheminée (plus haut pour le chaume des fermes).
+    const house = (hx, hz, w, d, floors, roofColor, o) => {
+      o = o || {};
+      const y0 = o.y0 || 0;
+      bases.push({ x: hx, y: y0 + 0.29, z: hz, sx: w + 0.9, sy: 0.3, sz: d + 0.9 });
+      let y = y0 + 0.44;
+      for (let f = 0; f < floors; f++) {
+        walls.push({ x: hx, y: y + 1.45, z: hz, sx: w, sy: 2.9, sz: d, color: o.wall || "#ffffff" });
+        y += 2.9;
+        if (f < floors - 1) { bases.push({ x: hx, y: y + 0.08, z: hz, sx: w + 0.35, sy: 0.16, sz: d + 0.35 }); y += 0.16; }
+      }
+      const sx = (w + 1.7) / 1.4142, sz = (d + 1.7) / 1.4142, top = o.steep ? 3.6 : 2.3;
+      roofLow.push({ x: hx, y: y + 0.08, z: hz, sx, sy: 0.16, sz, color: roofColor });
+      roofTop.push({ x: hx, y: y + 0.16 + top / 2, z: hz, sx: sx * 0.97, sy: top, sz: sz * 0.97, color: roofColor });
+      if (!o.steep) props.push(box(0.6, 1.5, 0.6, "#b9b2a4", { x: hx + w * 0.24, y: y + top * 0.62, z: hz }));
+      cityObstacles.push([hx - w / 2 - 0.35, hx + w / 2 + 0.35, hz - d / 2 - 0.35, hz + d / 2 + 0.35]);
+    };
+    // Borne lumineuse, comme celles du parking : elle s'allume la nuit.
+    const bollard = (x, z, y0) => {
+      y0 = y0 || 0;
+      props.push(cyl(0.2, 0.14, "#22252e", { x, y: y0 + 0.07, z }, 10));
+      props.push(cyl(0.12, 1.1, white, { x, y: y0 + 0.65, z }, 10));
+      props.push(cyl(0.135, 0.14, BRAND, { x, y: y0 + 0.95, z }, 10));
+      props.push(cyl(0.2, 0.06, "#22252e", { x, y: y0 + 1.47, z }, 10));
+      lanternGlow.push({ x, y: y0 + 1.32, z, sx: 0.26, sy: 0.24, sz: 0.26 });
+      lanternPools.push({ x, y: y0 + 0.17, z, sx: 6.5, sz: 6.5 });
+      cityObstacles.push([x - 0.22, x + 0.22, z - 0.22, z + 0.22]);
+    };
+    // Arche du parking : deux poteaux, un linteau, le disque « P ». `alongZ` : le linteau suit l'axe z.
+    const arch = (x, y0, z, span, h, alongZ, solid, color) => {
+      const k = h / 8.2;
+      [-span / 2, span / 2].forEach((o) => {
+        const px = alongZ ? x : x + o, pz = alongZ ? z + o : z;
+        props.push(cyl(0.4 * k, h, color, { x: px, y: y0 + h / 2, z: pz }, 14));
+        props.push(cyl(0.43 * k, 0.55 * k, white, { x: px, y: y0 + 1.7 * k, z: pz }, 14)); // bande réfléchissante
+        props.push(cyl(0.56 * k, 0.5 * k, "#22252e", { x: px, y: y0 + 0.25 * k, z: pz }, 14));
+        if (solid) cityObstacles.push([px - 0.55 * k, px + 0.55 * k, pz - 0.55 * k, pz + 0.55 * k]);
+      });
+      const len = span + 1.5 * k, yb = y0 + h + 0.2 * k;
+      props.push(alongZ ? box(0.8 * k, 1.3 * k, len, color, { x, y: yb, z }) : box(len, 1.3 * k, 0.8 * k, color, { x, y: yb, z }));
+      const yd = yb + 1.75 * k;
+      props.push(cyl(1.25 * k, 0.5 * k, white, alongZ ? { x, y: yd, z, rz: Math.PI / 2 } : { x, y: yd, z, rx: Math.PI / 2 }, 20));
+      [-1, 1].forEach((side) => archSigns.push({
+        x: alongZ ? x + side * 0.27 * k : x, y: yd, z: alongZ ? z : z + side * 0.27 * k,
+        ry: alongZ ? (side * Math.PI) / 2 : side === 1 ? 0 : Math.PI, size: 1.7 * k, color,
+      }));
+    };
+
+    // 1. La rue commerçante : huit échoppes de part et d'autre de la route
+    const shopDefs = [[24, 1, 11, 8, 2], [52, 1, 9.5, 7.5, 1], [98, 1, 12, 8.5, 2], [124, 1, 9, 7, 1], [32, -1, 10, 8, 1], [60, -1, 12, 8, 2], [104, -1, 9.5, 7.5, 1], [152, -1, 11, 8, 2]];
+    shopDefs.forEach((sd, i) => {
+      const hx = X0 + sd[0], w = sd[2], d = sd[3], out = -sd[1]; // la façade regarde la route
+      const hz = R + sd[1] * (7.4 + d / 2);
+      house(hx, hz, w, d, sd[4], ROOF_TILES[i % ROOF_TILES.length], { wall: FACADES[i % FACADES.length] });
+      const fzFace = hz + (out * d) / 2, sw = Math.min(w - 2.2, 6.4), color = AWNINGS[i % AWNINGS.length];
+      shopSigns.push({ text: SHOPS[i], x: hx, z: fzFace + out * 0.12, w: sw, ry: out === 1 ? 0 : Math.PI, color });
+      // Store banne rayé, porte vitrée
+      for (let k = 0; k < 6; k++) {
+        props.push(box(sw / 6, 0.07, 1.35, k % 2 ? "#fdf6e3" : color, { x: hx + (k - 2.5) * (sw / 6), y: 2.3, z: fzFace + out * 0.66, rx: out * 0.28 }));
+      }
+      props.push(box(sw, 0.26, 0.06, color, { x: hx, y: 2.0, z: fzFace + out * 1.3 }));
+      props.push(box(1.25, 1.95, 0.08, "#3b2a20", { x: hx, y: 1.42, z: fzFace + out * 0.05 }));
+      props.push(box(0.95, 1.2, 0.09, "#a9cdee", { x: hx, y: 1.6, z: fzFace + out * 0.06 }));
+      [-1, 1].forEach((sx) => lampions.push({ x: hx + sx * (sw / 2 + 0.55), y: 2.35, z: fzFace + out * 0.45, sx: 0.2, sy: 0.26, sz: 0.2 }));
+      const name = SHOPS[i], kind = SHOP_PANELS[name];
+      cityPoints.push({
+        x: hx, z: fzFace + out * 1.9, label: SHOP_LABELS[name],
+        action: kind ? () => openShop(kind, out === 1 ? 0 : Math.PI) : () => say(SHOP_SAYS[name]),
+      });
+    });
+    // La statue dorée de la mascotte garde l'entrée du village.
+    const mascot = { x: X0 + 12, z: R + 9.6 };
+    props.push(box(2.3, 1.2, 2.3, stone, { x: mascot.x, y: 0.6, z: mascot.z }));
+    const gold = "#d4af37", my = 1.2;
+    props.push(box(0.52, 0.48, 1.08, gold, { x: mascot.x, y: my + 0.75, z: mascot.z + 0.1 }));
+    props.push(box(0.6, 0.54, 0.54, gold, { x: mascot.x, y: my + 1.22, z: mascot.z - 0.58 }));
+    props.push(box(0.3, 0.24, 0.3, gold, { x: mascot.x, y: my + 1.12, z: mascot.z - 0.95 }));
+    [-1, 1].forEach((sx) => {
+      props.push(box(0.33, 0.66, 0.09, gold, { x: mascot.x + sx * 0.39, y: my + 1.82, z: mascot.z - 0.52, rz: -sx * 0.45 }));
+      [-0.28, 0.5].forEach((dz) => props.push(box(0.14, 0.52, 0.14, gold, { x: mascot.x + sx * 0.18, y: my + 0.26, z: mascot.z + dz })));
+    });
+    props.push(box(0.09, 0.5, 0.09, gold, { x: mascot.x, y: my + 1.15, z: mascot.z + 0.66, rx: 0.6 }));
+    cityObstacles.push([mascot.x - 1.2, mascot.x + 1.2, mascot.z - 1.2, mascot.z + 1.2]);
+    cityPoints.push({ x: mascot.x, z: mascot.z - 2.3, label: "Saluer " + MASCOT + ", la mascotte", action: greetMascot });
+    const laneN = X0 + 76, laneS = X0 + 128; // ruelles vers le belvédère (nord) et les fermes (sud)
+    const feteLane = X0 + 36; // sentier vers la place de la fête
+    const busy = (x, side) => Math.abs(x - (side === 1 ? laneN : laneS)) < 5 || (side === 1 && Math.abs(x - feteLane) < 3.5) ||
+      shopDefs.some((sd) => sd[1] === side && Math.abs(x - (X0 + sd[0])) < sd[2] / 2 + 1.6);
+    for (let x = X0 + 6; x < cityX1 - 2; x += 6) {
+      [1, -1].forEach((side) => {
+        const i = Math.round((x - X0) / 6) + (side === 1 ? 0 : 1);
+        if (busy(x, side)) return;
+        if (i % 3 === 0) bollard(x, R + side * 5.75);
+        else if (i % 3 === 1) cityTrees.push([x, R + side * 7.2, true, 0]);
+      });
+    }
+    // Distributeur de boissons, entre deux échoppes (il s'éclaire la nuit)
+    const vend = { x: X0 + 40, z: R + 6.6 };
+    props.push(box(1.15, 1.95, 0.8, "#f4f5f7", { x: vend.x, y: 0.98, z: vend.z }));
+    props.push(box(1.17, 0.3, 0.82, BRAND, { x: vend.x, y: 1.82, z: vend.z }));
+    cityObstacles.push([vend.x - 0.6, vend.x + 0.6, vend.z - 0.42, vend.z + 0.42]);
+    cityPoints.push({ x: vend.x, z: vend.z - 1.2, label: "Prendre une boisson au distributeur", action: drink });
+
+    // 2. Le belvédère sur sa colline : ruelle, escalier sous cinq arches (une par zone), pavillon et cloche
+    props.push(box(5, 0.04, 44.5, "#a8a397", { x: laneN, y: 0.02, z: R + 4.5 + 22.25 }));
+    const hillGeo = new THREE.CylinderGeometry(hill.rt, hill.r, hill.h, 20, 1).toNonIndexed();
+    hillGeo.computeVertexNormals();
+    const hillMesh = new THREE.Mesh(hillGeo, M.hill);
+    hillMesh.position.set(hill.x, hill.h / 2, hill.z);
+    hillMesh.receiveShadow = true;
+    group.add(hillMesh);
+    for (let i = 0; i < 16; i++) {
+      const z = hill.z - hill.r + ((i + 0.5) / 16) * (hill.r - hill.rt);
+      props.push(box(3.3, 0.34, 1.3, "#cfc9b8", { x: hill.x, y: hillH(hill.x, z) + 0.04, z }));
+    }
+    for (let i = 0; i < 5; i++) {
+      const z = hill.z - hill.r + 1.6 + i * 4.3;
+      arch(hill.x, hillH(hill.x, z), z, 3.7, 3.7, false, false, KINDS[ZONE_ORDER[i]].color);
+    }
+    const top = hill.h;
+    props.push(cyl(hill.rt - 0.6, 0.06, gravel, { x: hill.x, y: top + 0.03, z: hill.z }, 20));
+    house(hill.x, hill.z + 3.4, 7.6, 6, 1, "#2f4a7a", { y0: top, wall: "#ffffff" });
+    props.push(box(1.5, 0.7, 0.85, wood, { x: hill.x, y: top + 0.35, z: hill.z - 1.5 })); // socle de la cloche
+    props.push(ball(0.3, "#d4af37", { x: hill.x, y: top + 2.75, z: hill.z - 0.55 })); // la cloche
+    props.push(box(0.07, 1.9, 0.07, "#fdf6e3", { x: hill.x, y: top + 1.75, z: hill.z - 0.55 }));
+    [-2.6, 2.6].forEach((dx) => { // deux chihuahuas de pierre veillent sur l'escalier
+      const sx = hill.x + dx, sz = hill.z - 5, st = "#a7a295";
+      props.push(box(0.8, 0.5, 1.1, stone, { x: sx, y: top + 0.25, z: sz }));
+      props.push(box(0.36, 0.34, 0.7, st, { x: sx, y: top + 0.78, z: sz + 0.08 }));
+      props.push(box(0.42, 0.38, 0.38, st, { x: sx, y: top + 1.1, z: sz - 0.36 }));
+      [-1, 1].forEach((e) => props.push(box(0.22, 0.44, 0.07, st, { x: sx + e * 0.27, y: top + 1.5, z: sz - 0.34, rz: -e * 0.45 })));
+      cityObstacles.push([sx - 0.45, sx + 0.45, sz - 0.6, sz + 0.6]);
+      bollard(hill.x + dx * 1.5, hill.z - 8.2, top);
+    });
+    cityPoints.push({ x: hill.x, z: hill.z - 2.4, label: "Faire sonner la cloche du belvédère", action: ringBell });
+    const omi = { x: hill.x - 3.9, z: hill.z - 1.0 }; // distributeur de tickets chance, comme une caisse de parking
+    props.push(box(0.85, 1.5, 0.6, "#f2b01e", { x: omi.x, y: top + 0.75, z: omi.z }));
+    props.push(box(0.91, 0.12, 0.66, BRAND, { x: omi.x, y: top + 1.56, z: omi.z }));
+    props.push(box(0.5, 0.34, 0.04, "#22252e", { x: omi.x, y: top + 1.16, z: omi.z - 0.31 }));
+    props.push(box(0.42, 0.06, 0.05, "#22252e", { x: omi.x, y: top + 0.72, z: omi.z - 0.31 }));
+    cityObstacles.push([omi.x - 0.5, omi.x + 0.5, omi.z - 0.35, omi.z + 0.35]);
+    cityPoints.push({ x: omi.x, z: omi.z - 1.2, label: "Tirer un ticket chance", action: luckyTicket });
+    for (let i = 0; i < 9; i++) { // arbres en fleurs en couronne autour du pavillon
+      const a = -Math.PI / 2 + ((i + 1) / 10) * Math.PI * 2;
+      if (Math.abs(Math.cos(a)) < 0.55 && Math.sin(a) < 0) continue; // l'arrivée de l'escalier reste dégagée
+      cityTrees.push([hill.x + Math.cos(a) * 9.2, hill.z + Math.sin(a) * 9.2, true, top]);
+    }
+    for (let i = 0; i < 34; i++) { // bois sur les pentes : pins et cerisiers
+      const a = cityRnd() * Math.PI * 2, rr = hill.rt + 2.5 + cityRnd() * (hill.r - hill.rt - 2);
+      const x = hill.x + Math.cos(a) * rr, z = hill.z + Math.sin(a) * rr;
+      if (Math.abs(x - hill.x) < 3.6 && z < hill.z) continue; // pas dans l'escalier
+      cityTrees.push([x, z, cityRnd() < 0.42, hillH(x, z)]);
+    }
+
+    // 2 bis. La place de la fête : kiosque à musique et sa grosse caisse, stands, guirlandes
+    const fete = { x: X0 + 24, z: R + 36 };
+    props.push(box(3, 0.04, 21, "#a8a397", { x: feteLane, y: 0.02, z: R + 15 }));
+    props.push(box(31, 0.04, 23, gravel, { x: fete.x, y: 0.025, z: fete.z }));
+    props.push(box(3.9, 1.3, 3.9, BRAND, { x: fete.x, y: 0.65, z: fete.z })); // le kiosque et sa jupe bleue et blanche
+    props.push(box(3.96, 0.32, 3.96, "#fdf6e3", { x: fete.x, y: 0.95, z: fete.z }));
+    props.push(box(4.3, 0.22, 4.3, wood, { x: fete.x, y: 1.41, z: fete.z }));
+    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach((c) => props.push(box(0.18, 2.7, 0.18, wood, { x: fete.x + c[0] * 1.95, y: 2.85, z: fete.z + c[1] * 1.95 })));
+    roofTop.push({ x: fete.x, y: 4.85, z: fete.z, sx: 3.9, sy: 1.3, sz: 3.9, color: "#2f4a7a" });
+    props.push(box(1.2, 0.5, 0.9, wood, { x: fete.x, y: 1.77, z: fete.z }));
+    props.push(cyl(0.7, 1.1, BRAND, { x: fete.x, y: 2.7, z: fete.z, rx: Math.PI / 2 })); // la grosse caisse, peau vers la rue
+    props.push(cyl(0.64, 1.16, "#f3e6c8", { x: fete.x, y: 2.7, z: fete.z, rx: Math.PI / 2 }));
+    cityObstacles.push([fete.x - 2.15, fete.x + 2.15, fete.z - 2.15, fete.z + 2.15]);
+    cityPoints.push({ x: fete.x, z: fete.z - 3.3, label: "Frapper la grosse caisse de la fête", action: bassDrum });
+    const stallSigns = [];
+    [[-10.5, -6], [10.5, -6], [-10.5, 6], [10.5, 6]].forEach((st, i) => {
+      const def = STALLS[i], sx = fete.x + st[0], sz = fete.z + st[1], dir = st[0] < 0 ? 1 : -1; // le comptoir regarde la tour
+      props.push(box(1.1, 1.0, 2.9, wood, { x: sx, y: 0.5, z: sz }));
+      props.push(box(1.2, 0.08, 3.0, "#e8d9b8", { x: sx, y: 1.04, z: sz }));
+      props.push(box(0.06, 1.35, 2.9, def[3], { x: sx - dir * 0.7, y: 1.75, z: sz })); // toile du fond
+      [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach((c) => props.push(box(0.09, 2.5, 0.09, wood, { x: sx + c[0] * 0.75, y: 1.25, z: sz + c[1] * 1.45 })));
+      for (let k = 0; k < 5; k++) { // auvent rayé
+        props.push(box(2.3, 0.07, 0.6, k % 2 ? "#fdf6e3" : def[3], { x: sx + dir * 0.2, y: 2.52, z: sz + (k - 2) * 0.6, rz: -dir * 0.16 }));
+      }
+      [-1, 1].forEach((c) => lampions.push({ x: sx + dir * 1.25, y: 2.0, z: sz + c * 1.5, sx: 0.16, sy: 0.2, sz: 0.16 }));
+      stallSigns.push({ text: def[0], x: sx + dir * 0.57, z: sz, ry: (dir * Math.PI) / 2, color: def[3] });
+      cityObstacles.push([sx - 0.8, sx + 0.8, sz - 1.55, sz + 1.55]);
+      cityPoints.push({ x: sx + dir * 2.0, z: sz, label: def[1], action: () => say(def[2][Math.floor(Math.random() * def[2].length)]) });
+    });
+    [[-14.5, -10.5], [14.5, -10.5], [-14.5, 10.5], [14.5, 10.5]].forEach((c) => { // mâts et guirlandes d'ampoules
+      const px = fete.x + c[0], pz = fete.z + c[1];
+      props.push(box(0.14, 5.2, 0.14, wood, { x: px, y: 2.6, z: pz }));
+      cityObstacles.push([px - 0.15, px + 0.15, pz - 0.15, pz + 0.15]);
+      for (let k = 1; k <= 8; k++) {
+        const t = k / 9;
+        lampions.push({ x: fete.x + c[0] * t, y: 5.3 + (5.0 - 5.3) * t - Math.sin(Math.PI * t) * 0.9, z: fete.z + c[1] * t, sx: 0.17, sy: 0.21, sz: 0.17 });
+      }
+      cityTrees.push([px + Math.sign(c[0]) * 2.6, pz + Math.sign(c[1]) * 1.8, true, 0]);
+    });
+    lanternPools.push({ x: fete.x, y: 0.06, z: fete.z, sx: 30, sz: 24 });
+
+    // 3. Le jardin de la Tour Access : étang aux carpes, passerelle bleue, tour aux cinq étages (un par zone)
+    const gx0 = X0 + 150, gz0 = R + 36;
+    props.push(cyl(1, 0.04, gravel, { x: gx0, y: 0.03, z: gz0, sx: 23, sz: 19 }, 28));
+    props.push(box(3, 0.04, 14, gravel, { x: gx0 - 12, y: 0.025, z: R + 11.5 }));
+    const pond = { x: gx0 - 6, z: gz0 + 3, rx: 7.0, rz: 4.4 };
+    props.push(cyl(1, 0.12, stone, { x: pond.x, y: 0.17, z: pond.z, sx: 7.6, sz: 5.0 }, 28));
+    props.push(cyl(1, 0.06, "#5bb5e8", { x: pond.x, y: 0.24, z: pond.z, sx: pond.rx, sz: pond.rz }, 28));
+    for (let i = -2; i <= 2; i++) {
+      props.push(box(1.7, 0.14, 2.15, BRAND, { x: pond.x, y: 0.5 + (1 - (i / 2) * (i / 2)) * 0.9, z: pond.z + i * 1.9, rx: i * 0.22 }));
+    }
+    [-1, 1].forEach((sx) => [-3.8, 0, 3.8].forEach((dz) => {
+      props.push(box(0.14, 0.8, 0.14, white, { x: pond.x + sx * 0.85, y: 0.9 + (dz === 0 ? 0.9 : 0), z: pond.z + dz }));
+    }));
+    cityObstacles.push([pond.x - 7.4, pond.x - 1.0, pond.z - 4.6, pond.z + 4.6], [pond.x + 1.0, pond.x + 7.4, pond.z - 4.6, pond.z + 4.6]);
+    const pgx = gx0 + 10, pgz = gz0 - 6;
+    bases.push({ x: pgx, y: 0.34, z: pgz, sx: 9.5, sy: 0.4, sz: 9.5 });
+    let py = 0.54;
+    ZONE_ORDER.forEach((name, t) => { // un étage par zone du parking, à sa couleur
+      const size = 6.6 - t * 0.75;
+      walls.push({ x: pgx, y: py + 1.2, z: pgz, sx: size, sy: 2.4, sz: size, color: KINDS[name].color });
+      py += 2.4;
+      props.push(box(size + 0.8, 0.24, size + 0.8, white, { x: pgx, y: py + 0.12, z: pgz }));
+      py += 0.24;
+    });
+    props.push(cyl(0.22, 0.7, "#22252e", { x: pgx, y: py + 0.35, z: pgz }, 10));
+    const cube = { x: pgx, y: py + 1.85, z: pgz }; // au sommet, le cube « P » (éclairé la nuit par ses faces)
+    props.push(box(2.4, 2.4, 2.4, BRAND, cube));
+    [[0, 1, 0], [0, -1, Math.PI], [1, 0, Math.PI / 2], [-1, 0, -Math.PI / 2]].forEach((f) => archSigns.push({
+      x: cube.x + f[0] * 1.21, y: cube.y, z: cube.z + f[1] * 1.21, ry: f[2], size: 2.1, color: BRAND,
+    }));
+    cityObstacles.push([pgx - 3.6, pgx + 3.6, pgz - 3.6, pgz + 3.6]);
+    [[pond.x - 8.6, pond.z - 5.8], [pond.x + 8.4, pond.z + 5.8], [pond.x + 2.6, pond.z - 6.4], [pgx - 5.6, pgz + 5.6]].forEach((t) => bollard(t[0], t[1]));
+    [[-12, 12], [4, 13.5]].forEach((b) => {
+      props.push(box(1.6, 0.1, 0.5, "#8a5a3c", { x: gx0 + b[0], y: 0.5, z: gz0 + b[1] }));
+      props.push(box(1.4, 0.44, 0.1, wood, { x: gx0 + b[0], y: 0.26, z: gz0 + b[1] }));
+    });
+    for (let i = 0; i < 13; i++) {
+      const a = (i / 13) * Math.PI * 2;
+      if (Math.abs(a - Math.PI * 1.36) < 0.3) continue; // l'allée d'entrée
+      cityTrees.push([gx0 + Math.cos(a) * 21.5, gz0 + Math.sin(a) * 17.5, true, 0]);
+    }
+
+    // 4. Au sud : champs de fleurs aux couleurs des zones, épouvantail en gilet jaune, fermes, petit bois de bouleaux
+    props.push(box(5, 0.04, 52, "#a8a397", { x: laneS, y: 0.02, z: R - 4.5 - 26 }));
+    props.push(box(46, 0.04, 4, "#a8a397", { x: laneS + 21, y: 0.02, z: R - 48 }));
+    const paddies = [], rice = [];
+    props.push(box(4 * 24.5 + 1.5, 0.22, 2 * 18.5 + 1.5, "#8a7355", { x: X0 + 61.75, y: 0.11, z: R - 43.25 })); // diguettes
+    for (let i = 0; i < 4; i++) for (let j = 0; j < 2; j++) {
+      const cx = X0 + 25 + i * 24.5, cz = R - 34 - j * 18.5;
+      paddies.push({ x: cx, y: 0.235, z: cz, sx: 22, sz: 16 });
+      for (let r = 0; r < 12; r++) rice.push({ x: cx, y: 0.42, z: cz - 7 + r * 1.27, sx: 20.6, sy: 0.42, sz: 0.34, color: r % 3 === 2 ? "#6fbf5a" : FLOWERS[(i * 2 + j) % FLOWERS.length] });
+    }
+    instanced(group, flat(1, 1), M.soil, paddies, "receive");
+    instanced(group, new THREE.BoxGeometry(1, 1, 1), M.foliage, rice);
+    const crow = { x: X0 + 49.5, z: R - 34 }; // l'épouvantail
+    props.push(box(0.1, 2.0, 0.1, wood, { x: crow.x, y: 1.2, z: crow.z }));
+    props.push(box(1.7, 0.1, 0.1, wood, { x: crow.x, y: 1.78, z: crow.z }));
+    props.push(box(0.72, 0.82, 0.14, "#ffd60a", { x: crow.x, y: 1.5, z: crow.z })); // le gilet de l'agent
+    [1.32, 1.62].forEach((y) => props.push(box(0.74, 0.07, 0.16, "#d5d8de", { x: crow.x, y, z: crow.z })));
+    props.push(ball(0.24, "#f0d9b5", { x: crow.x, y: 2.34, z: crow.z }));
+    props.push(box(0.5, 0.2, 0.5, "#1f2a44", { x: crow.x, y: 2.62, z: crow.z })); // et sa casquette
+    props.push(box(0.42, 0.05, 0.24, "#1f2a44", { x: crow.x, y: 2.55, z: crow.z - 0.34 }));
+    [[22, -28, 12, 9], [44, -46, 11, 8.5], [18, -66, 12.5, 9]].forEach((f, i) => {
+      house(laneS + f[0], R + f[1], f[2], f[3], 1, i % 2 ? "#7a5a36" : "#8a6b3c", { steep: true, wall: "#efe0c4" });
+      cityTrees.push([laneS + f[0] - f[2] / 2 - 3, R + f[1] + 3, i !== 1, 0], [laneS + f[0] + f[2] / 2 + 2.6, R + f[1] - f[3] / 2 - 2, false, 0]);
+    });
+    const bamboo = [];
+    for (let i = 0; i < 110; i++) {
+      const x = laneS + 34 + cityRnd() * 26, z = R - 82 + cityRnd() * 22, h = 5 + cityRnd() * 3.5;
+      bamboo.push({ x, y: h / 2, z, sx: 0.13, sy: h, sz: 0.13, color: cityRnd() < 0.5 ? "#ece7dc" : "#ddd6c8" }); // troncs clairs des bouleaux
+      cityLeaves.push({ x, y: h - 0.2, z, sx: 1.25, sy: 1.5, sz: 1.25, ry: cityRnd() * 6, color: cityRnd() < 0.5 ? "#9ccc65" : "#b5d86b" });
+    }
+    instanced(group, new THREE.CylinderGeometry(1, 1, 1, 6), M.foliage, bamboo, "cast");
+
+    // 5. Maisons, toits, grande arche d'entrée, collines au loin et lettres ACCESS
+    const unit = new THREE.BoxGeometry(1, 1, 1);
+    instanced(group, unit, M.stone, bases, "both");
+    instanced(group, unit.clone(), M.house, walls, "both");
+    const frustum = (topR) => {
+      const g = new THREE.CylinderGeometry(topR, 1, 1, 4, 1).toNonIndexed();
+      g.rotateY(Math.PI / 4);
+      g.computeVertexNormals();
+      return g;
+    };
+    instanced(group, frustum(0.66), M.roofTile, roofLow, "both");
+    instanced(group, frustum(0.03), M.roofTile, roofTop, "cast");
+    const tx = X0 - 12;
+    arch(tx, 0, R, 12.4, 8.2, true, true, BRAND);
+    bollard(tx + 1.5, R + 8.4);
+    bollard(tx + 1.5, R - 8.4);
+    cityTrees.push([tx - 3, R + 10.5, true, 0], [tx - 3, R - 10.5, true, 0]);
+    const peaks = [], vx = (X0 + cityX1) / 2;
+    const haze = ["#8fb9a8", "#7fa9b5", "#9cc2b0", "#86a8c4", "#a5c8b4"];
+    for (let i = 0; i < 16; i++) {
+      const a = -1.75 + (i / 15) * 3.5 + (cityRnd() - 0.5) * 0.12, dist = 330 + cityRnd() * 190;
+      const rr = 75 + cityRnd() * 70, hh = 55 + cityRnd() * 80;
+      peaks.push({ x: vx + Math.cos(a) * dist, y: hh / 2 - 2, z: R + 20 + Math.sin(a) * dist, sx: rr, sy: hh, sz: rr, color: haze[i % haze.length] });
+    }
+    // … et, plein est, la colline aux lettres ACCESS (on roule droit dessus)
+    const sign = { x: cityX1 + 205, z: R + 30, r: 150, h: 72 };
+    peaks.push({ x: sign.x, y: sign.h / 2 - 2, z: sign.z, sx: sign.r, sy: sign.h, sz: sign.r, color: "#86c46a" });
+    "ACCESS".split("").forEach((letter, i) => {
+      const lz = sign.z + (i - 2.5) * 15.5, lx = sign.x - 92;
+      const ground = sign.h * (1 - Math.hypot(lx - sign.x, lz - sign.z) / sign.r) - 2;
+      props.push(box(0.7, 14, 0.7, "#3b4252", { x: lx + 0.6, y: ground + 3, z: lz }));
+      archSigns.push({ x: lx, y: ground + 15, z: lz, ry: -Math.PI / 2, size: 14, color: BRAND, text: letter, bg: "#ffffff" });
+    });
+    const peakGeo = new THREE.ConeGeometry(1, 1, 7, 1).toNonIndexed();
+    peakGeo.computeVertexNormals();
+    instanced(group, peakGeo, M.far, peaks);
+
     const propsMesh = new THREE.Mesh(merge(props, true), M.props);
     propsMesh.castShadow = true;
     propsMesh.receiveShadow = true;
@@ -1254,27 +1912,51 @@ export function createParking3D(container, options) {
 
     // Arbres et buissons
     const trees = [];
-    const ring = (x, z) => trees.push({ x: x + (rnd() - 0.5) * 1.5, z: z + (rnd() - 0.5) * 1.5, s: 0.8 + rnd() * 0.6 });
+    const ring = (x, z, pink, y0) => trees.push({
+      x: x + (rnd() - 0.5) * (pink || y0 != null ? 0.6 : 1.5), z: z + (rnd() - 0.5) * (pink || y0 != null ? 0.6 : 1.5),
+      s: pink ? 0.95 + rnd() * 0.45 : 0.8 + rnd() * 0.6, pink: Boolean(pink), y0: y0 || 0,
+    });
     for (let z = 4; z < D; z += 8) { ring(L.xMin - 4.5, z); ring(L.xMax + 4.6, z); }
     for (let x = L.xMin; x < L.xMax + 3; x += 8) ring(x, D + 4.8);
     for (let x = LANE + 7; x < L.xMax + 2; x += 9) ring(x, -4.6);
-    for (let i = 0; i < 46; i++) ring(L.cx - 210 + rnd() * 420, ROAD_Z - 12 - rnd() * 90);
+    const inCity = (x, z) => x > X0 - 22 && x < cityX1 + 14 && z > vz0 - 4 && z < vz1 + 4;
+    for (let i = 0; i < 46; i++) {
+      const x = L.cx - 210 + rnd() * 420, z = ROAD_Z - 12 - rnd() * 90;
+      if (!inCity(x, z)) ring(x, z);
+    }
+    cityTrees.forEach((t) => ring(t[0], t[1], t[2], t[3]));
+    // Lisière boisée autour du village
+    for (let i = 0; i < 70; i++) {
+      const x = X0 - 10 + rnd() * (cityX1 - X0 + 30), north = rnd() < 0.5;
+      const z = north ? vz1 + 4 + rnd() * 26 : vz0 - 6 - rnd() * 24;
+      ring(x, z, rnd() < 0.2);
+    }
     for (let i = 0; i < 70; i++) {
       const a = rnd() * Math.PI * 2, r = Math.max(W, D) * 0.75 + 22 + rnd() * 150;
       const x = L.cx + Math.cos(a) * r, z = D / 2 + Math.sin(a) * r;
       if (z < ROAD_Z + 9 && z > ROAD_Z - 9) continue;
-      if (x > L.xMin - 6 && x < L.xMax + 6 && z > -9 && z < D + 6) continue;
+      if (x > -30 && x < L.xMax + 6 && z > -9 && z < D + 6) continue;
+      if (inCity(x, z)) continue;
       ring(x, z);
     }
     instanced(group, new THREE.CylinderGeometry(0.16, 0.24, 1.8, 7), M.trunk,
-      trees.map((t) => ({ x: t.x, y: 0.9 * t.s, z: t.z, sy: t.s })), "cast");
+      trees.map((t) => ({ x: t.x, y: t.y0 + 0.9 * t.s, z: t.z, sy: t.s })), "cast");
     const greens = ["#2f7d3b", "#3f9447", "#4fa64f", "#2c6e3f", "#5aa845", "#39853f"];
     const leaves = [];
     trees.forEach((t) => {
+      if (t.pink) {
+        // Cerisier en fleurs : une couronne large et ronde, en trois touffes roses.
+        const pick = () => BLOSSOM[Math.floor(rnd() * BLOSSOM.length)];
+        leaves.push({ x: t.x, y: t.y0 + 2.9 * t.s, z: t.z, sx: 2.2 * t.s, sy: 1.6 * t.s, sz: 2.2 * t.s, ry: rnd() * 6, color: pick() });
+        leaves.push({ x: t.x + 0.9 * t.s, y: t.y0 + 3.5 * t.s, z: t.z + 0.5 * t.s, sx: 1.5 * t.s, sy: 1.25 * t.s, sz: 1.5 * t.s, ry: rnd() * 6, color: pick() });
+        leaves.push({ x: t.x - 0.8 * t.s, y: t.y0 + 3.7 * t.s, z: t.z - 0.6 * t.s, sx: 1.4 * t.s, sy: 1.2 * t.s, sz: 1.4 * t.s, ry: rnd() * 6, color: pick() });
+        return;
+      }
       const color = greens[Math.floor(rnd() * greens.length)];
-      leaves.push({ x: t.x, y: 2.6 * t.s, z: t.z, sx: 1.7 * t.s, sy: 1.9 * t.s, sz: 1.7 * t.s, ry: rnd() * 6, color });
-      leaves.push({ x: t.x + 0.3, y: 3.9 * t.s, z: t.z - 0.2, sx: 1.15 * t.s, sy: 1.3 * t.s, sz: 1.15 * t.s, ry: rnd() * 6, color });
+      leaves.push({ x: t.x, y: t.y0 + 2.6 * t.s, z: t.z, sx: 1.7 * t.s, sy: 1.9 * t.s, sz: 1.7 * t.s, ry: rnd() * 6, color });
+      leaves.push({ x: t.x + 0.3, y: t.y0 + 3.9 * t.s, z: t.z - 0.2, sx: 1.15 * t.s, sy: 1.3 * t.s, sz: 1.15 * t.s, ry: rnd() * 6, color });
     });
+    cityLeaves.forEach((l) => leaves.push(l));
     L.islands.forEach((it) => {
       leaves.push({ x: it.x, y: 0.55, z: it.z - 1.2, sx: 0.6, sy: 0.6, sz: 0.6, color: "#3f9447" });
       leaves.push({ x: it.x, y: 0.55, z: it.z + 1.2, sx: 0.6, sy: 0.6, sz: 0.6, color: "#2f7d3b" });
@@ -1314,6 +1996,73 @@ export function createParking3D(container, options) {
     totemBody.position.set(-4.4, 4.6, -8.2);
     totemBody.castShadow = true;
     group.add(g1, g2, t1, t2, totemBody);
+    // Enseignes des commerces, panneau « Bienvenue »
+    const board = (w, h, text, bg, fg, x, y, z, ry) => {
+      const mat = signMaterial(512, (ctx, cw, ch) => {
+        ctx.fillStyle = bg; ctx.fillRect(0, 0, cw, ch);
+        ctx.fillStyle = fg; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        let size = ch * 0.58;
+        ctx.font = "800 " + size + "px system-ui, sans-serif";
+        while (ctx.measureText(text).width > cw * 0.92 && size > 10) { size -= 2; ctx.font = "800 " + size + "px system-ui, sans-serif"; }
+        ctx.fillText(text, cw / 2, ch * 0.54);
+      }, Math.max(48, Math.round((512 * h) / w)));
+      signMats.push(mat);
+      textures.push(mat.map);
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+      mesh.position.set(x, y, z);
+      mesh.rotation.y = ry;
+      group.add(mesh);
+    };
+    shopSigns.forEach((sg) => board(sg.w, 0.72, sg.text, "#fdf6e3", sg.color, sg.x, 2.86, sg.z, sg.ry));
+    stallSigns.forEach((sg) => board(2.5, 0.42, sg.text, "#fdf6e3", sg.color, sg.x, 0.55, sg.z, sg.ry));
+    board(0.7, 0.26, "TICKET CHANCE", "#fdf6e3", BRAND, omi.x, top + 0.42, omi.z - 0.305, Math.PI);
+    board(2.0, 0.5, MASCOT.toUpperCase() + " · NOTRE MASCOTTE", "#3b2a20", "#fdf6e3", mascot.x, 0.62, mascot.z - 1.16, Math.PI);
+    // Disques « P » des arches et du cube de la tour, lettres ACCESS de la colline
+    archSigns.forEach((sg) => board(sg.size, sg.size, sg.text || "P", sg.bg || sg.color, sg.bg ? sg.color : "#ffffff", sg.x, sg.y, sg.z, sg.ry));
+    board(9.4, 1.0, "BIENVENUE À " + CITY_NAME.toUpperCase(), BRAND, "#ffffff", X0 - 12.42, 8.4, ROAD_Z, -Math.PI / 2);
+    board(9.4, 1.0, "À BIENTÔT · PARKING ACCESS", BRAND, "#ffffff", X0 - 11.58, 8.4, ROAD_Z, Math.PI / 2);
+    // Lueurs du village : bornes lumineuses, ampoules des guirlandes, halos au sol
+    instanced(group, new THREE.BoxGeometry(1, 1, 1), M.bulb, lanternGlow);
+    instanced(group, flat(1, 1), M.pool, lanternPools);
+    instanced(group, new THREE.SphereGeometry(1, 10, 8), M.chochin, lampions);
+    // Pétales de cerisier qui tombent sur le village
+    const petalCount = 900, petalPos = new Float32Array(petalCount * 3), petalSeed = [];
+    const pRnd = mulberry(88);
+    for (let i = 0; i < petalCount; i++) {
+      petalPos[i * 3] = X0 - 16 + pRnd() * (cityX1 - X0 + 30);
+      petalPos[i * 3 + 1] = 0.3 + pRnd() * 13;
+      petalPos[i * 3 + 2] = vz0 + pRnd() * (vz1 - vz0);
+      petalSeed.push(pRnd() * 6.28);
+    }
+    const petalGeo = new THREE.BufferGeometry();
+    petalGeo.setAttribute("position", new THREE.BufferAttribute(petalPos, 3));
+    const petals = new THREE.Points(petalGeo, M.petal);
+    petals.frustumCulled = false;
+    petals.userData.seed = petalSeed;
+    group.add(petals);
+    // Feu d'artifice (tiré quand on sonne la cloche du belvédère, ou quand le carnet est complet)
+    const sparkCount = 420, sparkGeo = new THREE.BufferGeometry();
+    const sparkPos = new Float32Array(sparkCount * 3).fill(-999);
+    sparkGeo.setAttribute("position", new THREE.BufferAttribute(sparkPos, 3));
+    sparkGeo.setAttribute("color", new THREE.BufferAttribute(new Float32Array(sparkCount * 3), 3));
+    const sparks = new THREE.Points(sparkGeo, M.spark);
+    sparks.frustumCulled = false;
+    group.add(sparks);
+    const fireworks = { points: sparks, vel: new Float32Array(sparkCount * 3), life: new Float32Array(sparkCount), base: new Float32Array(sparkCount * 3), left: 0, next: 0, slot: 0 };
+    // Façade du distributeur
+    board(0.95, 1.2, "BOISSONS", "#1f6f5c", "#fdf6e3", vend.x, 0.95, vend.z - 0.41, Math.PI);
+    // Carpes de l'étang
+    const koi = [];
+    if (pond) {
+      for (let i = 0; i < 5; i++) {
+        const fish = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), i % 2 ? M.koi : M.stone);
+        fish.scale.set(0.5, 0.3, 1.5);
+        fish.userData = { a: i * 1.3, r: 0.45 + (i % 3) * 0.2, speed: 0.35 + i * 0.06 };
+        group.add(fish);
+        koi.push(fish);
+      }
+    }
+    board(4.8, 0.95, "LIBRE-SERVICE", "#d92b3a", "#ffffff", -19.5, 3.5, RENTAL_Z + 3.62, Math.PI);
 
     // Barrières levantes (bras rayé rouge et blanc)
     function barrier(x, z, towardNegX) {
@@ -1336,7 +2085,7 @@ export function createParking3D(container, options) {
     const fleet = {};
     const total = zones.reduce((s, z) => s + z.spots.length, 0);
     Object.keys(MODELS).forEach((name) => {
-      let capacity = MODELS[name].traffic ? 8 : 0;
+      let capacity = MODELS[name].traffic ? 16 : 0;
       zones.forEach((z) => { if (z.kind.models.indexOf(name) >= 0) capacity += z.spots.length; });
       if (!capacity) return;
       capacity = Math.min(capacity, total + 8);
@@ -1408,6 +2157,9 @@ export function createParking3D(container, options) {
     const dogTag = tag("Ouaf !", 0, 1, 0, null, true);
     dogTag.node.classList.add("bubble");
     dogTag.hidden = true;
+    const playerTag = tag("…", 0, 2.3, 0, null, true);
+    playerTag.node.classList.add("bubble");
+    playerTag.hidden = true;
     const resaSign = new THREE.Sprite(M.resa);
     resaSign.scale.set(1.5, 1.5, 1);
     resaSign.position.set(RESA_KIOSK.x, 2.95, RESA_KIOSK.z);
@@ -1428,8 +2180,10 @@ export function createParking3D(container, options) {
       [LANE + 3, L.xMax + 1.55, -1.55, -0.65],
     ];
     trees.forEach((t) => obstacles.push([t.x - 0.28, t.x + 0.28, t.z - 0.28, t.z + 0.28]));
+    cityObstacles.forEach((o) => obstacles.push(o));
+    obstacles.push([-19.7, -19.3, RENTAL_Z + 3.5, RENTAL_Z + 3.9]); // panneau du libre-service
     lampSpots.forEach((l, i) => { if (i % 2 === 0) obstacles.push([l.x - 0.15, l.x + 0.15, l.z + 2.05, l.z + 2.35]); });
-    const points = [{ x: RESA_KIOSK.x, z: RESA_KIOSK.z - 1.0, label: "Consulter la borne de réservation", action: openResa }];
+    const points = [{ x: RESA_KIOSK.x, z: RESA_KIOSK.z - 1.0, label: "Consulter la borne de réservation", action: openResa }].concat(cityPoints);
     if (opts.onUseBorne) {
       points.push({ x: LANE / 2 - 0.9, z: -3.6, label: "Utiliser la borne d'entrée", action: () => opts.onUseBorne(1) });
       points.push({ x: LANE / 2 + 0.9, z: 3.4, label: "Utiliser la borne de sortie", action: () => opts.onUseBorne(2) });
@@ -1442,7 +2196,16 @@ export function createParking3D(container, options) {
       });
       zone.bounds = [x0, x1, z0, z1];
     });
-    group.add(player.root, dog.root);
+    group.add(player.root, dog.root, agent.root, driveLight);
+    const agentTag = tag("…", 0, 2.3, 0, null, true);
+    agentTag.node.classList.add("bubble");
+    agentTag.hidden = true;
+    npc.x = LANE + 0.35; npc.z = L.aisles.length ? L.aisles[0] : 6; npc.path = null; npc.wait = 2;
+    rentals.forEach((r) => group.add(r.root));
+    tag("Véhicules à conduire", -19.5, 4.9, RENTAL_Z + 3.7, null, true).node.style.background = "#d92b3a";
+    tag(CITY_NAME, (X0 + cityX1) / 2, 46, ROAD_Z, null, true);
+    const city = { x0: X0, x1: cityX1, z0: vz0, z1: vz1, pond, hill, petals, koi, fireworks, gate: tx };
+    const bounds = [L.cx - 150, cityX1 + 70, vz0 - 30, Math.max(D + 60, vz1 + 34)];
 
     // Ombres et caméra adaptées à la taille du parking
     const reach = Math.hypot(W, D + 24) / 2 + 12;
@@ -1470,7 +2233,7 @@ export function createParking3D(container, options) {
 
     lot = {
       L, group, zones, fleet, leds, rings, hover, gateIn, gateOut, textures, tags, resaSprites,
-      obstacles, points, dogTag, D, seq: 0, pickDirty: true,
+      obstacles, points, dogTag, agentTag, playerTag, D, city, bounds, decor: [], seq: 0, pickDirty: true,
     };
     spawnTraffic();
   }
@@ -1584,15 +2347,29 @@ export function createParking3D(container, options) {
   function spawnTraffic() {
     const names = Object.keys(MODELS).filter((n) => MODELS[n].traffic && lot.fleet[n]);
     if (!names.length) return;
-    for (let i = 0; i < 4; i++) {
+    // Voitures garées le long de l'avenue, en ville (décor ; on les contourne).
+    const c = lot.city;
+    for (let i = 0; i < 8; i++) {
+      const name = names[(i * 3 + 1) % names.length];
+      const v = createVehicle(name, PAINTS[(i * 7 + 2) % PAINTS.length]);
+      if (!v) continue;
+      v.state = "traffic";
+      const north = i % 2 === 0;
+      const x = c.x0 + 14 + Math.floor(i / 2) * CITY_PITCH + (north ? 0 : 9);
+      const z = ROAD_Z + (north ? 3.55 : -3.55), rot = north ? Math.PI / 2 : -Math.PI / 2;
+      place(v, x, z, rot, 1);
+      lot.decor.push({ x, z, rot });
+    }
+    for (let i = 0; i < 6; i++) {
       const name = names[i % names.length];
       const v = createVehicle(name, PAINTS[(i * 5 + 3) % PAINTS.length]);
       if (!v) continue;
       v.state = "traffic";
       const far = i % 2 === 1;
-      const x0 = lot.L.cx + (far ? 170 : -170), x1 = lot.L.cx + (far ? -170 : 170);
+      const west = lot.L.cx - 170, east = c.x1 + 110;
+      const x0 = far ? east : west, x1 = far ? west : east;
       const path = makePath([[x0, far ? ROAD_FAR : ROAD_NEAR], [x1, far ? ROAD_FAR : ROAD_NEAR]], 1);
-      const mover = { v, path, s: 0, speed: 13 + i * 1.5, delay: 2 + i * 6.5, loop: true, cruise: true };
+      const mover = { v, path, s: 0, speed: 12 + i * 1.3, delay: 2 + i * 5.5, loop: true, cruise: true };
       place(v, x0, far ? ROAD_FAR : ROAD_NEAR, far ? -Math.PI / 2 : Math.PI / 2, 0);
       movers.push(mover);
     }
@@ -1799,6 +2576,7 @@ export function createParking3D(container, options) {
       } else {
         walk.yaw -= dx * 0.006;
         walk.pitch = clamp(walk.pitch + dy * 0.004, 0.06, 1.25);
+        walk.look = performance.now() / 1000; // en voiture, la caméra ne se recale pas tout de suite
       }
       return;
     }
@@ -1858,6 +2636,8 @@ export function createParking3D(container, options) {
     if (!walk.on || !active) return;
     const t = e.target;
     if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || "")) return;
+    // Dans un panneau ouvert, Entrée et Espace servent aux boutons qui ont le focus.
+    if (t && t.tagName === "BUTTON" && panel.contains(t) && e.code !== "Escape") return;
     if (e.code === "Escape") {
       if (down) { if (walk.panel) closeResa(); else setWalk(false); }
     } else if (WALK_KEYS[e.code]) {
@@ -1866,6 +2646,10 @@ export function createParking3D(container, options) {
       if (down && !e.repeat) { if (walk.panel) closeResa(); else interact(); }
     } else if (e.code === "KeyF") {
       if (down && !e.repeat) bark();
+    } else if (e.code === "KeyC") {
+      if (down && !e.repeat) { if (walk.panel) closeResa(); else openCarnet(); }
+    } else if (e.code === "KeyP") {
+      if (down && !e.repeat) { if (walk.panel) closeResa(); else photo(); }
     } else {
       return;
     }
@@ -1880,6 +2664,7 @@ export function createParking3D(container, options) {
 
   function setWalk(on) {
     if (!lot || walk.on === on) return;
+    if (!on && walk.drive) exitVehicle();
     walk.on = on;
     walk.keys = {};
     walk.joy = null;
@@ -1893,8 +2678,17 @@ export function createParking3D(container, options) {
       walk.yaw = walk.rot; // caméra dans le dos du personnage
       walk.dog.next = 1.2;
       canvas.focus({ preventScroll: true });
+      if (!walk.met) {
+        walk.met = true;
+        toast(carnet.size >= STAMPS.length
+          ? "Carnet complet. Le village de " + CITY_NAME + " vous attend toujours, par la route de l'est."
+          : "Carnet de tampons : " + STAMPS.length + " choses à découvrir, du parking au village. Touche C pour l'ouvrir.", 6);
+      }
     } else {
       closeResa();
+      toastBox.classList.remove("on");
+      walk.toast = 0; walk.say = 0;
+      lot.playerTag.hidden = true;
       prompt.classList.remove("on");
       here.classList.remove("on");
       walk.near = null;
@@ -1911,7 +2705,19 @@ export function createParking3D(container, options) {
     width = 0; // recalcule le cadrage (champ plus large en promenade)
   }
 
-  function collide(px, pz, r) {
+  function collide(px, pz, r, skip) {
+    // Obstacle rond (véhicule posé n'importe comment) : trois cercles le long de sa longueur.
+    const round = (ox, oz, rot, half, or) => {
+      const fx = Math.sin(rot) * half * 0.85, fz = Math.cos(rot) * half * 0.85;
+      for (let kk = -1; kk <= 1; kk++) {
+        const dx = px - (ox + fx * kk), dz = pz - (oz + fz * kk), dd = Math.hypot(dx, dz), min = r + or;
+        if (dd >= min) continue;
+        if (dd < 1e-6) { px += min; continue; }
+        px = ox + fx * kk + (dx / dd) * min; pz = oz + fz * kk + (dz / dd) * min;
+      }
+    };
+    rentals.forEach((rv) => { if (rv !== skip) round(rv.x, rv.z, rv.rot, rv.def.half, rv.def.r); });
+    lot.decor.forEach((c) => round(c.x, c.z, c.rot, 1.45, 1.0));
     const hit = (x0, x1, z0, z1) => {
       const cx = clamp(px, x0, x1), cz = clamp(pz, z0, z1);
       const dx = px - cx, dz = pz - cz, d2 = dx * dx + dz * dz;
@@ -1926,28 +2732,497 @@ export function createParking3D(container, options) {
       }
     };
     lot.obstacles.forEach((o) => hit(o[0], o[1], o[2], o[3]));
+    const pond = lot.city.pond;
+    if (pond && skip) hit(pond.x - pond.rx, pond.x + pond.rx, pond.z - pond.rz, pond.z + pond.rz);
+    if (skip) { // la colline du belvédère se monte à pied, pas en voiture
+      const hl = lot.city.hill, dx = px - hl.x, dz = pz - hl.z, dd = Math.hypot(dx, dz), min = hl.r + r;
+      if (dd < min && dd > 1e-6) { px = hl.x + (dx / dd) * min; pz = hl.z + (dz / dd) * min; }
+    }
     lot.zones.forEach((zone) => zone.spots.forEach((sp) => {
       const v = sp.vehicle;
       if (!v || v.state !== "parked") return;
       const f = FOOT[v.model] || FOOT.sedan;
       hit(sp.x - f[0], sp.x + f[0], sp.z - f[1], sp.z + f[1]);
     }));
-    return [clamp(px, lot.L.cx - 120, lot.L.cx + 120), clamp(pz, -70, lot.D + 60)];
+    const b = lot.bounds;
+    return [clamp(px, b[0], b[1]), clamp(pz, b[2], b[3])];
+  }
+
+  // Hauteur du sol : la colline du belvédère et la passerelle arquée de l'étang.
+  function groundAt(x, z) {
+    const hl = lot.city.hill, hd = Math.hypot(x - hl.x, z - hl.z);
+    if (hd < hl.r) return hd <= hl.rt ? hl.h : hl.h * (1 - (hd - hl.rt) / (hl.r - hl.rt));
+    const pond = lot.city.pond;
+    if (!pond || Math.abs(x - pond.x) > 1.0) return 0;
+    const dz = Math.abs(z - pond.z);
+    if (dz > 4.85) return 0;
+    if (dz > 3.8) return 0.57 * (1 - (dz - 3.8) / 1.05);
+    return 0.57 + 0.9 * (1 - (dz / 3.8) * (dz / 3.8));
+  }
+
+  // --- Bulles, carnet de tampons, boutiques ------------------------------------------------
+  function say(text, secs) {
+    lot.playerTag.name.textContent = text;
+    walk.say = secs || 2.8;
+  }
+  function toast(text, secs) {
+    toastBox.textContent = text;
+    toastBox.classList.add("on");
+    walk.toast = secs || 4;
+  }
+  function refreshCarnet() {
+    carnetCount.textContent = carnet.size + "/" + STAMPS.length;
+  }
+  refreshCarnet();
+  /* Un tampon de plus au carnet (une seule fois chacun). Le dernier tire un feu
+     d'artifice. Le carnet est un jeu : il ne donne droit à aucun tarif. */
+  function stamp(id) {
+    if (carnet.has(id) || !walk.on) return;
+    const def = STAMPS.find((st) => st[0] === id);
+    if (!def) return;
+    carnet.add(id);
+    store(CARNET_KEY, Array.from(carnet));
+    refreshCarnet();
+    if (carnet.size >= STAMPS.length) {
+      toast("Carnet complet, bravo ! Pour venir pour de vrai, la borne de réservation est sur le parvis du parking.", 8);
+      launchFireworks(7);
+    } else {
+      toast("Tampon " + carnet.size + "/" + STAMPS.length + " : " + def[1].toLowerCase() + ".");
+    }
+  }
+  // Bouquets tirés devant le promeneur, là où la caméra regarde.
+  function launchFireworks(count) {
+    const fw = lot.city.fireworks;
+    fw.left = count; fw.next = 0;
+  }
+  function stepFireworks(dt) {
+    const fw = lot.city.fireworks, pos = fw.points.geometry.attributes.position, col = fw.points.geometry.attributes.color;
+    const per = Math.floor(fw.life.length / 3);
+    if (fw.left > 0) {
+      if (walk.on) walk.pitch = lerp(walk.pitch, 0.1, 1 - Math.exp(-dt * 2.2)); // la caméra se lève vers le ciel
+      fw.next -= dt;
+      if (fw.next <= 0) {
+        fw.left--;
+        fw.next = 0.4 + Math.random() * 0.5;
+        const from = (fw.slot++ % 3) * per, tint = cA.set(FIREWORKS[Math.floor(Math.random() * FIREWORKS.length)]);
+        const ahead = 42 + Math.random() * 22, aside = (Math.random() - 0.5) * 46, sn = Math.sin(walk.yaw), cs = Math.cos(walk.yaw);
+        const ox = walk.x + sn * ahead + cs * aside, oy = groundAt(walk.x, walk.z) + 15 + Math.random() * 11, oz = walk.z + cs * ahead - sn * aside;
+        for (let i = from; i < from + per; i++) {
+          const a = Math.random() * Math.PI * 2, u = Math.random() * 2 - 1, q = Math.sqrt(1 - u * u), sp = 6 + Math.random() * 6;
+          fw.vel[i * 3] = Math.cos(a) * q * sp; fw.vel[i * 3 + 1] = u * sp + 2; fw.vel[i * 3 + 2] = Math.sin(a) * q * sp;
+          fw.life[i] = 1.5 + Math.random() * 0.8;
+          fw.base[i * 3] = tint.r; fw.base[i * 3 + 1] = tint.g; fw.base[i * 3 + 2] = tint.b;
+          pos.setXYZ(i, ox, oy, oz);
+        }
+        fw.live = true;
+      }
+    }
+    if (!fw.live) return;
+    let alive = false;
+    const drag = Math.exp(-dt * 1.3);
+    for (let i = 0; i < fw.life.length; i++) {
+      if (fw.life[i] <= 0) continue;
+      fw.life[i] -= dt;
+      if (fw.life[i] <= 0) { pos.setY(i, -999); continue; }
+      alive = true;
+      fw.vel[i * 3] *= drag; fw.vel[i * 3 + 1] = fw.vel[i * 3 + 1] * drag - 5.5 * dt; fw.vel[i * 3 + 2] *= drag;
+      pos.setXYZ(i, pos.getX(i) + fw.vel[i * 3] * dt, pos.getY(i) + fw.vel[i * 3 + 1] * dt, pos.getZ(i) + fw.vel[i * 3 + 2] * dt);
+      const glow = Math.min(1, fw.life[i] / 0.7);
+      col.setXYZ(i, fw.base[i * 3] * glow, fw.base[i * 3 + 1] * glow, fw.base[i * 3 + 2] * glow);
+    }
+    fw.live = alive || fw.left > 0;
+    pos.needsUpdate = true; col.needsUpdate = true;
+  }
+  function drink() {
+    say(DRINKS[Math.floor(Math.random() * DRINKS.length)]);
+    stamp("boisson");
+  }
+  // Sons synthétisés (aucun fichier) : notes [fréquence, volume, départ], durée de l'écho.
+  let audio = null;
+  function sound(notes, ring, shape) {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      audio = audio || new Ctx();
+      const t0 = audio.currentTime;
+      notes.forEach((n) => {
+        const osc = audio.createOscillator(), gain = audio.createGain(), at = t0 + (n[2] || 0);
+        osc.type = shape || "sine";
+        osc.frequency.setValueAtTime(n[0], at);
+        if (shape) osc.frequency.exponentialRampToValueAtTime(n[0] * 0.55, at + ring); // peau de tambour
+        gain.gain.setValueAtTime(0.0001, t0);
+        gain.gain.setValueAtTime(n[1], at);
+        gain.gain.exponentialRampToValueAtTime(0.0008, at + ring);
+        osc.connect(gain).connect(audio.destination);
+        osc.start(at);
+        osc.stop(at + ring + 0.1);
+      });
+    } catch (err) { /* son indisponible : sans importance */ }
+  }
+  const dong = () => sound([[196, 0.16], [392.6, 0.07], [588, 0.035]], 2.4);
+  function bassDrum() {
+    say("Boum ! Boum ! Tchak-boum !", 3);
+    sound([[92, 0.3, 0], [92, 0.3, 0.42], [110, 0.22, 0.78], [110, 0.22, 0.94], [92, 0.32, 1.14]], 0.34, "triangle");
+    stamp("fete");
+  }
+  function greetMascot() {
+    say("Bonjour " + MASCOT + " !");
+    bark();
+    stamp("mascotte");
+  }
+  function luckyTicket() {
+    const draw = LUCK[Math.floor(Math.random() * LUCK.length)];
+    showPanel("Ticket chance", false, [
+      panelTitle("T", "Ticket chance : " + draw[0], BRAND),
+      elem("p", "p3d-luck", draw[1]),
+      elem("p", null, "Un ticket pour rire, tiré au belvédère de " + CITY_NAME + "."),
+      panelClose("Merci"),
+    ]);
+    stamp("chance");
+  }
+  /* Photo souvenir : l'image du plan, avec un bandeau. Elle reste dans la page
+     (rien n'est envoyé) ; un lien permet de l'enregistrer. */
+  function photo() {
+    if (!walk.on || !lot) return;
+    renderer.render(scene, camera);
+    const shot = document.createElement("canvas"), k = Math.min(1, 1280 / canvas.width);
+    shot.width = Math.round(canvas.width * k); shot.height = Math.round(canvas.height * k);
+    const ctx = shot.getContext("2d");
+    ctx.drawImage(canvas, 0, 0, shot.width, shot.height);
+    const band = Math.round(shot.height * 0.13), c = lot.city;
+    const inTown = walk.x > c.x0 - 14 && walk.x < c.x1 + 14 && walk.z > c.z0 && walk.z < c.z1;
+    const shade = ctx.createLinearGradient(0, shot.height - band * 1.6, 0, shot.height);
+    shade.addColorStop(0, "rgba(17,17,27,0)"); shade.addColorStop(1, "rgba(17,17,27,.78)");
+    ctx.fillStyle = shade; ctx.fillRect(0, shot.height - band * 1.6, shot.width, band * 1.6);
+    ctx.fillStyle = "#fff"; ctx.textBaseline = "alphabetic";
+    ctx.font = "800 " + Math.round(band * 0.42) + "px system-ui, sans-serif";
+    ctx.fillText(inTown ? "Souvenir de " + CITY_NAME : "Souvenir du parking", band * 0.4, shot.height - band * 0.36);
+    ctx.font = "600 " + Math.round(band * 0.26) + "px system-ui, sans-serif";
+    ctx.textAlign = "right";
+    ctx.fillText("Parking Access · plan 3D", shot.width - band * 0.4, shot.height - band * 0.38);
+    const url = shot.toDataURL("image/jpeg", 0.88);
+    const img = elem("img");
+    img.src = url;
+    img.alt = "Photo souvenir de la promenade";
+    const save = elem("a", "p3d-save", "Enregistrer la photo");
+    save.href = url;
+    save.download = "souvenir-" + (inTown ? "bonneplace" : "parking") + ".jpg";
+    showPanel("Photo souvenir", false, [panelTitle("P", "Photo souvenir", "#b5651d"), img, save, panelClose()]);
+  }
+  photoBtn.addEventListener("click", () => { if (walk.panel) closeResa(); else photo(); });
+  function ringBell() {
+    say("Dong… dong…", 3.2);
+    dong();
+    launchFireworks(3);
+    stamp("cloche");
+  }
+  function panelTitle(letter, text, color) {
+    const title = elem("h3");
+    const badge = elem("i", null, letter);
+    if (color) badge.style.background = color;
+    title.append(badge, document.createTextNode(text));
+    return title;
+  }
+  function panelClose(label) {
+    const close = elem("button", null, label || "Fermer");
+    close.type = "button";
+    close.addEventListener("click", closeResa);
+    return close;
+  }
+  function showPanel(label, side, nodes) {
+    panel.replaceChildren();
+    nodes.forEach((n) => panel.appendChild(n));
+    panel.setAttribute("aria-label", label);
+    panel.classList.toggle("side", Boolean(side));
+    panel.classList.add("on");
+    panel.scrollTop = 0;
+    prompt.classList.remove("on");
+    walk.panel = true;
+    walk.keys = {};
+  }
+  // Une rangée de choix (pastilles de couleur ou étiquettes) ; un seul actif à la fois.
+  function choices(title, items, current, onPick, swatch) {
+    const row = elem("div", "p3d-row");
+    items.forEach((item, i) => {
+      const value = swatch ? item : item[0];
+      const b = elem("button", swatch ? "p3d-sw" : "p3d-chip", swatch ? null : item[1]);
+      b.type = "button";
+      if (swatch) { b.style.setProperty("--c", value); b.setAttribute("aria-label", title + ", couleur " + (i + 1)); }
+      b.setAttribute("aria-pressed", String(value === current));
+      b.addEventListener("click", () => {
+        Array.from(row.children).forEach((other) => other.setAttribute("aria-pressed", String(other === b)));
+        onPick(value);
+      });
+      row.appendChild(b);
+    });
+    return [elem("h4", null, title), row];
+  }
+  function redress(stampId) {
+    swapModel(player, buildPerson(playerLook()));
+    store(LOOK_KEY, look);
+    stamp(stampId);
+  }
+  function changePet(kind) {
+    look.pet = kind;
+    swapModel(dog, buildPet(kind));
+    store(LOOK_KEY, look);
+    bark();
+    stamp("ami");
+  }
+  /* Boutiques du village : tout est offert, rien n'est payé ni envoyé. Le
+     personnage se tourne vers la caméra pour qu'on voie le résultat. */
+  function openShop(kind, facing) {
+    if (facing != null) { walk.rot = facing; walk.yaw = facing + Math.PI; }
+    if (kind === "coiffure" && look.hat !== "none") { bareHead = true; swapModel(player, buildPerson(playerLook())); }
+    const set = (field, stampId) => (value) => { look[field] = value; redress(stampId); };
+    let nodes;
+    if (kind === "tenue") {
+      nodes = [panelTitle("A", "Boutique Access", BRAND), elem("p", null, "Aux couleurs du parking. Servez-vous : tout est offert.")]
+        .concat(choices("Haut", TOPS, look.top, set("top", "look"), true))
+        .concat(choices("Pantalon", PANTS, look.pants, set("pants", "look"), true))
+        .concat(choices("Couvre-chef", HATS, look.hat, set("hat", "look")))
+        .concat(choices("Sac à dos", [[true, "Avec"], [false, "Sans"]], look.pack, set("pack", "look")));
+    } else if (kind === "coiffure") {
+      nodes = [panelTitle("C", "Coiffure Le Créneau", "#5b3a8c"), elem("p", null, "Ici, on réussit tous les créneaux. C'est la maison qui offre." + (look.hat !== "none" ? " Votre chapeau vous attend à la sortie." : ""))]
+        .concat(choices("Couleur", HAIRS, look.hair, set("hair", "look"), true))
+        .concat(choices("Coupe", CUTS, look.cut, set("cut", "look")));
+    } else {
+      nodes = [panelTitle("C", "Animalerie du Copilote", "#1f6f5c"), elem("p", null, "Qui sera votre copilote ? Il monte aussi en voiture.")]
+        .concat(choices("Compagnon", Object.keys(PETS).map((k) => [k, PETS[k].name]), look.pet, changePet));
+    }
+    nodes.push(panelClose("C'est parfait"));
+    showPanel(kind === "tenue" ? "Boutique Access" : kind === "coiffure" ? "Coiffure Le Créneau" : "Animalerie du Copilote", true, nodes);
+  }
+  function openCarnet() {
+    const list = elem("ul", "p3d-stamps");
+    STAMPS.forEach((st) => {
+      const done = carnet.has(st[0]);
+      const li = elem("li", done ? "done" : null);
+      li.append(elem("i", null, done ? "✓" : ""), elem("b", null, st[1]), elem("span", null, st[2]));
+      list.appendChild(li);
+    });
+    const full = carnet.size >= STAMPS.length;
+    showPanel("Carnet de tampons", false, [
+      panelTitle(String(carnet.size), "Carnet de tampons", "#d92b3a"),
+      elem("p", null, full
+        ? "Carnet complet, bravo ! Vous connaissez le parking et son village par cœur."
+        : STAMPS.length + " choses à découvrir, du parking au village de " + CITY_NAME + ". " + carnet.size + " sur " + STAMPS.length + " pour l'instant."),
+      list,
+      elem("p", null, "Envie de venir pour de vrai ? La borne de réservation, sur le parvis, montre les places à réserver cette heure. " +
+        "Le carnet est un jeu, gardé sur cet appareil : il ne donne droit à aucun tarif."),
+      panelClose(),
+    ]);
+  }
+  carnetBtn.addEventListener("click", () => { if (walk.panel) closeResa(); else openCarnet(); });
+
+  /* L'agent du parking : il fait sa ronde tout seul. Il va voir une place mise
+     de côté (un véhicule arrive), inspecte les véhicules garés, fait une pause
+     à la guérite, salue le promeneur et complimente le chien. */
+  function agentSay(kind) {
+    let lines = AGENT_SAYS[kind];
+    if (kind === "dog") lines = lines.concat("Oh, un " + dog.def.name.toLowerCase() + " !");
+    lot.agentTag.name.textContent = lines[Math.floor(Math.random() * lines.length)];
+    npc.say = 2.6;
+  }
+  function agentRoute(tx, tz) {
+    const side = LANE + 0.35, pts = [[npc.x, npc.z]];
+    if (npc.x < 0) { pts.push([-1.3, 4.2]); pts.push([side, 4.2]); }
+    else if (Math.abs(npc.z - tz) > 0.6 || tx < 0) pts.push([side, npc.z]);
+    if (tx < 0) { pts.push([side, 4.2]); pts.push([-1.3, 4.2]); }
+    else if (Math.abs(pts[pts.length - 1][1] - tz) > 0.6) pts.push([side, tz]);
+    pts.push([tx, tz]);
+    return makePath(pts, 0.8);
+  }
+  function agentThink() {
+    const spots = [];
+    let held = null;
+    lot.zones.forEach((zone) => zone.spots.forEach((sp) => {
+      if (sp.held && !held) held = sp;
+      if (sp.vehicle && sp.vehicle.state === "parked") spots.push(sp);
+    }));
+    const front = (sp) => [sp.x, sp.aisleZ + Math.sign(sp.z - sp.aisleZ) * (AISLE / 2 - 0.7)];
+    const roll = Math.random();
+    let t;
+    if (held) {
+      const p = front(held);
+      t = { x: p[0], z: p[1], face: [held.x, held.z], say: "guide", pause: 5 };
+    } else if (roll < 0.14) {
+      t = { x: -1.3, z: -0.9, face: [-1.3, -6], say: "pause", pause: 5 + Math.random() * 4 };
+    } else if (spots.length && roll < 0.86) {
+      const sp = spots[Math.floor(Math.random() * spots.length)], p = front(sp);
+      t = { x: p[0], z: p[1], face: [sp.x, sp.z], say: MODELS[sp.vehicle.model].lean ? "moto" : "inspect", pause: 2.5 + Math.random() * 2.5 };
+    } else {
+      const az = lot.L.aisles[Math.floor(Math.random() * lot.L.aisles.length)] || 6;
+      t = { x: lot.L.R0 + 2 + Math.random() * (lot.L.rowLen - 4), z: az, face: null, say: spots.length ? "calm" : "calm", pause: 2 + Math.random() * 2 };
+    }
+    npc.target = t;
+    npc.path = agentRoute(t.x, t.z);
+    npc.s = 0;
+  }
+  function stepAgent(dt, now) {
+    npc.say = Math.max(0, npc.say - dt);
+    npc.greet = Math.max(0, npc.greet - dt);
+    // Il s'arrête pour saluer le promeneur, et remarque le chien qui aboie.
+    const near = walk.on && !walk.drive ? Math.hypot(walk.x - npc.x, walk.z - npc.z) : 99;
+    let goal = 0;
+    if (near < 3.2) {
+      if (npc.greet <= 0) { agentSay("hello"); npc.greet = 16; stamp("agent"); }
+      npc.rot = angleTo(npc.rot, Math.atan2(walk.x - npc.x, walk.z - npc.z), 1 - Math.exp(-dt * 6));
+    } else if (npc.path) {
+      goal = 1.55;
+      npc.s += npc.speed * dt;
+      pathAt(npc.path, npc.s, pt);
+      npc.x = pt.x; npc.z = pt.z;
+      npc.rot = angleTo(npc.rot, pt.h, 1 - Math.exp(-dt * 8));
+      if (npc.s >= npc.path.total) {
+        npc.path = null;
+        npc.wait = npc.target.pause;
+        if (Math.random() < 0.75) agentSay(npc.target.say);
+      }
+    } else {
+      const t = npc.target;
+      if (t && t.face) npc.rot = angleTo(npc.rot, Math.atan2(t.face[0] - npc.x, t.face[1] - npc.z), 1 - Math.exp(-dt * 5));
+      npc.wait -= dt;
+      if (npc.wait <= 0) agentThink();
+    }
+    if (walk.dog.bark > 1.05 && npc.say <= 0 && Math.hypot(walk.dog.x - npc.x, walk.dog.z - npc.z) < 8) agentSay("dog");
+    npc.speed = lerp(npc.speed, goal, 1 - Math.exp(-dt * 8));
+    npc.phase += npc.speed * dt * 2.6;
+    const stride = Math.min(1, npc.speed / 1.55), swing = Math.sin(npc.phase) * 0.6 * stride;
+    agent.legL.rotation.x = swing; agent.legR.rotation.x = -swing;
+    // À l'arrêt devant un véhicule : il note quelque chose (un bras levé).
+    const noting = !npc.path && npc.target && npc.target.face && near >= 3.2;
+    agent.armL.rotation.x = -swing * 0.8;
+    agent.armR.rotation.x = noting ? -1.1 + Math.sin(now * 6) * 0.08 : swing * 0.8;
+    agent.body.position.y = Math.abs(Math.sin(npc.phase)) * 0.04 * stride;
+    agent.root.position.set(npc.x, 0, npc.z);
+    agent.root.rotation.y = npc.rot;
+    lot.agentTag.hidden = npc.say <= 0;
+    lot.agentTag.pos.set(npc.x - lot.L.cx, 2.25, npc.z - lot.L.cz);
   }
 
   function bark() {
     const d = walk.dog;
     d.bark = 1.2;
     d.next = 7 + Math.random() * 10;
-    lot.dogTag.name.textContent = BARKS[Math.floor(Math.random() * BARKS.length)];
+    const barks = dog.def.barks;
+    lot.dogTag.name.textContent = barks[Math.floor(Math.random() * barks.length)];
   }
   function interact() {
     if (walk.near) walk.near.action();
   }
+  function enterVehicle(rv) {
+    if (walk.drive || !walk.on) return;
+    walk.drive = rv;
+    walk.y = 0; walk.vy = 0; walk.speed = 0;
+    walk.keys = {};
+    walk.near = false; // force le recalcul de l'invite
+    walk.yaw = rv.rot;
+    hint.textContent = HINT_DRIVE;
+    actBtn.textContent = "Frein";
+    speedoUnit.textContent = "km/h · " + rv.def.name;
+    speedo.classList.add("on");
+    bark();
+    stamp("volant");
+  }
+  function exitVehicle() {
+    const rv = walk.drive;
+    if (!rv) return;
+    rv.v = 0; rv.steer = 0;
+    rv.body.rotation.z = 0;
+    // On descend côté conducteur (à gauche), là où il y a de la place.
+    const side = rv.def.r + 0.85;
+    const out = collide(rv.x + Math.cos(rv.rot) * side, rv.z - Math.sin(rv.rot) * side, 0.36, null);
+    walk.x = out[0]; walk.z = out[1];
+    walk.rot = rv.rot; walk.yaw = rv.rot;
+    walk.dog.x = walk.x + 0.7; walk.dog.z = walk.z - 0.5; walk.dog.y = 0;
+    walk.drive = null;
+    walk.near = false; // force le recalcul de l'invite
+    prompt.classList.remove("on");
+    player.root.visible = dog.root.visible = true;
+    dog.root.scale.setScalar(dog.def.scale);
+    dog.head.rotation.z = 0;
+    player.root.rotation.z = 0;
+    hint.textContent = walk.on ? HINT_WALK : HINT_ORBIT;
+    actBtn.textContent = "Sauter";
+    speedo.classList.remove("on");
+  }
+  const leaveAction = { label: "Descendre du véhicule", action: exitVehicle };
+  const rentalActions = rentals.map((rv) => ({ rv, label: "Conduire " + rv.def.label, action: () => enterVehicle(rv) }));
+  ["pointerdown", "pointerup", "pointercancel", "pointerleave"].forEach((type) => {
+    actBtn.addEventListener(type, (e) => { walk.keys.Space = type === "pointerdown"; e.preventDefault(); });
+  });
+
+  /* Conduite : accélérateur, frein, direction ; la vitesse retombe seule ; on
+     glisse le long des obstacles et on rebondit sur un choc de face. */
+  function stepDrive(dt, now, throttle, steer, handbrake) {
+    const rv = walk.drive, def = rv.def;
+    if (throttle > 0.05) rv.v += (rv.v < -0.2 ? 22 : def.acc) * throttle * dt;
+    else if (throttle < -0.05) rv.v -= (rv.v > 0.3 ? 24 : def.acc * 0.55) * -throttle * dt;
+    rv.v *= Math.exp(-dt * (handbrake ? 3.4 : 0.32));
+    if (Math.abs(throttle) < 0.05 && Math.abs(rv.v) < 0.12) rv.v = 0;
+    rv.v = clamp(rv.v, -7, def.max);
+    rv.steer = lerp(rv.steer, clamp(steer, -1, 1), 1 - Math.exp(-dt * 8));
+    rv.rot -= rv.steer * (2.3 / (1 + Math.abs(rv.v) / 11)) * clamp(rv.v / 4, -1, 1) * dt;
+    const travel = rv.v * dt, steps = Math.max(1, Math.ceil(Math.abs(travel) / 0.25));
+    for (let i = 0; i < steps; i++) {
+      const fx = Math.sin(rv.rot), fz = Math.cos(rv.rot);
+      let cx = rv.x + (fx * travel) / steps, cz = rv.z + (fz * travel) / steps, pushed = 0;
+      for (let kk = 0; kk < 3; kk++) {
+        const off = [0, 1, -1][kk] * def.half * 0.8;
+        const res = collide(cx + fx * off, cz + fz * off, def.r, rv);
+        const ddx = res[0] - (cx + fx * off), ddz = res[1] - (cz + fz * off);
+        cx += ddx; cz += ddz;
+        pushed += Math.hypot(ddx, ddz);
+      }
+      rv.x = cx; rv.z = cz;
+      if (pushed > 0.004) {
+        if (pushed > (Math.abs(travel) / steps) * 0.7) { rv.v *= -0.22; break; } // choc de face
+        rv.v *= 0.9; // frottement le long d'un obstacle
+      }
+    }
+    const ratio = clamp(rv.v / def.max, -1, 1);
+    const lean = rv.def.model === "scooter" ? rv.steer * 0.36 * Math.abs(ratio) * 2 : -rv.steer * 0.05 * Math.abs(ratio) * 2;
+    rv.body.rotation.z = lerp(rv.body.rotation.z, clamp(lean, -0.4, 0.4), 1 - Math.exp(-dt * 9));
+    walk.x = rv.x; walk.z = rv.z; walk.rot = rv.rot; walk.speed = Math.abs(rv.v);
+    // Le conducteur : assis sur le scooter (le chien à ses pieds), caché en voiture —
+    // où le chien passe la tête par la fenêtre du passager.
+    const onBike = def.model === "scooter";
+    player.root.visible = onBike;
+    dog.root.visible = true;
+    dog.root.scale.setScalar(Math.min(dog.def.scale, 1.5)); // à bord, les grands se font petits
+    if (!onBike) {
+      const seat = def.model === "camper" ? { fwd: 2.3, side: 1.0, y: 1.02 } : { fwd: 0.3, side: 0.76, y: 0.52 };
+      const d = walk.dog, fx = Math.sin(rv.rot), fz = Math.cos(rv.rot);
+      d.x = rv.x + fx * seat.fwd - fz * seat.side; d.z = rv.z + fz * seat.fwd + fx * seat.side;
+      d.rot = rv.rot - Math.PI / 2; d.y = seat.y - Math.max(0, dog.top - 0.96);
+    }
+    if (onBike) {
+      player.root.position.set(rv.x - Math.sin(rv.rot) * 0.25, 0.26, rv.z - Math.cos(rv.rot) * 0.25);
+      player.root.rotation.set(0, rv.rot, rv.body.rotation.z);
+      player.legL.rotation.x = player.legR.rotation.x = -1.35;
+      player.armL.rotation.x = player.armR.rotation.x = -1.15;
+      player.body.position.y = 0; player.body.rotation.x = 0.1;
+      const d = walk.dog;
+      d.x = rv.x + Math.sin(rv.rot) * 0.42; d.z = rv.z + Math.cos(rv.rot) * 0.42; d.rot = rv.rot; d.y = 0.3;
+    }
+    // La caméra se replace dans l'axe du véhicule, sauf si on vient de regarder ailleurs.
+    if (now - walk.look > 1.6) walk.yaw = angleTo(walk.yaw, rv.rot, 1 - Math.exp(-dt * 3.2));
+    speedoValue.textContent = String(Math.round(Math.abs(rv.v) * 3.6));
+  }
   function openResa() {
-    panel.replaceChildren();
-    const title = elem("h3");
-    title.append(elem("i", null, "R"), document.createTextNode("Borne de réservation"));
+    const title = panelTitle("R", "Borne de réservation");
+    const free = lot.zones.reduce((n, zone) => n + Math.max(0, zone.cap - zone.taken), 0);
+    const lead = elem("p", "p3d-lead");
+    lead.append(elem("b", null, String(free)), document.createTextNode(
+      (free > 1 ? " places libres" : " place libre") + " en ce moment" + (data.source === "live" ? "" : " (démonstration)")));
+    const perks = elem("ul", "p3d-perks");
+    [
+      "Entrée sans ticket : votre plaque suffit.",
+      "Une zone pour chacun : " + lot.zones.map((zone) => zone.label).join(", ") + ".",
+      "Réservation à l'heure : votre place vous attend à l'arrivée.",
+      "Occupation affichée en direct, ici même.",
+    ].forEach((line) => perks.appendChild(elem("li", null, line)));
     const intro = elem("p", null,
       "Une réservation se prend à l'heure, auprès du service Booking, et se paie à l'avance. " +
       "À votre arrivée, la borne reconnaît votre plaque et vous attribue une place réservée ; " +
@@ -1970,16 +3245,13 @@ export function createParking3D(container, options) {
     const source = elem("p", null, data.source === "live"
       ? "Chiffres de Booking pour l'heure en cours, véhicules comptés par Access."
       : "Chiffres de démonstration.");
-    const close = elem("button", null, "Fermer");
-    close.type = "button";
-    close.addEventListener("click", closeResa);
-    panel.append(title, intro, table, source, close);
-    panel.classList.add("on");
-    walk.panel = true;
-    walk.keys = {};
+    showPanel("Borne de réservation", false, [title, lead, perks, intro, table, source, panelClose()]);
+    stamp("resa");
   }
   function closeResa() {
     panel.classList.remove("on");
+    if (walk.panel) walk.near = false; // l'invite revient à la prochaine image
+    if (bareHead) { bareHead = false; swapModel(player, buildPerson(playerLook())); }
     walk.panel = false;
   }
   prompt.addEventListener("click", () => { if (walk.panel) closeResa(); else interact(); });
@@ -1996,10 +3268,34 @@ export function createParking3D(container, options) {
       run = Boolean(k.ShiftLeft || k.ShiftRight);
       if (walk.joy) { f -= walk.joy.y; sd += walk.joy.x; run = run || walk.joy.mag > 0.9; }
     }
-    walk.yaw -= turn * dt * 2.0;
-    const len = Math.hypot(f, sd);
+    rentals.forEach((rv) => {
+      if (rv !== walk.drive) rv.v = 0;
+      rv.root.position.set(rv.x, 0, rv.z);
+      rv.root.rotation.y = rv.rot;
+    });
+    driveLight.intensity = walk.drive ? driveLightNight * 60 : 0;
+    if (walk.drive) {
+      stepDrive(dt, now, f, sd + turn, Boolean(k.Space));
+      const rv = walk.drive;
+      rv.root.position.set(rv.x, 0, rv.z);
+      rv.root.rotation.y = rv.rot;
+      driveLight.position.set(rv.x + Math.sin(rv.rot) * (rv.def.half + 1.6), 1.1, rv.z + Math.cos(rv.rot) * (rv.def.half + 1.6));
+    }
+    const driving = Boolean(walk.drive);
+    if (!driving) walk.yaw -= turn * dt * 2.0;
+    const len = driving ? 0 : Math.hypot(f, sd);
     const goal = len > 0.08 ? (run ? 8.4 : 4.3) * Math.min(1, len) : 0;
-    walk.speed = lerp(walk.speed, goal, 1 - Math.exp(-dt * 11));
+    if (!driving) walk.speed = lerp(walk.speed, goal, 1 - Math.exp(-dt * 11));
+    // Saut (Espace) : le chien saute avec son maître.
+    if (!driving) {
+      if (k.Space && walk.on && !walk.panel && walk.y === 0) { walk.vy = 5.8; if (d.y === 0) d.vy = 4.4; }
+      walk.vy -= 17 * dt;
+      walk.y = Math.max(0, walk.y + walk.vy * dt);
+      if (walk.y === 0) walk.vy = 0;
+      d.vy -= 17 * dt;
+      d.y = Math.max(0, d.y + d.vy * dt);
+      if (d.y === 0) d.vy = 0;
+    }
     if (len > 0.08) {
       const dx = Math.sin(walk.yaw), dz = Math.cos(walk.yaw);
       const mx = (dx * f - dz * sd) / len, mz = (dz * f + dx * sd) / len;
@@ -2014,15 +3310,46 @@ export function createParking3D(container, options) {
     } else {
       walk.still += dt;
     }
-    walk.phase += walk.speed * dt * 2.4;
-    const stride = Math.min(1, walk.speed / 4.3), swing = Math.sin(walk.phase) * 0.8 * stride;
-    player.legL.rotation.x = swing; player.legR.rotation.x = -swing;
-    player.armL.rotation.x = -swing * 0.85; player.armR.rotation.x = swing * 0.85;
-    player.body.position.y = Math.abs(Math.sin(walk.phase)) * 0.06 * stride + Math.sin(now * 2.1) * 0.008;
-    player.body.rotation.x = stride * (walk.speed > 6 ? 0.12 : 0.04);
-    player.root.position.set(walk.x, 0, walk.z);
-    player.root.rotation.y = walk.rot;
+    if (!driving) {
+      walk.phase += walk.speed * dt * 2.4;
+      const stride = Math.min(1, walk.speed / 4.3), swing = Math.sin(walk.phase) * 0.8 * stride;
+      const air = walk.y > 0.02;
+      player.legL.rotation.x = air ? -0.55 : swing; player.legR.rotation.x = air ? 0.45 : -swing;
+      player.armL.rotation.x = air ? -2.5 : -swing * 0.85; player.armR.rotation.x = air ? -2.5 : swing * 0.85;
+      player.body.position.y = Math.abs(Math.sin(walk.phase)) * 0.06 * stride + Math.sin(now * 2.1) * 0.008;
+      player.body.rotation.x = stride * (walk.speed > 6 ? 0.12 : 0.04);
+      player.root.position.set(walk.x, walk.y + groundAt(walk.x, walk.z), walk.z);
+      player.root.rotation.set(0, walk.rot, 0);
+    }
+    // Bulle du promeneur, message du carnet
+    walk.say = Math.max(0, walk.say - dt);
+    lot.playerTag.hidden = walk.say <= 0 || !walk.on;
+    lot.playerTag.pos.set(walk.x - L.cx, (driving ? 2.6 : 2.2 + walk.y + groundAt(walk.x, walk.z)), walk.z - L.cz);
+    if (walk.toast > 0) { walk.toast -= dt; if (walk.toast <= 0) toastBox.classList.remove("on"); }
 
+    if (driving) {
+      // À bord : immobile aux pieds du conducteur (scooter), ou caché (voiture).
+      dog.root.position.set(d.x, d.y, d.z);
+      dog.root.rotation.y = d.rot;
+      dog.tail.rotation.z = Math.sin(now * 18) * dog.wag;
+      dog.legs.forEach((leg) => { leg.rotation.x = 0; });
+      d.bark = Math.max(0, d.bark - dt);
+      dog.head.rotation.x = d.bark > 0 ? -0.5 : 0;
+      // La tête au vent : elle dodeline avec la vitesse.
+      dog.head.rotation.z = Math.sin(now * 11) * 0.1 * Math.min(1, walk.speed / 8);
+      dog.body.position.y = 0;
+      d.next -= dt;
+      if (d.next <= 0 && walk.speed > 10) bark();
+      lot.dogTag.hidden = d.bark <= 0;
+      lot.dogTag.pos.set(d.x - L.cx, 1.6, d.z - L.cz);
+    } else {
+      stepDog(dt, now);
+    }
+    stepCamera(dt, now);
+  }
+
+  function stepDog(dt, now) {
+    const L = lot.L, d = walk.dog;
     // Le chihuahua : au pied quand on marche, il flâne et aboie quand on s'arrête.
     const sn = Math.sin(walk.rot), cs = Math.cos(walk.rot);
     let tx = walk.x - sn * 0.7 - cs * 0.6, tz = walk.z - cs * 0.7 + sn * 0.6;
@@ -2037,6 +3364,8 @@ export function createParking3D(container, options) {
     } else {
       d.tx = null;
     }
+    // Panneau ouvert (boutique) : il vient s'asseoir devant, bien en vue.
+    if (walk.panel) { tx = walk.x + sn * 1.0 + cs * 0.95; tz = walk.z + cs * 1.0 - sn * 0.95; }
     let ddx = tx - d.x, ddz = tz - d.z;
     const dist = Math.hypot(ddx, ddz);
     if (dist > 16) { d.x = tx; d.z = tz; ddx = ddz = 0; }
@@ -2053,41 +3382,67 @@ export function createParking3D(container, options) {
     const trot = Math.min(1, d.speed / 3) * 0.9;
     dog.legs[0].rotation.x = dog.legs[3].rotation.x = Math.sin(d.phase) * trot;
     dog.legs[1].rotation.x = dog.legs[2].rotation.x = -Math.sin(d.phase) * trot;
-    dog.tail.rotation.z = Math.sin(now * (d.speed > 0.5 ? 20 : 12)) * 0.65;
+    dog.tail.rotation.z = Math.sin(now * (d.speed > 0.5 ? 20 : 12)) * dog.wag;
     dog.head.rotation.z = d.speed < 0.3 ? Math.sin(now * 1.3) * 0.16 : 0;
     d.bark = Math.max(0, d.bark - dt);
-    dog.body.position.y = d.bark > 0 ? Math.abs(Math.sin(d.bark * 13)) * 0.13 : Math.abs(Math.sin(d.phase)) * 0.015 * trot;
+    dog.body.position.y = d.bark > 0 ? Math.abs(Math.sin(d.bark * 13)) * 0.13 : Math.abs(Math.sin(d.phase)) * (dog.def.hop ? 0.1 : 0.015) * trot;
     dog.head.rotation.x = d.bark > 0 ? -0.5 : 0;
-    dog.root.position.set(d.x, 0, d.z);
+    dog.root.position.set(d.x, d.y + groundAt(d.x, d.z), d.z);
     dog.root.rotation.y = d.rot;
     d.next -= dt;
     if (d.next <= 0) { if (walk.on) bark(); else d.next = 8; }
     lot.dogTag.hidden = d.bark <= 0;
-    lot.dogTag.pos.set(d.x - L.cx, 0.95, d.z - L.cz);
+    lot.dogTag.pos.set(d.x - L.cx, 0.3 + 0.46 * dog.def.scale + d.y + groundAt(d.x, d.z), d.z - L.cz);
+  }
 
+  function stepCamera(dt, now) {
     if (!walk.on) return;
-    // Caméra dans le dos, un peu au-dessus.
+    const L = lot.L, rv = walk.drive;
+    // Caméra dans le dos, un peu au-dessus ; plus loin et plus large en voiture.
+    const dist = rv ? rv.def.cam * (walk.dist / 7.5) : walk.dist;
     const cp = Math.cos(walk.pitch), px = walk.x - L.cx, pz = walk.z - L.cz;
-    walkCam.set(px - Math.sin(walk.yaw) * walk.dist * cp, 1.6 + walk.dist * Math.sin(walk.pitch), pz - Math.cos(walk.yaw) * walk.dist * cp);
+    const lift = rv ? 0 : walk.y * 0.6 + groundAt(walk.x, walk.z);
+    walkCam.set(px - Math.sin(walk.yaw) * dist * cp, 1.6 + lift + dist * Math.sin(walk.pitch), pz - Math.cos(walk.yaw) * dist * cp);
     camera.position.lerp(walkCam, 1 - Math.exp(-dt * 12));
-    camera.lookAt(px, 1.5, pz);
+    camera.lookAt(px, 1.5 + lift, pz);
+    const fov = 58 + (rv ? clamp(Math.abs(rv.v), 0, 30) * 0.5 : 0);
+    walk.fov = lerp(walk.fov, fov, 1 - Math.exp(-dt * 4));
+    if (Math.abs(camera.fov - walk.fov) > 0.05) { camera.fov = walk.fov; camera.updateProjectionMatrix(); }
 
     // Ce qu'on peut utiliser ici, et la zone où l'on se trouve.
     let near = null, best = 2.6;
-    lot.points.forEach((pt) => {
-      const dd = Math.hypot(pt.x - walk.x, pt.z - walk.z);
-      if (dd < best) { best = dd; near = pt; }
-    });
+    if (rv) {
+      if (Math.abs(rv.v) < 2.5) near = leaveAction;
+    } else {
+      lot.points.forEach((pt) => {
+        const dd = Math.hypot(pt.x - walk.x, pt.z - walk.z);
+        if (dd < best) { best = dd; near = pt; }
+      });
+      rentalActions.forEach((ra) => {
+        const dd = Math.hypot(ra.rv.x - walk.x, ra.rv.z - walk.z) - ra.rv.def.half;
+        if (dd < best - 0.4) { best = dd; near = ra; }
+      });
+    }
     if (near !== walk.near) {
       walk.near = near;
       prompt.classList.toggle("on", Boolean(near));
       if (near) promptText.textContent = near.label;
     }
     const zone = lot.zones.find((z) => walk.x > z.bounds[0] - 0.5 && walk.x < z.bounds[1] + 0.5 && walk.z > z.bounds[2] - 0.5 && walk.z < z.bounds[3] + 0.5) || null;
-    const key = zone ? zone.name + ":" + zone.taken + ":" + zone.cap : "";
+    const c = lot.city;
+    const inTown = !zone && walk.x > c.x0 - 14 && walk.x < c.x1 + 14 && walk.z > c.z0 && walk.z < c.z1;
+    if (zone && !rv) stamp("parking");
+    if (walk.x > c.gate && walk.x < c.gate + 8 && Math.abs(walk.z - ROAD_Z) < 7) stamp("arche");
+    if (c.pond && !rv && Math.abs(walk.x - c.pond.x) < 1.1 && Math.abs(walk.z - c.pond.z) < 1.6) stamp("pont");
+    const key = zone ? zone.name + ":" + zone.taken + ":" + zone.cap : inTown ? "ville" : "";
     if (key !== walk.zone) {
       walk.zone = key;
-      here.classList.toggle("on", Boolean(zone));
+      here.classList.toggle("on", Boolean(zone) || inTown);
+      if (inTown) {
+        hereDot.style.setProperty("--c", "#1e66f5");
+        hereName.textContent = CITY_NAME;
+        hereCount.textContent = "le village du parking";
+      }
       if (zone) {
         hereDot.style.setProperty("--c", zone.kind.color);
         hereName.textContent = "Zone " + zone.label;
@@ -2172,6 +3527,7 @@ export function createParking3D(container, options) {
   }
 
   // --- Jour / nuit -----------------------------------------------------------------------
+  let driveLightNight = 0;
   const cA = new THREE.Color(), cB = new THREE.Color();
   const mix = (a, b, t) => cA.set(a).lerp(cB.set(b), t);
   let envNight01 = -1;
@@ -2204,6 +3560,12 @@ export function createParking3D(container, options) {
     M.pool.opacity = n * 0.62;
     M.bulb.color.copy(mix("#6a6f7c", "#ffe2a8", n));
     M.boothGlass.emissiveIntensity = n * 1.3;
+    M.house.emissiveIntensity = n * 1.25;
+    M.chochin.color.copy(mix("#f2c14e", "#ffe7a8", n));
+    M.petal.opacity = lerp(0.95, 0.6, n);
+    M.far.color.setScalar(lerp(1, 0.16, n));
+    M.hill.color.copy(mix("#86c46a", "#24452f", n));
+    driveLightNight = n;
     M.lights.color.setScalar(lerp(0.82, 1.25, n));
     M.led.color.setScalar(lerp(0.9, 1.3, n));
     signMats.forEach((m) => (m.emissiveIntensity = lerp(0.18, 0.95, n)));
@@ -2262,7 +3624,11 @@ export function createParking3D(container, options) {
       if (p.v.state !== "gone") place(p.v, p.v.spot.x, p.v.spot.z, p.v.spot.rot, Math.max(0, s), true);
       if (p.t >= 1) { pops.splice(i, 1); if (p.done) p.done(); }
     }
-    // Barrières
+    // Barrières (elles s'ouvrent aussi devant le véhicule qu'on conduit)
+    if (walk.drive && walk.drive.z > -11 && walk.drive.z < 5.5) {
+      if (Math.abs(walk.drive.x - IN_X) < 1.75) wantIn = true;
+      if (Math.abs(walk.drive.x - OUT_X) < 1.75) wantOut = true;
+    }
     [[lot.gateIn, wantIn], [lot.gateOut, wantOut]].forEach((g) => {
       g[0].angle = lerp(g[0].angle, g[1] ? 1.42 : 0, 1 - Math.exp(-dt * (g[1] ? 9 : 4)));
       g[0].pivot.rotation.z = g[0].angle;
@@ -2290,6 +3656,22 @@ export function createParking3D(container, options) {
       if (Math.abs(night - nightGoal) < 0.004) night = nightGoal;
       applyNight(night);
     }
+    // L'agent fait sa ronde ; pétales et carpes du village.
+    stepAgent(dt, now);
+    const city = lot.city, pp = city.petals.geometry.attributes.position, seed = city.petals.userData.seed;
+    for (let i = 0; i < pp.count; i++) {
+      let y = pp.getY(i) - (0.55 + (i % 5) * 0.09) * dt;
+      if (y < 0.15) y = 13.5;
+      pp.setY(i, y);
+      pp.setX(i, pp.getX(i) + Math.sin(now * 0.9 + seed[i]) * 0.45 * dt);
+    }
+    pp.needsUpdate = true;
+    city.koi.forEach((fish) => {
+      const u = fish.userData, a = u.a + now * u.speed;
+      fish.position.set(city.pond.x + Math.cos(a) * city.pond.rx * u.r, 0.25, city.pond.z + Math.sin(a) * city.pond.rz * u.r);
+      fish.rotation.y = -a;
+    });
+    stepFireworks(dt);
     // Promeneur et chien (toujours animés) ; en promenade, la caméra les suit.
     stepWalk(dt, now);
     sun.target.position.set(0, 0, 0);
@@ -2328,7 +3710,7 @@ export function createParking3D(container, options) {
     width = w; height = h;
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
-    camera.fov = walk.on ? 58 : w < h ? 54 : 40;
+    camera.fov = walk.on ? walk.fov : w < h ? 54 : 40;
     // Le parking est décalé pour ne pas passer sous la légende (pas en promenade).
     const narrow = w < 640;
     if (walk.on) camera.clearViewOffset();
@@ -2406,6 +3788,17 @@ export function createParking3D(container, options) {
         walk.dog.x = walk.x + 0.8; walk.dog.z = walk.z - 0.6;
       }
     },
+    /* Monte dans un véhicule en libre-service (0 : camping-car, 1 : berline,
+       2 : scooter), ou en descend (`false`). `at` : placement direct. */
+    drive(index, at) {
+      if (index === false) { exitVehicle(); return; }
+      const rv = rentals[index];
+      if (!rv || !lot) return;
+      setWalk(true);
+      if (walk.drive) exitVehicle();
+      if (at) { if (at.x != null) rv.x = at.x; if (at.z != null) rv.z = at.z; if (at.rot != null) rv.rot = at.rot; }
+      enterVehicle(rv);
+    },
     /* Place la caméra : point visé (repère du parking, mètres), distance, angles. */
     view(v) {
       if (!lot) return;
@@ -2423,7 +3816,19 @@ export function createParking3D(container, options) {
         zones: lot ? lot.zones.map((z) => ({ name: z.name, spots: z.spots.length, vehicles: z.vehicles.length, held: z.spots.filter((s) => s.held).length })) : [],
         moving: movers.filter((m) => m.v.state !== "traffic").length,
         night: nightGoal,
-        walk: { on: walk.on, x: Math.round(walk.x * 100) / 100, z: Math.round(walk.z * 100) / 100, near: walk.near ? walk.near.label : null, panel: walk.panel },
+        walk: {
+          on: walk.on, x: Math.round(walk.x * 100) / 100, y: Math.round(walk.y * 100) / 100, z: Math.round(walk.z * 100) / 100,
+          near: walk.near ? walk.near.label : null, panel: walk.panel,
+          drive: walk.drive ? walk.drive.def.name : null, speed: walk.drive ? Math.round(walk.drive.v * 10) / 10 : 0,
+          ground: lot ? Math.round(groundAt(walk.x, walk.z) * 100) / 100 : 0,
+          says: walk.say > 0 && lot ? lot.playerTag.name.textContent : null,
+          toast: walk.toast > 0 ? toastBox.textContent : null,
+        },
+        look: Object.assign({}, look),
+        carnet: Array.from(carnet),
+        fireworks: lot ? lot.city.fireworks.left : 0,
+        city: lot ? { x0: Math.round(lot.city.x0), x1: Math.round(lot.city.x1) } : null,
+        agent: { x: Math.round(npc.x * 10) / 10, z: Math.round(npc.z * 10) / 10, moving: Boolean(npc.path), says: npc.say > 0 && lot ? lot.agentTag.name.textContent : null },
       };
     },
     dispose() {
