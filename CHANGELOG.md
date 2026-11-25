@@ -4,6 +4,20 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.27.2] — 2026-11-25 — `/metrics` de nouveau protégé
+
+### Sécurité
+- `GET /metrics` n'est plus lisible sans clé (il l'était depuis la 4.26.0).
+  Il exige la clé d'exploitation ou un **jeton de lecture** `METRICS_TOKEN`
+  (généré par Render), dans `X-API-Key` ou `Authorization: Bearer` ; sinon
+  401. Le jeton ne lit que cette route ; la clé borne ne la lit pas ; un
+  jeton trop court ou égal à une clé empêche le démarrage en production.
+- Prometheus (`tp/prometheus`) lit le jeton dans un fichier que
+  `./demarrer.sh` fait saisir sans l'afficher, rangé dans un dossier ignoré
+  par Git et monté en lecture seule : rien de secret dans `prometheus.yml`.
+- Scripts de vérification en ligne et agent `securite` : `/metrics` sans clé
+  doit répondre 401.
+
 ## [4.27.1] — 2026-11-25 — Finition nacrée
 
 ### Corrigé

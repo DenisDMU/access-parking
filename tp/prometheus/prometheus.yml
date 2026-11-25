@@ -4,10 +4,13 @@
 # relancer ./demarrer.sh (il reconstruit l'image et recrée le conteneur ;
 # l'historique des mesures est conservé dans un volume).
 #
-# Toutes les cibles sont lues SANS clé : `/metrics` ne contient que des
-# compteurs. Une cible « DOWN » veut dire « Prometheus n'a pas pu lire
-# /metrics » : service arrêté, endormi (offre gratuite de Render) ou qui
-# n'expose pas encore la route.
+# Access ne laisse lire `/metrics` qu'avec sa clé ou son jeton de lecture
+# (`METRICS_TOKEN`). Le secret n'est JAMAIS écrit ici : Prometheus le lit dans
+# un fichier que ./demarrer.sh vous fait saisir, rangé dans `secrets/` (ignoré
+# par Git) et monté dans le conteneur. Les autres services sont lus sans clé.
+# Une cible « DOWN » veut dire « Prometheus n'a pas pu lire /metrics » :
+# service arrêté, endormi (offre gratuite de Render), secret manquant (401)
+# ou route pas encore exposée.
 global:
   scrape_interval: 15s # une mesure toutes les 15 secondes
   scrape_timeout: 10s
@@ -23,6 +26,9 @@ scrape_configs:
         labels:
           equipe: access
           env: production
+    http_headers: # en-tête envoyé à chaque lecture (Prometheus 3.0 ou plus récent)
+      X-API-Key:
+        files: [/etc/prometheus/secrets/access_metrics_token]
 
   # --- Les microservices des autres équipes (Render, HTTPS) ------------------
   - job_name: parking
@@ -81,6 +87,9 @@ scrape_configs:
         labels:
           equipe: access
           env: local
+    http_headers: # la clé de développement, connue de tous : rien de secret
+      X-API-Key:
+        values: ["change-me"]
 
   # --- Prometheus lui-même (toujours UP : sert de témoin) --------------------
   - job_name: prometheus

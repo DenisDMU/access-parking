@@ -50,6 +50,10 @@ services:
         # Clé des bornes client (/borne) : n'autorise que le passage d'un
         # véhicule. Générée par Render, à saisir dans les réglages de la borne.
         generateValue: true
+      - key: METRICS_TOKEN
+        # Jeton de lecture de GET /metrics, pour le Prometheus qui supervise
+        # Access : il ne donne accès à aucune autre route. Généré par Render.
+        generateValue: true
       - key: BORNE_PUBLIC
         # true : le lien /borne marche pour tous, sans clé, via la route
         # publique POST /api/v1/borne/passages (passage seulement, date

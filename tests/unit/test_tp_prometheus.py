@@ -1,5 +1,5 @@
 """TP Prometheus (`tp/prometheus`) — le Dockerfile est celui du sujet, la
-collecte vise Access et les autres microservices sans aucun secret, les
+collecte vise Access et les autres microservices sans aucun secret écrit, les
 interfaces ne s'ouvrent que sur l'ordinateur local, et Prometheus reste un
 détail d'infrastructure (ni le domaine ni les cas d'usage ne l'importent)."""
 
@@ -64,10 +64,30 @@ def test_cible_locale_pour_simuler_une_indisponibilite():
     assert "--port 8010" in (ROOT / "PROMETHEUS.md").read_text()
 
 
-def test_collecte_sans_aucun_secret():
+def test_secret_d_access_lu_dans_un_fichier_jamais_ecrit_dans_la_configuration():
+    """`/metrics` d'Access exige une clé ou un jeton : Prometheus le lit dans un
+    fichier monté dans le conteneur. Rien de secret dans la configuration."""
+
+    jobs = _scrape_configs()
+    header = jobs["access"]["http_headers"]["X-API-Key"]
+    assert header == {"files": ["/etc/prometheus/secrets/access_metrics_token"]}
+    # La cible locale utilise la clé de développement, publique par nature.
+    assert jobs["access-local"]["http_headers"]["X-API-Key"] == {"values": ["change-me"]}
+    # Les services des autres équipes sont lus sans rien envoyer.
+    for name, job in jobs.items():
+        if name not in ("access", "access-local"):
+            assert "http_headers" not in job and "authorization" not in job, name
     text = (TP / "prometheus.yml").read_text().lower()
-    for word in SECRET_WORDS + ("http_headers", "basic_auth", "credentials"):
+    for word in ("password", "passwd", "basic_auth", "bearer", "credentials:"):
         assert word not in text
+
+    script = (TP / "demarrer.sh").read_text()
+    assert "read -r -s ACCESS_TOKEN" in script  # saisi sans s'afficher, jamais en argument
+    assert '-v "$PWD/$SECRETS":/etc/prometheus/secrets:ro' in script
+    assert "tp/prometheus/secrets/" in (ROOT / ".gitignore").read_text()
+    assert not (TP / "secrets").exists() or not any(
+        path.name != "access_metrics_token" for path in (TP / "secrets").iterdir()
+    )
 
 
 def test_demarrage_local_sans_mot_de_passe_ecrit():
