@@ -42,6 +42,7 @@ from src.interfaces.api.routers import (
     borne_router,
     events_router,
     health_router,
+    promenade_router,
 )
 
 configure_logging()
@@ -163,6 +164,7 @@ app.include_router(access_router.passage_router, prefix="/api/v1")
 app.include_router(access_router.router, prefix="/api/v1")
 app.include_router(events_router.router, prefix="/api/v1")
 app.include_router(borne_router.router, prefix="/api/v1")
+app.include_router(promenade_router.router, prefix="/api/v1")
 
 # Journal de bord (dashboard) — servi par Access lui-même, sans port
 # supplémentaire : simple page statique appelant GET /api/v1/access/events

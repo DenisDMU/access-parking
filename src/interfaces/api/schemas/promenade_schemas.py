@@ -1,0 +1,93 @@
+"""Schémas du mode multijoueur de la promenade (`/borne/promenade`).
+
+Tout ce qui entre est borné : des nombres finis dans les limites du décor,
+des couleurs au format `#rrggbb`, des mots courts en minuscules. Aucun texte
+libre n'est accepté (pas de pseudo saisi, pas de message).
+"""
+
+from __future__ import annotations
+
+from pydantic import BaseModel, ConfigDict, Field
+
+HEX32 = r"^[0-9a-f]{32}$"  # forme du jeton aléatoire tiré par le navigateur
+COLOR = r"^#[0-9a-f]{6}$"
+WORD = r"^[a-z]{1,12}$"
+
+
+class PromenadeLook(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    top: str = Field(pattern=COLOR)
+    pants: str = Field(pattern=COLOR)
+    hair: str = Field(pattern=COLOR)
+    skin: str = Field(pattern=COLOR)
+    hat: str = Field(pattern=WORD)
+    cut: str = Field(pattern=WORD)
+    pet: str = Field(pattern=WORD)
+    pack: bool
+
+
+class PromenadeStateIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    token: str = Field(pattern=HEX32, description="Jeton aléatoire tiré par le navigateur")
+    x: float = Field(ge=-5000, le=5000, allow_inf_nan=False)
+    y: float = Field(ge=-50, le=200, allow_inf_nan=False)
+    z: float = Field(ge=-5000, le=5000, allow_inf_nan=False)
+    rot: float = Field(ge=-1000, le=1000, allow_inf_nan=False)
+    speed: float = Field(ge=0, le=80, allow_inf_nan=False)
+    look: PromenadeLook
+    drive: str | None = Field(default=None, pattern=WORD, description="Véhicule conduit")
+    emote: int | None = Field(default=None, ge=0, le=7, description="Salut choisi dans une liste")
+    stars: int = Field(default=0, ge=0, le=99, description="Nombre de succès obtenus")
+
+
+class PromenadePlayerOut(BaseModel):
+    id: str
+    pseudo: str
+    x: float
+    y: float
+    z: float
+    rot: float
+    speed: float
+    look: PromenadeLook
+    drive: str | None = None
+    emote: int | None = None
+    stars: int = 0
+
+
+class PromenadeYouOut(BaseModel):
+    id: str
+    pseudo: str
+
+
+class PromenadeStateOut(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    you: PromenadeYouOut
+    players: list[PromenadePlayerOut]
+    online: int
+    next_ms: int = Field(alias="nextMs", description="Délai avant le prochain envoi")
+
+
+class PromenadeWatchOut(BaseModel):
+    players: list[PromenadePlayerOut]
+    online: int
+
+
+class PromenadeScoreIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    token: str = Field(pattern=HEX32)
+    game: str = Field(pattern=WORD)
+    score: int = Field(ge=0, le=1000)
+
+
+class PromenadeScoreLine(BaseModel):
+    pseudo: str
+    score: int
+
+
+class PromenadeScoresOut(BaseModel):
+    scores: dict[str, list[PromenadeScoreLine]]
+    online: int
