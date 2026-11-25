@@ -725,6 +725,20 @@ function canvasTexture(size, draw, h) {
   t.anisotropy = 8;
   return t;
 }
+// Tuiles en écailles : rangées de demi-ronds décalés, teintées par la couleur du toit.
+function tileTexture() {
+  const t = canvasTexture(128, (g, w) => {
+    g.fillStyle = "#f4f4f4"; g.fillRect(0, 0, w, w);
+    for (let row = 3; row >= 0; row--) for (let col = -1; col < 4; col++) {
+      const x = col * 32 + (row % 2 ? 16 : 0), y = row * 32;
+      g.fillStyle = "rgba(0,0,0,.2)"; g.beginPath(); g.arc(x + 16, y + 5, 17, 0, Math.PI); g.fill();
+      g.fillStyle = (row + col) % 2 ? "#ffffff" : "#e2e2e2"; g.beginPath(); g.arc(x + 16, y, 16, 0, Math.PI); g.fill();
+    }
+  });
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(5, 3);
+  return t;
+}
 // Prairie dessinée : fond uni, petits triangles et pastilles clairs ou foncés.
 function grassTexture() {
   const rnd = mulberry(11);
@@ -1303,6 +1317,8 @@ export function createParking3D(container, options) {
     // Village : tuiles et pierre (teintées par instance), façades à volets bleus dont
     // les fenêtres s'éclairent la nuit, pétales des arbres en fleurs, guirlandes.
     roofTile: new THREE.MeshStandardMaterial({ roughness: 0.78, envMapIntensity: 0.35 }),
+    roofSlab: new THREE.MeshStandardMaterial({ map: tileTexture(), roughness: 0.82, envMapIntensity: 0.3 }), // pans de toit en tuiles
+    plaster: new THREE.MeshStandardMaterial({ color: 0xfff6e3, roughness: 0.92, envMapIntensity: 0.25 }), // pignons
     stone: new THREE.MeshStandardMaterial({ color: 0xb9b4a6, roughness: 0.95, envMapIntensity: 0.25 }),
     petal: new THREE.PointsMaterial({ color: 0xffc4d6, size: 0.55, sizeAttenuation: true, transparent: true, opacity: 0.95, depthWrite: false, map: dotTexture, alphaTest: 0.25 }),
     chochin: new THREE.MeshBasicMaterial({ color: 0xf2c14e, toneMapped: false }), // ampoules des guirlandes
@@ -1991,6 +2007,7 @@ export function createParking3D(container, options) {
     const X0 = L.xMax + CITY_GAP, cityX1 = X0 + 190, R = ROAD_Z;
     const vz0 = R - 86, vz1 = R + 116; // emprise du village
     const cityObstacles = [], cityTrees = [], shopSigns = [], cityPoints = [], cityLeaves = [];
+    const slabs = [], gables = [];
     const walls = [], roofLow = [], roofTop = [], bases = [], lanternGlow = [], lanternPools = [], lampions = [];
     const cityRnd = mulberry(2026);
     const stone = "#b9b4a6", wood = "#4a3528", gravel = "#e3dac4", white = "#f4f5f7";
@@ -2013,10 +2030,19 @@ export function createParking3D(container, options) {
         if (f < floors - 1) { bases.push({ x: hx, y: y + 0.08, z: hz, sx: w + 0.35, sy: 0.16, sz: d + 0.35 }); y += 0.16; }
       }
       // Toit à deux pans, épais, qui déborde des murs ; une planche de rive claire dessous.
-      const sx = w + 1.3, sz = d + 1.7, top = o.steep ? 4.0 : 2.8;
-      roofLow.push({ x: hx, y: y + 0.11, z: hz, sx, sy: 0.22, sz, color: "#fdf6e3" });
-      roofTop.push({ x: hx, y: y + 0.22 + top / 2, z: hz, sx, sy: top, sz, color: roofColor });
-      if (!o.steep) props.push(box(0.6, 1.5, 0.6, "#c9a27a", { x: hx + w * 0.26, y: y + top * 0.62, z: hz + d * 0.2 }));
+      /* Le toit : deux pans épais en tuiles, qui débordent des murs ; un pignon
+         crème de chaque côté avec son œil-de-bœuf ; une faîtière ; une cheminée. */
+      const top = o.steep ? 4.0 : 3.0, run = d / 2 + 0.95, angle = Math.atan2(top, run), len = Math.hypot(run, top) + 0.25;
+      [-1, 1].forEach((side) => slabs.push({
+        x: hx, y: y + top / 2 + 0.12, z: hz + (side * run) / 2, sx: w + 1.5, sy: 0.3, sz: len, rx: side * angle, color: roofColor,
+      }));
+      gables.push({ x: hx, y: y + top / 2 - 0.02, z: hz, sx: w, sy: top - 0.05, sz: d + 0.1, color: o.wall || "#ffffff" });
+      props.push(cyl(0.2, w + 1.6, shade(roofColor, 0.8), { x: hx, y: y + top + 0.22, z: hz, rz: Math.PI / 2 }, 10)); // faîtière
+      [-1, 1].forEach((side) => {
+        props.push(cyl(0.46, 0.05, "#a8743f", { x: hx + side * (w / 2 + 0.01), y: y + top * 0.36, z: hz, rz: Math.PI / 2 }, 16));
+        props.push(cyl(0.36, 0.07, "#bfe3ff", { x: hx + side * (w / 2 + 0.02), y: y + top * 0.36, z: hz, rz: Math.PI / 2 }, 16));
+      });
+      if (!o.steep) props.push(box(0.6, 1.6, 0.6, "#c9a27a", { x: hx + w * 0.26, y: y + top * 0.62, z: hz + d * 0.22 }));
       cityObstacles.push([hx - w / 2 - 0.35, hx + w / 2 + 0.35, hz - d / 2 - 0.35, hz + d / 2 + 0.35]);
     };
     // Borne lumineuse, comme celles du parking : elle s'allume la nuit.
@@ -2067,6 +2093,10 @@ export function createParking3D(container, options) {
       props.push(cyl(0.625, 0.08, "#b9824f", { x: hx, y: 2.19, z: fzFace + out * 0.05, rx: Math.PI / 2 }, 20));
       props.push(part(new THREE.TorusGeometry(0.2, 0.06, 6, 14), "#5fb86a", { x: hx, y: 2.25, z: fzFace + out * 0.12 })); // couronne
       props.push(ball(0.05, "#e2574c", { x: hx + 0.14, y: 2.11, z: fzFace + out * 0.16 }));
+      const mbx = hx + sw / 2 + 1.5, mbz = fzFace + out * 1.5; // boîte aux lettres rouge
+      props.push(cyl(0.05, 0.9, "#f4f5f7", { x: mbx, y: 0.45, z: mbz }, 8));
+      props.push(box(0.34, 0.26, 0.5, "#e2574c", { x: mbx, y: 1.0, z: mbz }));
+      props.push(box(0.04, 0.2, 0.04, "#ffd60a", { x: mbx + 0.19, y: 1.12, z: mbz + out * 0.12 }));
       [-1, 1].forEach((sx) => { // haies rondes de chaque côté
         for (let k = 0; k < 3; k++) cityLeaves.push({ x: hx + sx * (w / 2 - 0.5 - k * 0.95), y: 0.55, z: fzFace + out * 0.75, sx: 0.62, sy: 0.6, sz: 0.55, color: k % 2 ? "#6fd36a" : "#4fb957" });
       });
@@ -2361,6 +2391,8 @@ export function createParking3D(container, options) {
     gable.computeVertexNormals();
     instanced(group, new THREE.BoxGeometry(1, 1, 1), M.roofTile, roofLow, "both");
     instanced(group, gable, M.roofTile, roofTop, "cast");
+    instanced(group, new THREE.BoxGeometry(1, 1, 1), M.roofSlab, slabs, "both");
+    instanced(group, gable.clone(), M.plaster, gables, "both");
     void frustum;
     const tx = X0 - 12;
     arch(tx, 0, R, 12.4, 8.2, true, true, BRAND);
@@ -2506,9 +2538,17 @@ export function createParking3D(container, options) {
         leaves.push({ x: t.x + 0.9 * t.s, y: t.y0 + 3.5 * t.s, z: t.z + 0.5 * t.s, sx: 1.5 * t.s, sy: 1.25 * t.s, sz: 1.5 * t.s, ry: rnd() * 6, color: pick() });
         leaves.push({ x: t.x - 0.8 * t.s, y: t.y0 + 3.7 * t.s, z: t.z - 0.6 * t.s, sx: 1.4 * t.s, sy: 1.2 * t.s, sz: 1.4 * t.s, ry: rnd() * 6, color: pick() });
         leaves.push({ x: t.x - 0.5 * t.s, y: t.y0 + 4.1 * t.s, z: t.z + 0.5 * t.s, sx: 0.8 * t.s, sy: 0.7 * t.s, sz: 0.8 * t.s, color: "#ffe3ec" }); // reflet
+        for (let k = 0; k < 4; k++) {
+          const a = k * 1.57 + rnd() * 0.8;
+          leaves.push({ x: t.x + Math.cos(a) * 1.5 * t.s, y: t.y0 + (2.7 + (k % 2) * 0.5) * t.s, z: t.z + Math.sin(a) * 1.5 * t.s, sx: 1.0 * t.s, sy: 0.85 * t.s, sz: 1.0 * t.s, color: pick() });
+        }
         return;
       }
       const color = greens[Math.floor(rnd() * greens.length)];
+      for (let k = 0; k < 4; k++) { // des bosses tout autour : une couronne touffue
+        const a = k * 1.57 + rnd() * 0.8;
+        leaves.push({ x: t.x + Math.cos(a) * 1.0 * t.s, y: t.y0 + (2.35 + (k % 2) * 0.85) * t.s, z: t.z + Math.sin(a) * 1.0 * t.s, sx: 0.9 * t.s, sy: 0.85 * t.s, sz: 0.9 * t.s, color: k % 2 ? lighter(color) : color });
+      }
       leaves.push({ x: t.x, y: t.y0 + 2.6 * t.s, z: t.z, sx: 1.7 * t.s, sy: 1.9 * t.s, sz: 1.7 * t.s, ry: rnd() * 6, color });
       leaves.push({ x: t.x + 0.3, y: t.y0 + 3.9 * t.s, z: t.z - 0.2, sx: 1.15 * t.s, sy: 1.3 * t.s, sz: 1.15 * t.s, ry: rnd() * 6, color });
       leaves.push({ x: t.x - 0.55 * t.s, y: t.y0 + 3.5 * t.s, z: t.z + 0.6 * t.s, sx: 0.8 * t.s, sy: 0.85 * t.s, sz: 0.8 * t.s, color: lighter(color) }); // reflet
@@ -2518,6 +2558,11 @@ export function createParking3D(container, options) {
       });
     });
     cityLeaves.forEach((l) => leaves.push(l));
+    for (let i = 0; i < 16; i++) { // rochers ronds
+      const x = X0 - 30 + rnd() * (cityX1 - X0 + 40), z = vz0 + rnd() * (vz1 - vz0), rs = 0.5 + rnd() * 0.5;
+      if (Math.abs(z - ROAD_Z) < 7) continue;
+      leaves.push({ x, y: rs * 0.45, z, sx: rs * 1.2, sy: rs * 0.75, sz: rs, ry: rnd() * 3, color: i % 2 ? "#b9b4a6" : "#a39d92" });
+    }
     // Fleurs et buissons ronds, semés dans le village et autour du parking.
     const petalsOf = ["#ff7aa8", "#ffd60a", "#ffffff", "#ff9f1c", "#b388ff", "#ff5d6c"];
     for (let i = 0; i < 340; i++) {
