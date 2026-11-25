@@ -4,6 +4,15 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.24.0] — 2026-11-25 — Sons enregistrés
+
+### Ajouté
+- Dix sons enregistrés pour les gestes (panneau, tampon, salut, saut, porte,
+  pas, coup de poing, pioche, cloche, succès), tirés de trois packs de
+  Kenney en licence CC0 et rangés dans `static/sons/` avec leur note de
+  licence. Si le navigateur ne lit pas ce format, les sons synthétisés
+  restent utilisés. La musique et les voix restent synthétisées.
+
 ## [4.23.0] — 2026-11-25 — Succès secrets, course de canards
 
 ### Ajouté

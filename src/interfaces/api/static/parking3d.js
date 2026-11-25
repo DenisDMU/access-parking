@@ -14,7 +14,7 @@
    et des identifiants pseudonymisés. */
 
 import * as THREE from "./vendor/three-0.160.0.module.min.js";
-import { GAMES as MINI, startGame } from "./promenade-jeux.js?v=4.23.0";
+import { GAMES as MINI, startGame } from "./promenade-jeux.js?v=4.24.0";
 
 // --- Catégories de Parking → zones du plan -----------------------------------
 
@@ -4005,7 +4005,27 @@ export function createParking3D(container, options) {
     klaxon: [[[392, 0.07, 0], [494, 0.07, 0]], 0.4, "square"],
     pas: [[[90, 0.035, 0]], 0.05, "triangle"],
   };
-  function sfx(name) { const it = SFX[name]; if (it) sound(it[0], it[1], it[2], true); }
+  /* Sons enregistrés (packs Kenney, licence CC0, dans `sons/`). Si le navigateur
+     ne lit pas ce format, on garde les sons synthétisés ci-dessus. */
+  const SAMPLES = {}, LEVEL = { pas: 0.35, pop: 0.6, saut: 0.7, porte: 0.8 };
+  try {
+    if (new Audio().canPlayType("audio/ogg; codecs=vorbis")) {
+      ["pop", "ding", "coucou", "saut", "pas", "coup", "pioche", "porte", "cloche", "succes"].forEach((name) => {
+        const clip = new Audio(new URL("./sons/" + name + ".ogg", import.meta.url).href);
+        clip.preload = "auto";
+        SAMPLES[name] = clip;
+      });
+    }
+  } catch (err) { /* pas de lecteur audio : sons synthétisés */ }
+  function sample(name) {
+    const clip = SAMPLES[name];
+    if (!clip || audioMix.vol <= 0) return Boolean(clip);
+    const one = clip.cloneNode();
+    one.volume = clamp(audioMix.vol * (LEVEL[name] || 1), 0, 1);
+    one.play().catch(() => { /* lecture refusée tant qu'on n'a pas touché la page */ });
+    return true;
+  }
+  function sfx(name) { if (sample(name)) return; const it = SFX[name]; if (it) sound(it[0], it[1], it[2], true); }
   function sound(notes, ring, shape, steady) {
     if (audioMix.vol <= 0) return;
     try {
@@ -4028,7 +4048,7 @@ export function createParking3D(container, options) {
       });
     } catch (err) { /* son indisponible : sans importance */ }
   }
-  const dong = () => sound([[196, 0.16], [392.6, 0.07], [588, 0.035]], 2.4);
+  const dong = () => { if (!sample("cloche")) sound([[196, 0.16], [392.6, 0.07], [588, 0.035]], 2.4); };
   function bassDrum() {
     say("Boum ! Boum ! Tchak-boum !", 3);
     openGame("tambour", "fete");
@@ -4296,7 +4316,7 @@ export function createParking3D(container, options) {
     walk.rot = Math.atan2(node.x - walk.x, node.z - walk.z);
     walk.punch = performance.now();
     node.shake = 0.35;
-    sound([[node.kind === "minerai" ? 520 : 130, 0.16, 0.12]], 0.14, "triangle");
+    if (!sample(node.kind === "minerai" ? "pioche" : "coup")) sound([[node.kind === "minerai" ? 520 : 130, 0.16, 0.12]], 0.14, "triangle");
     if (--node.hp > 0) return;
     node.mesh.visible = false;
     node.out = def.back;
