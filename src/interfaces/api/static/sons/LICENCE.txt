@@ -1,0 +1,12 @@
+Sons du plan 3D (dossier `sons/`)
+
+Ces dix fichiers viennent de trois packs de Kenney (kenney.nl) :
+Interface Sounds, Impact Sounds et Music Jingles.
+
+Licence : Creative Commons Zero (CC0), domaine public.
+Ils peuvent être utilisés, modifiés et redistribués librement, y compris
+dans un cadre commercial, sans mention obligatoire. Merci à Kenney.
+
+Fichiers repris, renommés pour le plan :
+pop, ding, coucou, saut, porte (Interface Sounds) ;
+pas, coup, pioche, cloche (Impact Sounds) ; succes (Music Jingles).

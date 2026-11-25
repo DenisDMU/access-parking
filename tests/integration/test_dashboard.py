@@ -271,6 +271,21 @@ def test_plan_3d_decor_de_village(client):
         assert word in source
 
 
+def test_sons_enregistres_libres_et_servis_par_access(client):
+    """Dix petits sons en licence CC0, servis par Access ; rien n'est chargé d'ailleurs."""
+
+    names = ("pop", "ding", "coucou", "saut", "pas", "coup", "pioche", "porte", "cloche", "succes")
+    for name in names:
+        clip = client.get(f"/static/sons/{name}.ogg")
+        assert (
+            clip.status_code == 200 and clip.content[:4] == b"OggS" and len(clip.content) < 60_000
+        )
+    licence = client.get("/static/sons/LICENCE.txt").text
+    assert "CC0" in licence and "Kenney" in licence
+    source = client.get("/static/parking3d.js").text
+    assert 'new URL("./sons/"' in source and all(f'"{name}"' in source for name in names)
+
+
 def test_mini_jeux_servis_sans_ressource_externe(client):
     from src.infrastructure.promenade_room import GAMES
 
