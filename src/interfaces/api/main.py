@@ -85,7 +85,7 @@ app = FastAPI(
         {"name": "Access", "description": "Traitement des demandes d'entrée/sortie"},
         {"name": "Events", "description": "Lecture de l'outbox d'événements publiés"},
         {"name": "Health", "description": "Healthcheck non authentifié"},
-        {"name": "Monitoring", "description": "Métriques Prometheus (lecture sans clé)"},
+        {"name": "Monitoring", "description": "Métriques Prometheus (clé ou jeton de lecture)"},
     ],
 )
 

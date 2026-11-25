@@ -6,9 +6,9 @@
 #   ./demarrer.sh --jeton     ressaisir le jeton de lecture d'Access
 #
 # Access ne laisse lire /metrics qu'avec son jeton de lecture (METRICS_TOKEN,
-# dans Render > Environment) ou sa clé d'exploitation. Le script le demande
-# une fois, sans l'afficher, et le range dans secrets/access_metrics_token
-# (dossier ignoré par Git). Prometheus et Grafana n'ont pas de mot de passe à
+# dans Render > Environment). Le script le demande une fois, sans l'afficher,
+# et le range dans secrets/access_metrics_token (dossier ignoré par Git). N'y
+# mettez jamais la clé d'exploitation : ce fichier est lisible sur ce poste. Prometheus et Grafana n'ont pas de mot de passe à
 # choisir : celui du compte admin de Grafana est tiré au hasard, jamais
 # affiché. Les deux interfaces ne sont ouvertes que sur cet ordinateur.
 set -euo pipefail
@@ -51,7 +51,7 @@ wait_for() { # wait_for <url> <essais de 2 s>
 mkdir -p "$SECRETS"
 if [ "$ASK_TOKEN" = true ] || [ ! -s "$TOKEN_FILE" ]; then
   if [ -t 0 ]; then
-    printf "Jeton de lecture d'Access (METRICS_TOKEN, ou la clé API) — la saisie ne s'affiche pas : "
+    printf "Jeton de lecture d'Access (METRICS_TOKEN, pas la clé API) — la saisie ne s'affiche pas : "
     IFS= read -r -s ACCESS_TOKEN
     printf '\n'
     printf '%s' "$ACCESS_TOKEN" >"$TOKEN_FILE"
