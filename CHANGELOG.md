@@ -4,6 +4,13 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.27.1] — 2026-11-25 — Finition nacrée
+
+### Corrigé
+- KingPar Tuning : la finition nacrée décalait trop la teinte (un bleu
+  nacré tirait sur le violet). Le reflet est maintenant à peine décalé :
+  la couleur choisie reste la même.
+
 ## [4.27.0] — 2026-11-25 — KingPar Tuning
 
 ### Ajouté
