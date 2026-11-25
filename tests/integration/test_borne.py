@@ -44,7 +44,6 @@ def test_cle_borne_fait_entrer_et_sortir_un_vehicule(client):
         ("GET", "/api/v1/access/events"),
         ("GET", "/api/v1/access/parking"),
         ("POST", "/api/v1/access/vehicles/known"),
-        ("GET", "/metrics"),
     ],
 )
 def test_cle_borne_refusee_partout_ailleurs(client, method, path):

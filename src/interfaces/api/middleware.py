@@ -14,7 +14,7 @@ Niveau du log d'accès, pour garder des logs lisibles en production :
 - INFO : toute écriture (`POST /access/requests` = un passage à la borne) ;
 - WARNING : toute réponse en erreur (4xx/5xx) ;
 - DEBUG : lectures réussies (`GET`, dont le polling du dashboard toutes les
-  3 s), `/health` et `/static/*` — visibles avec `LOG_LEVEL=DEBUG`.
+  3 s), `/health`, `/metrics` et `/static/*` — visibles avec `LOG_LEVEL=DEBUG`.
 """
 
 from __future__ import annotations
@@ -31,8 +31,9 @@ from src.infrastructure.logging_config import correlation_id_var
 CORRELATION_HEADER = "X-Correlation-ID"
 _VALID_CORRELATION_ID = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 # La promenade multijoueur envoie une position plusieurs fois par seconde et
-# par visiteur : elle noierait le journal.
-_QUIET_PREFIXES = ("/health", "/static", "/favicon.ico", "/api/v1/borne/promenade")
+# par visiteur, et Prometheus lit `/metrics` toutes les 15 s (un par équipe
+# qui supervise Access) : ils noieraient le journal.
+_QUIET_PREFIXES = ("/health", "/metrics", "/static", "/favicon.ico", "/api/v1/borne/promenade")
 
 logger = logging.getLogger("access.http")
 

@@ -13,5 +13,6 @@ postman/
 JOURNAL.md
 reponse.md
 
-# Clé API lue par monitoring/prometheus.yml (jamais versionnée)
+# Ancien fichier de clé de la configuration Prometheus (retirée en 4.26.0,
+# /metrics se lit sans clé) : toujours ignoré, au cas où il traîne en local.
 monitoring/access_api_key

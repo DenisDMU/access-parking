@@ -26,7 +26,7 @@ from src.application.use_cases.release_present_vehicle import ReleasePresentVehi
 from src.domain.value_objects.dto import AccessFilters, PlaceType
 from src.domain.value_objects.enums import RequestType
 from src.infrastructure.config import get_settings
-from src.infrastructure.metrics import record_decision
+from src.infrastructure.metrics import record_decision, record_forced_exit
 from src.infrastructure.security.api_key_auth import verify_api_key, verify_passage_key
 from src.interfaces.api import deps
 from src.interfaces.api.rate_limit import limiter
@@ -316,6 +316,7 @@ def release_present_vehicle(
     use_case: ReleasePresentVehicle = Depends(deps.get_release_present_vehicle_use_case),
 ) -> PresenceReleaseOut:
     result = use_case.execute(vehicle_id, datetime.now(UTC))
+    record_forced_exit(released=result is not None)
     if result is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Véhicule non présent dans le parking"
