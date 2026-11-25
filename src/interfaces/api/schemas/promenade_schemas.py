@@ -7,6 +7,8 @@ libre n'est accepté (pas de pseudo saisi, pas de message).
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field
 
 HEX32 = r"^[0-9a-f]{32}$"  # forme du jeton aléatoire tiré par le navigateur
@@ -71,11 +73,43 @@ class PromenadeYouOut(BaseModel):
     pseudo: str
 
 
+class PromenadeDuelOut(BaseModel):
+    """Un défi amical vu par un de ses deux joueurs."""
+
+    id: str
+    game: str
+    role: str
+    other: str
+    status: str
+    board: list[int]
+    turn: bool
+    mine: int | None = None
+    theirs: int | None = None
+    coin: int | None = None
+    result: str | None = None
+
+
+class PromenadeDuelIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    token: str = Field(pattern=HEX32)
+    action: Literal["invite", "accept", "decline", "move"]
+    target: str | None = Field(default=None, pattern=r"^[0-9a-f]{10}$")
+    duel: str | None = Field(default=None, pattern=r"^[0-9a-f]{8}$")
+    game: Literal["morpion", "pfc", "piece"] | None = None
+    move: int | None = Field(default=None, ge=0, le=8)
+
+
+class PromenadeDuelsOut(BaseModel):
+    duels: list[PromenadeDuelOut]
+
+
 class PromenadeStateOut(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     you: PromenadeYouOut
     players: list[PromenadePlayerOut]
+    duels: list[PromenadeDuelOut] = []
     online: int
     next_ms: int = Field(alias="nextMs", description="Délai avant le prochain envoi")
 

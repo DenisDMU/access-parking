@@ -7,6 +7,7 @@ import pytest
 from src.infrastructure.promenade_room import (
     BOARD_SIZE,
     GAMES,
+    DuelError,
     PromenadeRoom,
     RoomFullError,
     identity,
@@ -86,3 +87,74 @@ def test_tableau_limite_aux_meilleurs():
 
 def test_on_rafraichit_moins_souvent_quand_il_y_a_du_monde():
     assert poll_interval_ms(1) < poll_interval_ms(10) < poll_interval_ms(25) < poll_interval_ms(50)
+
+
+# --- Défis amicaux ---------------------------------------------------------------
+
+
+def _room_a_deux(**kwargs) -> tuple[PromenadeRoom, str, str]:
+    room = PromenadeRoom(**kwargs)
+    room.update(A, STATE)
+    room.update(B, STATE)
+    return room, identity(A)[0], identity(B)[0]
+
+
+def test_morpion_arbitre_par_le_serveur():
+    room, _, b = _room_a_deux()
+    duel = room.duel(A, "invite", target=b, game="morpion")[0]
+    assert duel["status"] == "invite" and duel["role"] == "a"
+    assert room.duels_for(B)[0]["other"] == identity(A)[1]
+    with pytest.raises(DuelError):
+        room.duel(A, "accept", duel_id=duel["id"])  # c'est à l'invité de répondre
+    room.duel(B, "accept", duel_id=duel["id"])
+    with pytest.raises(DuelError):
+        room.duel(B, "move", duel_id=duel["id"], move=4)  # pas son tour
+    for token, move in ((A, 0), (B, 3), (A, 1), (B, 4)):
+        room.duel(token, "move", duel_id=duel["id"], move=move)
+    with pytest.raises(DuelError):
+        room.duel(A, "move", duel_id=duel["id"], move=1)  # case déjà prise
+    assert room.duel(A, "move", duel_id=duel["id"], move=2)[0]["result"] == "win"
+    assert room.duels_for(B)[0]["result"] == "lose"
+
+
+def test_pierre_feuille_ciseaux_choix_cache_jusqu_au_bout():
+    room, _, b = _room_a_deux()
+    duel = room.duel(A, "invite", target=b, game="pfc")[0]
+    room.duel(B, "accept", duel_id=duel["id"])
+    room.duel(A, "move", duel_id=duel["id"], move=0)  # pierre
+    assert room.duels_for(B)[0]["theirs"] is None  # B ne voit pas le choix de A
+    done = room.duel(B, "move", duel_id=duel["id"], move=1)[0]  # feuille
+    assert done["result"] == "win" and done["theirs"] == 0
+    assert room.duels_for(A)[0]["result"] == "lose"
+
+
+def test_pile_ou_face_lance_par_le_serveur():
+    room, _, b = _room_a_deux(coin=lambda: 1)
+    duel = room.duel(A, "invite", target=b, game="piece", move=0)[0]  # A prend pile
+    done = room.duel(B, "accept", duel_id=duel["id"])[0]
+    assert done["coin"] == 1 and done["result"] == "win" and done["mine"] == 1
+    assert room.duels_for(A)[0]["result"] == "lose"
+
+
+def test_defis_refuses():
+    clock = Clock()
+    room = PromenadeRoom(clock=clock)
+    room.update(A, STATE)
+    with pytest.raises(DuelError):
+        room.duel(A, "invite", target=identity(A)[0], game="pfc")  # pas contre soi-même
+    with pytest.raises(DuelError):
+        room.duel(A, "invite", target=identity(B)[0], game="pfc")  # B n'est pas là
+    with pytest.raises(DuelError):
+        room.duel(C, "invite", target=identity(A)[0], game="pfc")  # C ne se promène pas
+    room.update(B, STATE)
+    room.update(C, STATE)
+    duel = room.duel(A, "invite", target=identity(B)[0], game="pfc")[0]
+    with pytest.raises(DuelError):
+        room.duel(C, "invite", target=identity(A)[0], game="pfc")  # A est déjà pris
+    with pytest.raises(DuelError):
+        room.duel(C, "decline", duel_id=duel["id"])  # pas son défi
+    room.duel(B, "decline", duel_id=duel["id"])
+    assert room.duels_for(A) == []
+    room.duel(A, "invite", target=identity(B)[0], game="pfc")
+    clock.now += 100  # personne ne répond : défi et promeneurs oubliés
+    assert room.duels_for(A) == []
