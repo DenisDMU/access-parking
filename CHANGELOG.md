@@ -4,6 +4,37 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.19.0] — 2026-11-25 — Style doux, quêtes, onze mini-jeux
+
+### Ajouté
+- Quêtes : six habitants de Bonneplace demandent un service (« ! » au-dessus
+  de la tête, « ? » en cours, ♥ une fois rendu), avec des dialogues dans
+  une bulle. Onglet « Quêtes » dans le carnet, trois succès.
+- Cinq mini-jeux de plus, dans les commerces et à la fête : jeu des paires,
+  passage piéton, chasse aux olives, « Feu vert ! », éclate-ballons (onze en
+  tout, plus le créneau).
+- Cinq coupes de cheveux (au bol, banane, tresses, en piques, bouclée),
+  quatre regards au choix (ronds, manga, malins, étoilés), des couleurs en
+  plus pour les hauts, les pantalons, les cheveux et les ballons (dont le
+  violet).
+- Trois véhicules en libre-service de plus : 4x4, citadine électrique, moto.
+- Quarante et un succès au total (mini-jeux, véhicules, marche, saluts,
+  quêtes).
+
+### Modifié
+- Personnages refaits dans un style doux : grosse tête ronde, petit corps en
+  cloche, **visage peint** (grands yeux qui clignent, joues, petit nez,
+  sourire), démarche qui se dandine. Les autres promeneurs et les habitants
+  utilisent le même modèle.
+- Décor dans le même style : arbres et buissons en boules avec leur reflet,
+  nuages et collines ronds, fleurs semées dans le village.
+- Interface du plan refaite dans le même esprit : cartes crème aux coins
+  ronds, police arrondie, boutons en pastille ; le panneau des places reste.
+  Les pseudos des autres promeneurs s'affichent sans fond, et seulement de
+  près quand on se promène.
+- `look.eyes` (facultatif) dans `POST /borne/promenade` ; cinq jeux de plus
+  acceptés par `POST /borne/promenade/scores`.
+
 ## [4.18.0] — 2026-11-25 — KingPar : la marque, les personnages, le covoiturage
 
 ### Ajouté

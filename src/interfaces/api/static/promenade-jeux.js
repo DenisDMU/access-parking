@@ -1,7 +1,8 @@
 /* Mini-jeux de la promenade (plan 3D).
 
-   Six petits jeux en 2D, joués dans un panneau du plan : les quatre stands de
-   la fête, la grosse caisse du kiosque et la pompe de la station. Aucune
+   Onze petits jeux en 2D, joués dans un panneau du plan : les stands de la
+   fête, la grosse caisse du kiosque, la pompe de la station et les commerces
+   du village. Même dessin doux partout : ciels en dégradé, formes rondes. Aucune
    image, aucun son chargé, aucune requête : tout est dessiné sur un canvas.
    Souris, doigt ou clavier (flèches, Espace). Chaque jeu rend un score entier
    entre 0 et `max` ; les mêmes plafonds sont vérifiés côté serveur. */
@@ -329,6 +330,241 @@ export const GAMES = {
           g.fillStyle = "#40a02b"; g.beginPath(); g.roundRect(212, 112, Math.max(8, 100 * clamp(liters / target, 0, 1)), 14, 7); g.fill();
           if (game.done) text(g, game.score >= 95 ? "Pile !" : game.score >= 60 ? "Presque" : "À côté…", 262, 160, 18, BLUE);
           else text(g, held ? "Ça coule…" : "Maintenez appuyé", 262, 160, 13, INK);
+        },
+      };
+      return game;
+    },
+  },
+
+  /* Jeu des paires : douze cartes, six paires ; moins on se trompe, mieux c'est. */
+  paires: {
+    title: "Jeu des paires", max: 100, time: 60,
+    help: "Retournez deux cartes identiques. Moins vous vous trompez, plus le score est haut. Clavier : flèches et Espace.",
+    create() {
+      const ICONS = ["P", "★", "♥", "●", "▲", "◆"], COLORS = [BLUE, "#f2b01e", "#ff5d8f", "#40a02b", "#fe640b", "#8839ef"];
+      const cards = ICONS.concat(ICONS).map((icon, i) => ({ k: i % 6, up: false, found: false, r: Math.random() })).sort((a, b) => a.r - b.r);
+      let open = [], wait = 0, miss = 0, cur = 0;
+      const at = (i) => ({ x: 28 + (i % 4) * 78, y: 52 + Math.floor(i / 4) * 58 });
+      const game = {
+        score: 0, done: false,
+        step(dt) {
+          if (wait <= 0) return;
+          wait -= dt;
+          if (wait > 0) return;
+          open.forEach((c) => { c.up = false; });
+          open = [];
+        },
+        flip(i) {
+          const c = cards[i];
+          if (!c || c.up || c.found || wait > 0 || game.done) return;
+          c.up = true; open.push(c);
+          if (open.length < 2) return;
+          if (open[0].k === open[1].k) { open.forEach((o) => { o.found = true; }); open = []; } else { miss++; wait = 0.7; }
+          const found = cards.filter((o) => o.found).length / 2;
+          game.score = Math.max(found * 6, found === 6 ? Math.max(40, 100 - miss * 6) : 0);
+          if (found === 6) game.done = true;
+        },
+        down(x, y) { for (let i = 0; i < 12; i++) { const p = at(i); if (x > p.x && x < p.x + 70 && y > p.y && y < p.y + 50) { cur = i; game.flip(i); } } },
+        key(code, on) {
+          if (!on) return;
+          if (code === "ArrowRight") cur = (cur + 1) % 12; else if (code === "ArrowLeft") cur = (cur + 11) % 12;
+          else if (code === "ArrowDown") cur = (cur + 4) % 12; else if (code === "ArrowUp") cur = (cur + 8) % 12;
+          else if (code === "Space") game.flip(cur);
+        },
+        draw(g) {
+          backdrop(g, "#fff1d6", "#ffe0b8");
+          cards.forEach((c, i) => {
+            const p = at(i), show = c.up || c.found;
+            soft(g, true);
+            g.fillStyle = show ? "#fff" : BLUE; g.globalAlpha = c.found ? 0.55 : 1;
+            g.beginPath(); g.roundRect(p.x, p.y, 70, 50, 12); g.fill();
+            soft(g, false);
+            if (show) text(g, ICONS[c.k], p.x + 35, p.y + 36, 30, COLORS[c.k]);
+            else { g.strokeStyle = "rgba(255,255,255,.5)"; g.lineWidth = 2; g.beginPath(); g.roundRect(p.x + 6, p.y + 6, 58, 38, 8); g.stroke(); }
+            g.globalAlpha = 1;
+            if (i === cur) { g.strokeStyle = "#ffd60a"; g.lineWidth = 3; g.beginPath(); g.roundRect(p.x - 2, p.y - 2, 74, 54, 13); g.stroke(); }
+          });
+        },
+      };
+      return game;
+    },
+  },
+
+  /* Éclate-ballons : toucher les ballons qui montent ; le doré vaut 3, le nuage gris en retire 2. */
+  ballons: {
+    title: "Éclate-ballons", max: 60, time: 25,
+    help: "Éclatez les ballons qui s'envolent. Le doré vaut 3 points, le nuage gris en retire 2. Clavier : flèches et Espace.",
+    create() {
+      const items = [], pops = [], aim = { x: W / 2, y: H / 2 }, COLORS = [BLUE, "#ff5d8f", "#40a02b", "#8839ef", "#fe640b"];
+      let spawn = 0;
+      const game = {
+        score: 0,
+        step(dt, t, keys) {
+          spawn -= dt;
+          if (spawn <= 0) {
+            const roll = Math.random();
+            items.push({ x: rand(24, W - 24), y: H + 24, v: rand(60, 120), sway: rand(0, 6), kind: roll < 0.12 ? "gold" : roll < 0.28 ? "bad" : "ok", color: COLORS[Math.floor(rand(0, 5))] });
+            spawn = rand(0.25, 0.55);
+          }
+          for (let i = items.length - 1; i >= 0; i--) { items[i].y -= items[i].v * dt; items[i].x += Math.sin(t * 2 + items[i].sway) * 22 * dt; if (items[i].y < 20) items.splice(i, 1); }
+          for (let i = pops.length - 1; i >= 0; i--) { pops[i].t -= dt; if (pops[i].t <= 0) pops.splice(i, 1); }
+          aim.x = clamp(aim.x + ((keys.ArrowRight ? 1 : 0) - (keys.ArrowLeft ? 1 : 0)) * 220 * dt, 10, W - 10);
+          aim.y = clamp(aim.y + ((keys.ArrowDown ? 1 : 0) - (keys.ArrowUp ? 1 : 0)) * 220 * dt, 48, H - 10);
+        },
+        pop(x, y) {
+          aim.x = x; aim.y = y;
+          const i = items.findIndex((b) => Math.hypot(b.x - x, b.y - y) < 22);
+          if (i < 0) return;
+          const b = items[i];
+          game.score = clamp(game.score + (b.kind === "gold" ? 3 : b.kind === "bad" ? -2 : 1), 0, 60);
+          pops.push({ x: b.x, y: b.y, t: 0.25, color: b.kind === "bad" ? "#8d93a1" : b.kind === "gold" ? "#ffd60a" : b.color });
+          items.splice(i, 1);
+        },
+        down(x, y) { game.pop(x, y); },
+        move(x, y) { aim.x = x; aim.y = y; },
+        key(code, on) { if (on && code === "Space") game.pop(aim.x, aim.y); },
+        draw(g, t) {
+          backdrop(g, "#8fd3ff", "#e9f7ff", t);
+          items.forEach((b) => {
+            if (b.kind === "bad") { blob(g, b.x, b.y, 22, 13, "#8d93a1"); blob(g, b.x - 12, b.y - 7, 12, 10, "#8d93a1"); blob(g, b.x + 10, b.y - 8, 13, 11, "#8d93a1"); return; }
+            const c = b.kind === "gold" ? "#ffd60a" : b.color;
+            g.strokeStyle = "rgba(34,37,46,.45)"; g.lineWidth = 1.2; g.beginPath(); g.moveTo(b.x, b.y + 20); g.quadraticCurveTo(b.x + 5, b.y + 32, b.x, b.y + 44); g.stroke();
+            soft(g, true); blob(g, b.x, b.y, 17, 21, c); soft(g, false);
+            blob(g, b.x - 6, b.y - 8, 4, 6, "rgba(255,255,255,.6)");
+            if (b.kind === "gold") text(g, "★", b.x, b.y + 6, 15, "#fff");
+          });
+          pops.forEach((p) => { g.strokeStyle = p.color; g.lineWidth = 3; g.beginPath(); g.arc(p.x, p.y, 26 - p.t * 60, 0, Math.PI * 2); g.stroke(); });
+          g.strokeStyle = INK; g.lineWidth = 2; g.beginPath(); g.arc(aim.x, aim.y, 9, 0, Math.PI * 2); g.moveTo(aim.x - 14, aim.y); g.lineTo(aim.x + 14, aim.y); g.moveTo(aim.x, aim.y - 14); g.lineTo(aim.x, aim.y + 14); g.stroke();
+        },
+      };
+      return game;
+    },
+  },
+
+  /* Le passage piéton : traverser la rue entre les voitures, autant de fois que possible. */
+  passage: {
+    title: "Le passage piéton", max: 30, time: 30,
+    help: "Traversez la rue sans vous faire toucher : touchez l'écran, Espace ou ↑ pour avancer, ↓ pour reculer.",
+    create() {
+      const LANES = [84, 116, 148, 180], cars = [];
+      let row = 4, hop = 0, hit = 0; // 4 : trottoir du bas, 0 à 3 : voies, -1 : arrivé en haut
+      LANES.forEach((y, i) => { for (let k = 0; k < 2; k++) cars.push({ y, x: rand(0, W), v: (i % 2 ? -1 : 1) * rand(60, 110), w: rand(34, 52), color: [BLUE, "#d92b3a", "#f2b01e", "#40a02b", "#8839ef"][Math.floor(rand(0, 5))] }); });
+      const yOf = (r) => (r === 4 ? 210 : r < 0 ? 54 : LANES[3 - r] + 0);
+      const game = {
+        score: 0,
+        step(dt) {
+          hop = Math.max(0, hop - dt); hit = Math.max(0, hit - dt);
+          cars.forEach((c) => { c.x += c.v * dt; if (c.x > W + 60) c.x = -60; else if (c.x < -60) c.x = W + 60; });
+          if (row < 4 && row >= 0 && cars.some((c) => c.y === yOf(row) && Math.abs(c.x - W / 2) < c.w / 2 + 9)) { row = 4; hit = 0.6; }
+        },
+        go(d) {
+          if (hop > 0) return;
+          row = clamp(row - d, -1, 4); hop = 0.12;
+          if (row === -1) { game.score = Math.min(30, game.score + 1); row = 4; }
+        },
+        down() { game.go(1); },
+        key(code, on) { if (!on) return; if (code === "Space" || code === "ArrowUp") game.go(1); else if (code === "ArrowDown") game.go(-1); },
+        draw(g) {
+          backdrop(g, "#bfe9ff", "#d9f3c4");
+          g.fillStyle = "#d9d2c0"; g.fillRect(0, 196, W, 34); g.fillRect(0, 40, W, 28); // trottoirs
+          g.fillStyle = "#5a5f6b"; g.fillRect(0, 68, W, 128);
+          g.fillStyle = "#fff"; for (let i = 0; i < 6; i++) g.fillRect(W / 2 - 34 + i * 12, 68, 7, 128); // le passage
+          cars.forEach((c) => {
+            soft(g, true); g.fillStyle = c.color; g.beginPath(); g.roundRect(c.x - c.w / 2, c.y - 10, c.w, 20, 8); g.fill(); soft(g, false);
+            g.fillStyle = "#cfe9ff"; g.beginPath(); g.roundRect(c.x - c.w / 4, c.y - 7, c.w / 2, 14, 4); g.fill();
+            blob(g, c.x + (c.v > 0 ? 1 : -1) * (c.w / 2 - 3), c.y - 5, 2, 2.5, "#ffd60a"); blob(g, c.x + (c.v > 0 ? 1 : -1) * (c.w / 2 - 3), c.y + 5, 2, 2.5, "#ffd60a");
+          });
+          const y = yOf(row);
+          blob(g, W / 2, y + 12, 9, 3, "rgba(34,37,46,.25)");
+          soft(g, true); blob(g, W / 2, y + 2, 8, 9, hit > 0 ? "#d92b3a" : BLUE); blob(g, W / 2, y - 11, 10, 10, "#f0c9a4"); soft(g, false);
+          blob(g, W / 2 - 4, y - 12, 1.6, 2.4, INK); blob(g, W / 2 + 4, y - 12, 1.6, 2.4, INK);
+          if (hit > 0) text(g, "Aïe ! On recommence.", W / 2, 60, 13, "#d92b3a");
+        },
+      };
+      return game;
+    },
+  },
+
+  /* Chasse aux olives : toucher les olives qui sortent de la pizza, pas les piments. */
+  olives: {
+    title: "Chasse aux olives", max: 60, time: 25,
+    help: "Touchez les olives qui pointent sur la pizza. Le piment rouge retire 2 points. Clavier : flèches et Espace.",
+    create() {
+      const holes = [];
+      for (let i = 0; i < 9; i++) holes.push({ x: 110 + (i % 3) * 70, y: 84 + Math.floor(i / 3) * 52, kind: null, t: 0 });
+      let spawn = 0, cur = 4;
+      const game = {
+        score: 0,
+        step(dt) {
+          spawn -= dt;
+          holes.forEach((hl) => { if (hl.kind) { hl.t -= dt; if (hl.t <= 0) hl.kind = null; } });
+          if (spawn > 0) return;
+          const free = holes.filter((hl) => !hl.kind);
+          if (free.length) { const hl = free[Math.floor(rand(0, free.length))]; hl.kind = Math.random() < 0.2 ? "bad" : "ok"; hl.t = rand(0.65, 1.1); }
+          spawn = rand(0.28, 0.6);
+        },
+        hit(i) {
+          const hl = holes[i];
+          if (!hl || !hl.kind) return;
+          game.score = clamp(game.score + (hl.kind === "ok" ? 1 : -2), 0, 60);
+          hl.kind = null;
+        },
+        down(x, y) { holes.forEach((hl, i) => { if (Math.hypot(hl.x - x, hl.y - y) < 26) { cur = i; game.hit(i); } }); },
+        key(code, on) {
+          if (!on) return;
+          if (code === "ArrowRight") cur = Math.floor(cur / 3) * 3 + ((cur % 3) + 1) % 3; else if (code === "ArrowLeft") cur = Math.floor(cur / 3) * 3 + ((cur % 3) + 2) % 3;
+          else if (code === "ArrowDown") cur = (cur + 3) % 9; else if (code === "ArrowUp") cur = (cur + 6) % 9;
+          else if (code === "Space") game.hit(cur);
+        },
+        draw(g) {
+          backdrop(g, "#ffe9d6", "#ffd0a8");
+          soft(g, true); blob(g, 180, 136, 128, 88, "#e2a45a"); soft(g, false);
+          blob(g, 180, 136, 114, 76, "#e85d4a"); blob(g, 180, 136, 106, 69, "#ffd98a");
+          holes.forEach((hl, i) => {
+            blob(g, hl.x, hl.y, 20, 13, "rgba(190,120,50,.35)");
+            if (hl.kind === "ok") { soft(g, true); blob(g, hl.x, hl.y - 6, 15, 15, "#3d3d2e"); soft(g, false); blob(g, hl.x, hl.y - 6, 6, 6, "#e85d4a"); blob(g, hl.x - 5, hl.y - 12, 3, 4, "rgba(255,255,255,.5)"); }
+            if (hl.kind === "bad") { soft(g, true); blob(g, hl.x, hl.y - 6, 9, 17, "#d92b3a"); soft(g, false); blob(g, hl.x, hl.y - 23, 4, 5, "#40a02b"); }
+            if (i === cur) { g.strokeStyle = BLUE; g.lineWidth = 2.5; g.beginPath(); g.ellipse(hl.x, hl.y - 2, 26, 22, 0, 0, Math.PI * 2); g.stroke(); }
+          });
+        },
+      };
+      return game;
+    },
+  },
+
+  /* Feu vert ! : cinq départs ; on touche dès que le feu passe au vert, pas avant. */
+  feu: {
+    title: "Feu vert !", max: 100,
+    help: "Attendez le feu vert, puis touchez (ou Espace) le plus vite possible. Cinq départs. Partir au rouge ne rapporte rien.",
+    create() {
+      let round = 0, state = "red", timer = rand(1.2, 3), since = 0, last = "";
+      const game = {
+        score: 0, done: false,
+        step(dt) {
+          if (game.done) return;
+          if (state === "red") { timer -= dt; if (timer <= 0) { state = "green"; since = 0; } }
+          else if (state === "green") { since += dt; if (since > 1.5) game.tap(); }
+          else { timer -= dt; if (timer <= 0) { if (round >= 5) game.done = true; else { state = "red"; timer = rand(1.2, 3); } } }
+        },
+        tap() {
+          if (state === "wait" || game.done) return;
+          const pts = state === "red" ? 0 : Math.round(clamp(20 - (since * 1000 - 220) / 22, 0, 20));
+          last = state === "red" ? "Trop tôt !" : Math.round(since * 1000) + " ms : " + (pts >= 18 ? "éclair !" : pts >= 10 ? "bien parti" : "un peu endormi");
+          game.score += pts; round++; state = "wait"; timer = 1;
+        },
+        down() { game.tap(); },
+        key(code, on) { if (on && code === "Space") game.tap(); },
+        draw(g, t) {
+          backdrop(g, "#cfeaff", "#eef7ff", t);
+          g.fillStyle = "#8d93a1"; g.fillRect(0, 196, W, H - 196);
+          soft(g, true); g.fillStyle = INK; g.beginPath(); g.roundRect(150, 58, 60, 132, 16); g.fill(); soft(g, false);
+          g.fillStyle = INK; g.fillRect(176, 190, 8, 20);
+          const lit = state === "green" || (state === "wait" && !last.startsWith("Trop"));
+          blob(g, 180, 92, 20, 20, lit ? "#4a2a2a" : "#ff4d4d"); blob(g, 180, 156, 20, 20, lit ? "#4dff7a" : "#1f4a2c");
+          if (!lit) blob(g, 173, 85, 5, 6, "rgba(255,255,255,.45)"); else blob(g, 173, 149, 5, 6, "rgba(255,255,255,.55)");
+          text(g, "Départ " + Math.min(5, round + (state === "wait" ? 0 : 1)) + "/5", 76, 110, 13, INK);
+          if (last) text(g, last, 278, 110, 12, BLUE);
+          text(g, state === "red" ? "Attendez…" : state === "green" ? "GO !" : "", 180, 224, 15, state === "green" ? "#2f9e44" : INK);
         },
       };
       return game;

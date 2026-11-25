@@ -199,6 +199,32 @@ def test_plan_3d_marque_kingpar_accueil_tenues_et_covoiturage(client):
     assert "KingPar" in logo.text and "<script" not in logo.text
 
 
+def test_plan_3d_visage_peint_quetes_coupes_et_vehicules(client):
+    """Personnages au visage peint, quêtes des habitants, coupes et véhicules en plus."""
+
+    source = client.get("/static/parking3d.js").text
+    for name in (
+        "function drawFace",
+        "const QUESTS",
+        "function talk(",
+        "function stepQuests",
+        "function questEvent",
+    ):
+        assert name in source
+    for word in (
+        "const EYES",
+        '"manga"',
+        '"tresses"',
+        '"boucles"',
+        "const BIKES",
+        'model: "moto"',
+        'model: "suv"',
+    ):
+        assert word in source
+    # Six habitants, six quêtes ; rien de saisi par le visiteur.
+    assert source.count('{ id: "') >= 6 and "Mamie Gisèle" in source
+
+
 def test_mini_jeux_servis_sans_ressource_externe(client):
     from src.infrastructure.promenade_room import GAMES
 
@@ -214,6 +240,7 @@ def test_mini_jeux_servis_sans_ressource_externe(client):
             continue
         assert f"  {game}: {{" in source
         assert f"max: {maximum}" in source
+    assert source.count("title:") == len(GAMES) - 1  # onze jeux en panneau, plus le créneau
     plan = client.get("/static/parking3d.js").text
     assert 'from "./promenade-jeux.js?v=' in plan
 

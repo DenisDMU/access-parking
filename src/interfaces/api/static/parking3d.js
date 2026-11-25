@@ -14,7 +14,7 @@
    et des identifiants pseudonymisés. */
 
 import * as THREE from "./vendor/three-0.160.0.module.min.js";
-import { GAMES as MINI, startGame } from "./promenade-jeux.js?v=4.18.0";
+import { GAMES as MINI, startGame } from "./promenade-jeux.js?v=4.19.0";
 
 // --- Catégories de Parking → zones du plan -----------------------------------
 
@@ -352,8 +352,12 @@ const RENTALS = [
   { model: "camper", name: "Camping-car", label: "le camping-car", color: "#f4f5f7", x: -23.5, max: 18, acc: 5.5, r: 1.3, half: 2.3, cam: 13.5 },
   { model: "sedan", name: "Berline", label: "la berline", color: "#d92b3a", x: -19.5, max: 28, acc: 10.5, r: 1.02, half: 1.45, cam: 9.5 },
   { model: "scooter", name: "Scooter", label: "le scooter", color: "#f2b01e", x: -15.5, max: 15, acc: 7.5, r: 0.45, half: 0.45, cam: 6.5 },
+  { model: "suv", name: "4x4", label: "le 4x4", color: "#fe640b", x: -27.5, max: 24, acc: 8.5, r: 1.08, half: 1.55, cam: 10.5 },
+  { model: "ev", name: "Citadine électrique", label: "la citadine électrique", color: "#40a02b", x: -31.5, max: 26, acc: 12, r: 1.0, half: 1.45, cam: 9.5 },
+  { model: "moto", name: "Moto", label: "la moto", color: "#22252e", x: -35.5, max: 34, acc: 13, r: 0.5, half: 0.6, cam: 7 },
 ];
 const RENTAL_Z = -5.4;
+const BIKES = ["scooter", "moto"]; // on s'assoit dessus, à la vue de tous
 // La ville, à l'est du parking, le long de la route (mètres).
 const CITY_GAP = 70, CITY_PITCH = 48, CITY_COLS = 4, CITY_AVENUE = 44;
 // Le village du parking : « la bonne place », comme celle qu'on y trouve.
@@ -375,15 +379,16 @@ const SHOP_LABELS = {
 };
 const SHOP_PANELS = { "BOUTIQUE KINGPAR": "tenue", "COIFFURE LE CRÉNEAU": "coiffure", "ANIMALERIE DU COPILOTE": "compagnon" };
 const DRINKS = ["Clonk ! Une limonade bien fraîche.", "Clonk ! Un café en canette.", "Clonk ! Un jus de pomme."];
-const TOPS = ["#1e66f5", "#1e9e8f", "#d92b3a", "#f2b01e", "#8839ef", "#f4f5f7", "#22252e", "#f6a5c0", "#3d8a3a"];
-const PANTS = ["#27408b", "#22252e", "#6b4a35", "#8b909c", "#3d8a3a", "#b23a48"];
-const HAIRS = ["#3b2a20", "#15161a", "#e3c26a", "#c2552d", "#b9bec9", "#f6a5c0", "#3f7fd9", "#3fa34d"];
+const TOPS = ["#1e66f5", "#1e9e8f", "#d92b3a", "#f2b01e", "#8839ef", "#f4f5f7", "#22252e", "#f6a5c0", "#3d8a3a", "#b388ff", "#fe640b", "#17c3b2", "#ff5d8f"];
+const PANTS = ["#27408b", "#22252e", "#6b4a35", "#8b909c", "#3d8a3a", "#b23a48", "#8839ef", "#f4f5f7", "#f2b01e", "#17c3b2"];
+const HAIRS = ["#3b2a20", "#15161a", "#e3c26a", "#c2552d", "#b9bec9", "#f6a5c0", "#3f7fd9", "#3fa34d", "#9b5de5", "#f4f5f7", "#ff7b54"];
 const HATS = [["none", "Aucun"], ["cap", "Casquette KingPar"], ["straw", "Chapeau de paille"], ["bonnet", "Bonnet"], ["beret", "Béret"], ["couronne", "Couronne KingPar"]];
-const CUTS = [["short", "Courte"], ["bob", "Carré"], ["long", "Longue"], ["tail", "Queue-de-cheval"], ["twin", "Couettes"], ["bun", "Chignon"], ["afro", "Afro"], ["mohawk", "Crête"]];
+const CUTS = [["short", "Courte"], ["bob", "Carré"], ["long", "Longue"], ["tail", "Queue-de-cheval"], ["twin", "Couettes"], ["bun", "Chignon"], ["afro", "Afro"], ["mohawk", "Crête"], ["bol", "Au bol"], ["banane", "Banane"], ["tresses", "Tresses"], ["piques", "En piques"], ["boucles", "Bouclée"]];
 const OUTFITS = [["tshirt", "T-shirt"], ["pull", "Pull"], ["chemise", "Chemise"], ["veste", "Veste"], ["hoodie", "Sweat à capuche"], ["salopette", "Salopette"], ["robe", "Robe"], ["maillot", "Maillot KingPar"]];
 const BOTTOMS = [["pants", "Pantalon"], ["short", "Short"], ["jupe", "Jupe"]];
 const EXTRAS = [["none", "Aucun"], ["lunettes", "Lunettes"], ["soleil", "Lunettes de soleil"], ["echarpe", "Écharpe"]];
-const BALLOONS = ["#1e66f5", "#ffd60a", "#d92b3a", "#f6a5c0", "#40a02b", "#f4f5f7"];
+const EYES = [["ronds", "Ronds"], ["manga", "Manga"], ["malins", "Malins"], ["etoiles", "Étoilés"]];
+const BALLOONS = ["#1e66f5", "#ffd60a", "#d92b3a", "#f6a5c0", "#40a02b", "#f4f5f7", "#8839ef"];
 const CROWN_WINS = 9; // la couronne KingPar se mérite
 const SKINS = ["#f6d7bd", "#f0c9a4", "#dba97c", "#b97f55", "#8a5a3c", "#5c3b28"];
 /* Compagnons. `ears` : forme (cone, long, round, flop, none), rayon, hauteur,
@@ -437,7 +442,7 @@ const STAMPS = [
 // Tenue, coiffure, compagnon et carnet : gardés sur l'appareil, rien n'est envoyé.
 const LOOK_KEY = "access.plan3d.look";
 const CARNET_KEY = "access.plan3d.carnet";
-const LOOK_DEFAULT = { top: TOPS[0], pants: PANTS[0], hair: HAIRS[0], skin: SKINS[1], hat: "none", cut: "short", pack: true, pet: "chihuahua", outfit: "tshirt", bottom: "pants", extra: "none", balloon: "none" };
+const LOOK_DEFAULT = { top: TOPS[0], pants: PANTS[0], hair: HAIRS[0], skin: SKINS[1], hat: "none", cut: "short", pack: true, pet: "chihuahua", outfit: "tshirt", bottom: "pants", extra: "none", balloon: "none", eyes: "ronds" };
 function loadLook() {
   const look = Object.assign({}, LOOK_DEFAULT);
   try {
@@ -454,6 +459,7 @@ function loadLook() {
     if (BOTTOMS.some((o) => o[0] === raw.bottom)) look.bottom = raw.bottom;
     if (EXTRAS.some((o) => o[0] === raw.extra)) look.extra = raw.extra;
     if (BALLOONS.includes(raw.balloon)) look.balloon = raw.balloon;
+    if (EYES.some((o) => o[0] === raw.eyes)) look.eyes = raw.eyes;
     if (Object.prototype.hasOwnProperty.call(PETS, raw.pet)) look.pet = raw.pet;
   } catch (err) { /* stockage indisponible : tenue par défaut */ }
   return look;
@@ -461,7 +467,7 @@ function loadLook() {
 /* Progression : tampons, succès, records et compteurs. Relue avec prudence :
    seuls les identifiants connus et les nombres bornés sont repris. */
 function loadProgress() {
-  const p = { stamps: new Set(), wins: new Set(), best: {}, km: 0, jumps: 0, pets: [], cuts: [], played: [], fits: [], day: "", gold: 0, goldDay: "" };
+  const p = { stamps: new Set(), wins: new Set(), best: {}, km: 0, jumps: 0, pets: [], cuts: [], played: [], fits: [], cars: [], day: "", gold: 0, goldDay: "", walked: 0, hellos: 0, quests: {}, qn: 0, qcut: "" };
   try {
     const raw = JSON.parse(window.localStorage.getItem(CARNET_KEY) || "{}");
     const src = Array.isArray(raw) ? { stamps: raw } : raw || {};
@@ -473,7 +479,12 @@ function loadProgress() {
     });
     if (Number.isFinite(src.km)) p.km = clamp(src.km, 0, 1e5);
     if (Number.isFinite(src.jumps)) p.jumps = clamp(Math.round(src.jumps), 0, 1e6);
-    ["pets", "cuts", "played", "fits"].forEach((k) => {
+    if (Number.isFinite(src.walked)) p.walked = clamp(src.walked, 0, 1e7);
+    QUESTS.forEach((q) => { const v = src.quests && src.quests[q.id]; if ([1, 2, 3].includes(v)) p.quests[q.id] = v; });
+    if (Number.isFinite(src.qn)) p.qn = clamp(Math.round(src.qn), 0, 5);
+    if (typeof src.qcut === "string" && /^[a-z]{1,12}$/.test(src.qcut)) p.qcut = src.qcut;
+    if (Number.isFinite(src.hellos)) p.hellos = clamp(Math.round(src.hellos), 0, 1e6);
+    ["pets", "cuts", "played", "fits", "cars"].forEach((k) => {
       if (Array.isArray(src[k])) p[k] = src[k].filter((v) => typeof v === "string" && /^[a-z]{1,12}$/.test(v)).slice(0, 24);
     });
     if (typeof src.day === "string" && /^\d{4}-\d{2}-\d{2}$/.test(src.day)) p.day = src.day;
@@ -501,8 +512,9 @@ function store(key, value) {
 const FIREWORKS = ["#ff5d8f", "#ffd166", "#7bdff2", "#b8f2a0", "#f7aef8", "#ffffff", "#ff9f1c"];
 // Mini-jeux : stand de la fête → jeu, et score à atteindre pour le succès du même nom.
 const STALL_GAMES = ["crepes", "frites", "barbe", "canards"];
-const GOALS = { canards: 15, crepes: 80, frites: 25, barbe: 100, tambour: 8, plein: 95, creneau: 80 };
-const GAME_NAMES = { canards: "Pêche aux canards", crepes: "Crêpes", frites: "Frites", barbe: "Barbe à papa", tambour: "Grosse caisse", plein: "Le plein pile", creneau: "Le créneau parfait" };
+const SHOP_GAMES = { "BISTROT DU PARVIS": "passage", "CAFÉ LA BARRIÈRE": "paires", "PIZZERIA DU ROND-POINT": "olives", "GLACES DU FEU VERT": "feu" };
+const GOALS = { canards: 15, crepes: 80, frites: 25, barbe: 100, tambour: 8, plein: 95, paires: 70, ballons: 20, passage: 8, olives: 18, feu: 70, creneau: 80 };
+const GAME_NAMES = { canards: "Pêche aux canards", crepes: "Crêpes", frites: "Frites", barbe: "Barbe à papa", tambour: "Grosse caisse", plein: "Le plein pile", paires: "Jeu des paires", ballons: "Éclate-ballons", passage: "Le passage piéton", olives: "Chasse aux olives", feu: "Feu vert !", creneau: "Le créneau parfait" };
 // Succès : ce qu'on gagne en jouant. Le dernier récompense tous les autres.
 const WINS = [
   ["carnet", "Carnet complet", "Obtenir tous les tampons du carnet."],
@@ -520,7 +532,15 @@ const WINS = [
   ["barbe", "Nuage de sucre", "Une barbe à papa énorme : 100 points."],
   ["tambour", "Sens du rythme", "Tenir 8 tours à la grosse caisse."],
   ["plein", "Le plein pile", "95 / 100 à la pompe de la station."],
-  ["tournee", "Tournée des stands", "Jouer aux six mini-jeux."],
+  ["paires", "Mémoire d'éléphant", "70 points au jeu des paires du café."],
+  ["ballons", "Fine aiguille", "Éclater 20 ballons."],
+  ["passage", "Piéton prudent", "Traverser 8 fois au passage piéton."],
+  ["olives", "Pizzaïolo", "Attraper 18 olives."],
+  ["feu", "Réflexes de pilote", "70 points à « Feu vert ! »."],
+  ["tournee", "Tournée des stands", "Jouer à tous les mini-jeux."],
+  ["garage", "Collection de clés", "Conduire tous les véhicules en libre-service."],
+  ["marche", "Grand marcheur", "Parcourir 2 km à pied."],
+  ["sociable", "Sociable", "Saluer dix fois."],
   ["chance", "Verni", "Tirer une « Grande chance » au belvédère."],
   ["rencontre", "Bonjour voisin", "Croiser un autre promeneur."],
   ["coucou", "Poli", "Saluer un autre promeneur (touches 1 à 4)."],
@@ -534,12 +554,82 @@ const WINS = [
   ["taxi", "Chauffeur", "Conduire un autre promeneur."],
   ["amitie", "L'amour gagne toujours", "Se saluer à deux, en même temps."],
   ["roi", "Roi de KingPar", "Porter la couronne KingPar (" + CROWN_WINS + " succès pour l'obtenir)."],
+  ["voisin", "Bon voisin", "Rendre service à un habitant : terminer une quête."],
+  ["serviable", "Serviable", "Terminer trois quêtes."],
+  ["heros", "Héros de Bonneplace", "Terminer toutes les quêtes."],
   ["legende", "Légende de Bonneplace", "Obtenir tous les autres succès."],
 ];
-const RANKS = [[0, "Visiteur"], [4, "Habitué"], [9, "Citoyen de Bonneplace"], [16, "Pilier du parking"], [29, "Légende de Bonneplace"]];
+/* Quêtes : six habitants ont un petit service à demander. « ! » : il a quelque
+   chose à dire ; « ? » gris : c'est en cours ; « ? » jaune : revenez le voir. */
+const QUESTS = [
+  { id: "chat", who: "Mamie Gisèle", look: { top: "#b388ff", pants: "#6b4a35", hair: "#b9bec9", skin: "#f6d7bd", cut: "bun", outfit: "pull", bottom: "jupe", extra: "lunettes" },
+    ask: "Mon chat Moustache a encore filé du côté de l'étang. Tu veux bien me le ramener, mon petit ?", todo: "Retrouver Moustache près de l'étang du jardin.", done: "Moustache ! Viens là, vilain. Merci, tu es un amour." },
+  { id: "fleurs", who: "Lila la fleuriste", look: { top: "#ff5d8f", pants: "#3d8a3a", hair: "#c2552d", skin: "#f0c9a4", cut: "tresses", outfit: "salopette", hat: "straw" },
+    ask: "Il me manque cinq fleurs dorées pour mon plus beau bouquet. Elles poussent au bord des champs.", todo: "Cueillir 5 fleurs dorées autour des champs.", done: "Quel bouquet ! Il sent bon le printemps. Merci mille fois." },
+  { id: "cloche", who: "Tonton Klaxon", look: { top: "#f2b01e", pants: "#27408b", hair: "#3b2a20", skin: "#dba97c", cut: "banane", outfit: "veste", hat: "beret" },
+    ask: "Avec tout ce bazar à la fête, j'entends plus la cloche du belvédère. Tu la fais sonner pour moi ?", todo: "Faire sonner la cloche du belvédère.", done: "Dong ! Ah, là je l'ai entendue. T'es un chef." },
+  { id: "olives", who: "Chef Rondo", look: { top: "#f4f5f7", pants: "#22252e", hair: "#15161a", skin: "#b97f55", cut: "boucles", outfit: "chemise", extra: "echarpe" },
+    ask: "Mes olives se font la malle ! Attrape-en douze à mon jeu, à la pizzeria, et tu sauves mon service.", todo: "Attraper 12 olives au jeu de la pizzeria.", done: "Mamma mia, quelle main ! La maison t'offre… toute mon admiration." },
+  { id: "coupe", who: "Zoé", look: { top: "#17c3b2", pants: "#8839ef", hair: "#9b5de5", skin: "#8a5a3c", cut: "twin", outfit: "robe", eyes: "manga" },
+    ask: "Je viens d'ouvrir le salon et personne n'ose ! Change de coupe chez Coiffure Le Créneau, que je voie ça.", todo: "Changer de coupe chez le coiffeur.", done: "Waouh ! Ça te va trop bien. Reviens quand tu veux." },
+  { id: "colis", who: "Léo le livreur", look: { top: "#fe640b", pants: "#22252e", hair: "#e3c26a", skin: "#f0c9a4", cut: "piques", outfit: "hoodie", hat: "cap" },
+    ask: "J'ai un colis pour la Boutique KingPar et ma camionnette fait la sieste. Tu le déposes pour moi ?", todo: "Déposer le colis devant la Boutique KingPar.", done: "Livré dans les temps ! Tu veux pas mon métier ?" },
+];
+const RANKS = [[0, "Visiteur"], [4, "Habitué"], [9, "Citoyen de Bonneplace"], [18, "Pilier du parking"], [WINS.length - 1, "Légende de Bonneplace"]];
 const EMOTES = ["Coucou !", "Bravo !", "On fait la course ?", "Suivez-moi !"];
 const PLAYER_KEY = "access.plan3d.joueur";
 const WELCOME_KEY = "access.plan3d.accueil";
+/* Le visage, peint sur la tête (512 × 256, le milieu du visage en x = 128) :
+   grands yeux, petit nez, sourire, joues roses. C'est lui qui donne le
+   regard du personnage ; `closed` dessine les yeux fermés (clignement). */
+function drawFace(g, w, h, c, closed) {
+  const k = w / 512, X = 128, Y = 138;
+  g.save();
+  g.scale(k, k);
+  g.fillStyle = c.skin; g.fillRect(0, 0, 512, 256);
+  const dark = "#2a1f1a", style = c.eyes || "ronds";
+  [-1, 1].forEach((sx) => {
+    const x = X + sx * 37;
+    const blush = g.createRadialGradient(x + sx * 20, Y + 24, 1, x + sx * 20, Y + 24, 17);
+    blush.addColorStop(0, "rgba(255,120,140,.62)"); blush.addColorStop(1, "rgba(255,120,140,0)");
+    g.fillStyle = blush; g.fillRect(x + sx * 20 - 18, Y + 6, 36, 36);
+    g.strokeStyle = c.brow; g.lineWidth = 3.4; g.lineCap = "round"; // sourcil
+    g.beginPath(); g.moveTo(x - 12, Y - 29 - sx * 1.5); g.quadraticCurveTo(x, Y - 35, x + 12, Y - 29 + sx * 1.5); g.stroke();
+    if (closed) {
+      g.strokeStyle = dark; g.lineWidth = 4; g.beginPath(); g.moveTo(x - 11, Y); g.quadraticCurveTo(x, Y + 8, x + 11, Y); g.stroke();
+      return;
+    }
+    if (style === "manga" || style === "etoiles") {
+      g.fillStyle = "#ffffff"; g.beginPath(); g.ellipse(x, Y, 16, 20, 0, 0, Math.PI * 2); g.fill();
+      const iris = g.createLinearGradient(0, Y - 14, 0, Y + 15);
+      iris.addColorStop(0, "#1c4fa8"); iris.addColorStop(1, "#6fc3ff");
+      g.fillStyle = iris; g.beginPath(); g.ellipse(x, Y + 1.5, 12.5, 16, 0, 0, Math.PI * 2); g.fill();
+      g.fillStyle = dark; g.beginPath(); g.ellipse(x, Y + 1, 5, 7, 0, 0, Math.PI * 2); g.fill();
+      g.strokeStyle = dark; g.lineWidth = 4.5; g.beginPath(); g.moveTo(x - 17, Y - 8); g.quadraticCurveTo(x, Y - 25, x + 17, Y - 8); g.stroke(); // cils
+      g.fillStyle = "#ffffff";
+      if (style === "etoiles") {
+        g.beginPath();
+        for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2 - Math.PI / 2, r = i % 2 ? 2.4 : 6; g.lineTo(x - 3 + Math.cos(a) * r, Y - 4 + Math.sin(a) * r); }
+        g.fill();
+      } else { g.beginPath(); g.arc(x - 4, Y - 6, 4, 0, Math.PI * 2); g.fill(); }
+      g.beginPath(); g.arc(x + 4, Y + 8, 2, 0, Math.PI * 2); g.fill();
+    } else {
+      g.fillStyle = dark; g.beginPath(); g.ellipse(x, Y, 12.5, style === "malins" ? 12 : 19, 0, 0, Math.PI * 2); g.fill();
+      g.fillStyle = "#ffffff";
+      g.beginPath(); g.arc(x - 4, Y - 7.5, 5.2, 0, Math.PI * 2); g.fill();
+      g.beginPath(); g.arc(x + 3.5, Y + 6, 2, 0, Math.PI * 2); g.fill();
+      if (style === "malins") { g.fillStyle = c.skin; g.fillRect(x - 13, Y - 16, 26, 9); g.strokeStyle = dark; g.lineWidth = 3.4; g.beginPath(); g.moveTo(x - 12, Y - 7); g.lineTo(x + 12, Y - 7); g.stroke(); }
+    }
+    if (c.extra === "lunettes") { g.strokeStyle = "#22252e"; g.lineWidth = 3.4; g.beginPath(); g.arc(x, Y, 21, 0, Math.PI * 2); g.stroke(); }
+    if (c.extra === "soleil") { g.fillStyle = "#15161a"; roundRect(g, x - 22, Y - 15, 44, 30, 12); g.fill(); g.fillStyle = "rgba(255,255,255,.28)"; g.fillRect(x - 15, Y - 10, 12, 5); }
+  });
+  if (c.extra === "lunettes" || c.extra === "soleil") { g.strokeStyle = "#22252e"; g.lineWidth = 3.4; g.beginPath(); g.moveTo(X - 12, Y - 3); g.lineTo(X + 12, Y - 3); g.stroke(); }
+  g.fillStyle = c.nose; g.beginPath(); g.moveTo(X - 5, Y + 20); g.lineTo(X + 5, Y + 20); g.lineTo(X, Y + 28); g.closePath(); g.fill(); // petit nez
+  g.strokeStyle = "#8c3b3b"; g.lineWidth = 3.6; g.lineCap = "round";
+  g.beginPath(); g.moveTo(X - 13, Y + 38); g.quadraticCurveTo(X, Y + 51, X + 13, Y + 38); g.stroke(); // sourire
+  g.restore();
+  void h;
+}
 /* Le logo KingPar : une couronne imprimée par un pneu, posée sur sa trace.
    Même dessin que `kingpar-logo.svg` (et que le fichier Figma de la marque). */
 function drawLogo(g, x, y, size) {
@@ -838,6 +928,50 @@ const CSS = `
 @keyframes p3d-pulse { 50% { transform: scale(1.13); } }
 .p3d-hint { opacity: .8; }
 @media (prefers-reduced-motion: reduce) { .p3d-toast.on, .p3d-prompt kbd { animation: none; } }
+.p3d-tag.quest { background: #ffd60a; color: #22252e; font-size: 21px; font-weight: 900; padding: 1px 12px; border: 3px solid #fff; animation: p3d-hop 1.1s ease-in-out infinite; }
+.p3d-tag.quest.idle { background: #b9bec9; color: #fff; animation: none; }
+.p3d-tag.quest.over { background: #ff7aa8; color: #fff; animation: none; font-size: 15px; }
+@keyframes p3d-hop { 50% { margin-top: -7px; } }
+.p3d-panel.talk { top: auto; bottom: 26px; transform: translateX(-50%); width: min(560px, calc(100% - 28px)); padding: 18px 22px;
+  background: #fff8e7; color: #5b4636; border: 4px solid #f1dfb6; border-radius: 30px; backdrop-filter: none; -webkit-backdrop-filter: none; }
+.p3d-who { display: inline-block; padding: 6px 15px; border-radius: 999px; background: #ff9f1c; color: #fff; font: 800 14px/1 system-ui, sans-serif; transform: rotate(-2deg); }
+.p3d-panel.talk p.p3d-say { margin: 12px 0 4px; font-size: 16.5px; font-weight: 600; line-height: 1.45; color: #5b4636; }
+.p3d-panel.talk button { background: #40a02b; }
+@media (prefers-reduced-motion: reduce) { .p3d-tag.quest { animation: none; } }
+@media (max-width: 640px) { .p3d-panel.talk { bottom: 94px; } }
+/* Habillage doux : cartes crème aux coins ronds, texte brun, police arrondie.
+   Les couleurs sont fixées ici pour rester lisibles quel que soit le thème de la page. */
+.p3d { --text: #5b4636; --subtext: #8a7460; --field: rgba(214,190,150,.38); --hairline: rgba(91,70,54,.16);
+  --glass-hi: #fff8e7; --glass-lo: #fdf0cf; --glass-border: #f1dfb6; --blue: #1e66f5; --on-accent: #fff; }
+.p3d-card, .p3d-tag, .p3d-prompt, .p3d-carnet, .p3d-panel button, .p3d-tools button, .p3d-who {
+  font-family: ui-rounded, "SF Pro Rounded", "Hiragino Maru Gothic ProN", "Arial Rounded MT Bold", system-ui, -apple-system, "Segoe UI", sans-serif; }
+.p3d-card { background: #fff8e7; border: 3px solid #f1dfb6; border-radius: 22px; color: #5b4636;
+  backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: 0 5px 0 rgba(91,70,54,.14), 0 14px 28px rgba(17,17,27,.16); }
+.p3d-panel { border-top: 3px solid #f1dfb6; }
+.p3d-tools { padding: 5px; border-radius: 999px; }
+.p3d-tools button { border-radius: 999px; padding: 8px 13px; font-weight: 700; transition: transform .12s; }
+.p3d-tools button:hover { transform: translateY(-1px); }
+.p3d-tools button[aria-pressed="true"] { background: #1e66f5; color: #fff; box-shadow: 0 3px 0 #1651c4; }
+.p3d-head { border-radius: 20px; }
+.p3d-legend { border-radius: 24px; }
+.p3d-total b { color: #1e66f5; }
+.p3d-hint { border-width: 2px; border-radius: 999px; box-shadow: 0 3px 0 rgba(91,70,54,.12); }
+.p3d-here, .p3d-online, .p3d-toast { border-radius: 999px; }
+.p3d-toast { border-left: 3px solid #f1dfb6; border-radius: 24px; background: #fffdf4; }
+.p3d-tag { border: 2.5px solid #fff; box-shadow: 0 3px 0 rgba(17,17,27,.18); }
+.p3d-tag.bubble { border-color: #f1dfb6; color: #5b4636; background: #fffdf4; }
+.p3d-carnet { background: #fff8e7; color: #5b4636; border: 3px solid #f1dfb6; box-shadow: 0 4px 0 rgba(91,70,54,.16); }
+.p3d-carnet:first-of-type, .p3d-carnet:not(.p3d-photo):not(.p3d-hello) { background: #ffd60a; border-color: #fff; color: #5b4636; }
+.p3d-carnet.p3d-photo, .p3d-carnet.p3d-hello { background: #fff8e7; }
+.p3d-prompt { background: #fff8e7; color: #5b4636; border: 3px solid #f1dfb6; box-shadow: 0 5px 0 rgba(91,70,54,.16), 0 12px 24px rgba(17,17,27,.2); }
+.p3d-prompt kbd { background: #40a02b; color: #fff; border-radius: 50%; padding: 7px 10px; }
+.p3d-panel button { border-radius: 999px; box-shadow: 0 3px 0 rgba(17,17,27,.16); }
+.p3d-panel button.p3d-sw { box-shadow: 0 0 0 2px #f1dfb6; }
+.p3d-panel button.p3d-chip { box-shadow: none; }
+.p3d-speed b { color: #1e66f5; }
+/* Les autres promeneurs : juste leur nom, sans fond, et seulement de près. */
+.p3d-tag.who { background: none; border: 0; box-shadow: none; padding: 0; color: #fff; font-weight: 800; font-size: 13px;
+  text-shadow: 0 1px 0 rgba(34,37,46,.85), 0 0 4px rgba(34,37,46,.75), 0 2px 6px rgba(34,37,46,.5); }
 .p3d-fail { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center;
   color: var(--text, #4c4f69); background: var(--mantle, #e6e9ef); font: 600 15px/1.4 system-ui, sans-serif; }
 @media (max-width: 640px) {
@@ -1061,7 +1195,7 @@ export function createParking3D(container, options) {
   const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 1.8, sizeAttenuation: false, transparent: true, opacity: 0, fog: false, depthWrite: false });
   scene.add(new THREE.Points(starGeo, starMat));
 
-  const cloudMat = new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true, transparent: true, fog: false });
+  const cloudMat = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, fog: false }); // nuages tout ronds
   const clouds = new THREE.Group();
   {
     const rnd = mulberry(21);
@@ -1069,7 +1203,7 @@ export function createParking3D(container, options) {
       const parts = [];
       const n = 3 + Math.floor(rnd() * 3);
       for (let k = 0; k < n; k++) {
-        parts.push(part(new THREE.IcosahedronGeometry(6 + rnd() * 5, 1), "#fff", {
+        parts.push(part(new THREE.IcosahedronGeometry(6 + rnd() * 5, 3), "#fff", {
           x: (k - n / 2) * 8 + rnd() * 3, y: rnd() * 3, z: rnd() * 6 - 3, sy: 0.55 + rnd() * 0.2,
         }));
       }
@@ -1124,7 +1258,7 @@ export function createParking3D(container, options) {
     line: new THREE.MeshStandardMaterial({ color: 0xf2f3f5, roughness: 0.9, envMapIntensity: 0.3, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
     pad: new THREE.MeshStandardMaterial({ roughness: 0.95, transparent: true, opacity: 0.34, depthWrite: false, envMapIntensity: 0.2, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }),
     led: new THREE.MeshBasicMaterial({ toneMapped: false }),
-    foliage: new THREE.MeshStandardMaterial({ flatShading: true, roughness: 0.95, envMapIntensity: 0.3 }),
+    foliage: new THREE.MeshStandardMaterial({ roughness: 0.95, envMapIntensity: 0.3 }), // feuillages en boules lisses
     bulb: new THREE.MeshBasicMaterial({ color: 0x555a66, toneMapped: false }),
     pool: null,
     screen: new THREE.MeshBasicMaterial({ color: 0x64d7f0, toneMapped: false }),
@@ -1138,9 +1272,9 @@ export function createParking3D(container, options) {
     chochin: new THREE.MeshBasicMaterial({ color: 0xf2c14e, toneMapped: false }), // ampoules des guirlandes
     logo: new THREE.MeshBasicMaterial({ map: canvasTexture(256, (g, w) => drawLogo(g, 0, 0, w)), transparent: true, toneMapped: false }),
     soil: new THREE.MeshStandardMaterial({ color: 0x8f7355, roughness: 1, envMapIntensity: 0.2 }),
-    hill: new THREE.MeshStandardMaterial({ color: 0x86c46a, flatShading: true, roughness: 1, envMapIntensity: 0.3 }),
+    hill: new THREE.MeshStandardMaterial({ color: 0x8fd97a, roughness: 1, envMapIntensity: 0.3 }),
     water: new THREE.MeshStandardMaterial({ color: 0x8fc7b8, roughness: 0.12, metalness: 0.3, envMapIntensity: 1.3 }),
-    far: new THREE.MeshLambertMaterial({ flatShading: true, fog: false }),
+    far: new THREE.MeshLambertMaterial({ fog: false }), // collines rondes au loin
     spark: new THREE.PointsMaterial({ size: 1.5, map: dotTexture, sizeAttenuation: true, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, toneMapped: false }),
     koi: new THREE.MeshStandardMaterial({ color: 0xff7a1a, roughness: 0.5 }),
     house: (() => {
@@ -1290,87 +1424,79 @@ export function createParking3D(container, options) {
      chaussures. Les cheveux sont des volumes posés sur le crâne : chaque coupe
      se reconnaît de face comme de dos. */
   function buildPerson(c) {
-    const root = new THREE.Group(), body = new THREE.Group(), upper = new THREE.Group();
+    const root = new THREE.Group(), body = new THREE.Group();
     root.add(body);
-    body.add(upper);
-    const DROP = 0.16, NECK = 1.455, BIG = 1.36; // jambes courtes, grosse tête : silhouette douce
-    upper.position.y = -DROP;
     const hat = c.cap ? "cap" : c.hat || "none", cut = c.cut || "short", h = c.hair;
     const fit = c.outfit || "tshirt", low = fit === "robe" ? "robe" : c.bottom || "pants";
     const bare = !["cap", "straw", "bonnet"].includes(hat), longSleeve = ["pull", "chemise", "veste", "hoodie"].includes(fit) || Boolean(c.sleeve);
-    const gold = "#d4af37", cream = "#fdf6e3", dark = shade(c.top, 0.72);
-    // Buste et tenue
-    const t = [
-      tube(0.215, 0.176, 0.5, c.top, { y: 1.14, sz: 0.62 }),
-      orb(0.215, c.top, { y: 1.385, sy: 0.3, sz: 0.62 }),
-      tube(0.177, 0.178, 0.09, fit === "salopette" ? c.pants : c.hem || dark, { y: 0.865, sz: 0.64 }),
-      tube(0.172, 0.165, 0.13, low === "pants" ? c.pants : low === "robe" ? c.top : c.pants, { y: 0.785, sz: 0.66 }),
-      tube(0.055, 0.06, 0.1, c.skin, { y: NECK }),
-    ];
-    if (fit === "pull") t.push(tube(0.08, 0.09, 0.05, dark, { y: 1.435 }));
+    const gold = "#d4af37", cream = "#fdf6e3", dark = shade(c.top, 0.72), tilt = -0.17, NECK = 0.78;
+    const rAt = (y) => 0.235 - ((y - 0.35) / 0.42) * 0.085; // rayon du buste en cloche à la hauteur y
+    // Le corps : petit, en cloche, sans cou — toute la place est pour la tête.
+    const t = [orb(0.2, low === "robe" ? c.top : c.pants, { y: 0.38, sy: 0.55, sz: 0.85 })];
+    if (fit === "robe") t.push(tube(0.15, 0.3, 0.56, c.top, { y: 0.5, sz: 0.85 }));
+    else t.push(tube(0.15, 0.235, 0.42, c.top, { y: 0.56, sz: 0.85 }), tube(0.236, 0.24, 0.035, c.hem || dark, { y: 0.36, sz: 0.85 }));
+    t.push(orb(0.15, c.top, { y: 0.77, sy: 0.45, sz: 0.85 }));
+    const front = (y) => rAt(y) * 0.85 + 0.008;
+    if (fit === "pull") t.push(tube(0.13, 0.15, 0.05, dark, { y: 0.785, sz: 0.85 }));
     if (fit === "chemise") {
-      [-1, 1].forEach((sx) => t.push(box(0.08, 0.05, 0.03, cream, { x: sx * 0.05, y: 1.41, z: 0.115, rz: sx * 0.5 })));
-      t.push(box(0.014, 0.44, 0.012, cream, { y: 1.14, z: 0.128 }));
-      [1.28, 1.15, 1.02].forEach((y) => t.push(orb(0.011, "#22252e", { y, z: 0.134 - (1.28 - y) * 0.03 })));
+      [-1, 1].forEach((sx) => t.push(box(0.075, 0.045, 0.03, cream, { x: sx * 0.045, y: 0.775, z: 0.12, rz: sx * 0.5 })));
+      t.push(box(0.014, 0.32, 0.012, cream, { y: 0.57, z: front(0.57), rx: tilt }));
+      [0.68, 0.57, 0.46].forEach((y) => t.push(orb(0.011, "#22252e", { y, z: front(y) + 0.004 })));
     }
     if (fit === "veste") {
-      t.push(box(0.1, 0.46, 0.02, cream, { y: 1.15, z: 0.124 }));
-      [-1, 1].forEach((sx) => t.push(box(0.05, 0.3, 0.022, dark, { x: sx * 0.068, y: 1.24, z: 0.13, rz: -sx * 0.2 })));
+      t.push(box(0.09, 0.36, 0.014, cream, { y: 0.58, z: front(0.58), rx: tilt }));
+      [-1, 1].forEach((sx) => t.push(box(0.045, 0.26, 0.018, dark, { x: sx * 0.062, y: 0.64, z: front(0.64) + 0.004, rz: -sx * 0.2, rx: tilt })));
     }
     if (fit === "hoodie") {
-      t.push(orb(0.13, c.top, { y: 1.43, z: -0.11, sy: 0.75 }));
-      t.push(box(0.2, 0.1, 0.02, dark, { y: 0.98, z: 0.116 }));
-      [-1, 1].forEach((sx) => t.push(box(0.012, 0.14, 0.012, cream, { x: sx * 0.04, y: 1.3, z: 0.136 })));
+      t.push(orb(0.17, c.top, { y: 0.8, z: -0.13, sy: 0.6 }));
+      t.push(box(0.2, 0.09, 0.02, dark, { y: 0.47, z: front(0.47), rx: tilt }));
+      [-1, 1].forEach((sx) => t.push(box(0.012, 0.12, 0.012, cream, { x: sx * 0.04, y: 0.7, z: front(0.7) + 0.004, rx: tilt })));
     }
     if (fit === "salopette") {
-      t.push(box(0.2, 0.22, 0.02, c.pants, { y: 1.1, z: 0.124 }));
+      t.push(tube(0.2, 0.238, 0.16, c.pants, { y: 0.43, sz: 0.86 }));
+      t.push(box(0.17, 0.16, 0.014, c.pants, { y: 0.6, z: front(0.6), rx: tilt }));
       [-1, 1].forEach((sx) => {
-        t.push(box(0.04, 0.24, 0.02, c.pants, { x: sx * 0.085, y: 1.31, z: 0.128 }));
-        t.push(box(0.04, 0.5, 0.02, c.pants, { x: sx * 0.085, y: 1.18, z: -0.128 }));
-        t.push(orb(0.014, gold, { x: sx * 0.085, y: 1.2, z: 0.138 }));
+        t.push(box(0.035, 0.14, 0.016, c.pants, { x: sx * 0.07, y: 0.72, z: front(0.72), rx: tilt }));
+        t.push(orb(0.014, gold, { x: sx * 0.07, y: 0.66, z: front(0.66) + 0.008 }));
       });
     }
     if (fit === "maillot") { // l'écusson : une petite couronne dorée
-      t.push(box(0.09, 0.02, 0.012, gold, { y: 1.2, z: 0.13 }));
-      [-0.03, 0, 0.03].forEach((x) => t.push(part(new THREE.ConeGeometry(0.016, 0.05, 4), gold, { x, y: 1.235, z: 0.13 })));
-      [1.0, 0.95].forEach((y) => t.push(tube(0.191, 0.189, 0.022, cream, { y, sz: 0.63 })));
+      t.push(box(0.09, 0.02, 0.012, gold, { y: 0.6, z: front(0.6) + 0.002 }));
+      [-0.03, 0, 0.03].forEach((x) => t.push(part(new THREE.ConeGeometry(0.016, 0.05, 4), gold, { x, y: 0.635, z: front(0.63) })));
+      t.push(tube(rAt(0.44) + 0.004, rAt(0.4) + 0.004, 0.03, cream, { y: 0.42, sz: 0.85 }));
     }
-    if (low === "robe") t.push(tube(0.185, 0.3, 0.44, c.top, { y: 0.66, sz: 0.78 }));
-    if (low === "jupe") t.push(tube(0.176, 0.27, 0.27, c.pants, { y: 0.71, sz: 0.76 }));
+    if (low === "jupe") t.push(tube(0.2, 0.3, 0.2, c.pants, { y: 0.36, sz: 0.85 }));
     if (c.extra === "echarpe") {
-      t.push(tube(0.088, 0.094, 0.075, BRAND, { y: 1.445 }));
-      t.push(box(0.075, 0.24, 0.03, BRAND, { x: 0.065, y: 1.29, z: 0.128 }));
+      t.push(tube(0.165, 0.175, 0.07, BRAND, { y: 0.79, sz: 0.9 }));
+      t.push(box(0.075, 0.22, 0.03, BRAND, { x: 0.07, y: 0.66, z: front(0.66) + 0.01, rx: tilt }));
     }
     if (c.pack) {
-      t.push(box(0.3, 0.36, 0.13, c.pack, { y: 1.14, z: -0.2 }));
-      t.push(orb(0.15, c.pack, { y: 1.32, z: -0.2, sy: 0.5, sz: 0.44 }));
-      [-1, 1].forEach((sx) => t.push(box(0.04, 0.42, 0.02, shade(c.pack, 0.75), { x: sx * 0.12, y: 1.2, z: 0.135 })));
+      t.push(box(0.26, 0.3, 0.12, c.pack, { y: 0.58, z: -0.22 }));
+      t.push(orb(0.13, c.pack, { y: 0.73, z: -0.22, sy: 0.5, sz: 0.46 }));
     }
-    if (c.vest) [1.02, 1.24].forEach((y) => t.push(tube(0.22, 0.212, 0.05, "#d5d8de", { y, sz: 0.63 }))); // bandes réfléchissantes
-    upper.add(limb(t));
-    // Tête : grands yeux brillants, joues roses, sourire
-    const blush = "#" + new THREE.Color(c.skin).lerp(new THREE.Color("#ff8fa3"), 0.5).getHexString();
-    const parts = [
-      orb(0.155, c.skin, { y: 1.6, sy: 1.12 }),
-      orb(0.016, shade(c.skin, 0.93), { y: 1.578, z: 0.157 }),
-      box(0.056, 0.015, 0.02, "#b5546a", { y: 1.532, z: 0.143 }),
-    ];
-    [-1, 1].forEach((sx) => {
-      parts.push(orb(0.03, c.skin, { x: sx * 0.152, y: 1.6, sy: 1.4, sz: 0.7 }));
-      parts.push(orb(0.04, "#ffffff", { x: sx * 0.062, y: 1.612, z: 0.128, sy: 1.2, sz: 0.5 }));
-      parts.push(orb(0.027, "#4a2f1d", { x: sx * 0.062, y: 1.61, z: 0.139, sy: 1.15, sz: 0.5 }));
-      parts.push(orb(0.015, "#15161a", { x: sx * 0.062, y: 1.61, z: 0.147, sz: 0.5 }));
-      parts.push(orb(0.009, "#ffffff", { x: sx * 0.062 + 0.012, y: 1.626, z: 0.153 }));
-      parts.push(box(0.06, 0.012, 0.02, shade(h, 0.7), { x: sx * 0.062, y: 1.676, z: 0.14, rz: sx * 0.07 }));
-      parts.push(box(0.03, 0.014, 0.02, "#b5546a", { x: sx * 0.04, y: 1.541, z: 0.14, rz: sx * 0.55 }));
-      parts.push(orb(0.032, blush, { x: sx * 0.1, y: 1.565, z: 0.105, sy: 0.6, sz: 0.35 }));
-      if (c.extra === "lunettes") parts.push(part(new THREE.TorusGeometry(0.04, 0.006, 6, 16), "#22252e", { x: sx * 0.062, y: 1.612, z: 0.153 }));
-      if (c.extra === "soleil") parts.push(orb(0.045, "#15161a", { x: sx * 0.062, y: 1.612, z: 0.147, sz: 0.3 }));
-    });
-    if (c.extra === "lunettes" || c.extra === "soleil") parts.push(box(0.05, 0.008, 0.008, "#22252e", { y: 1.615, z: 0.157 }));
-    // La coupe de cheveux. Sous un chapeau couvrant, le dessus disparaît mais le reste se voit.
+    if (c.vest) [0.48, 0.64].forEach((y) => t.push(tube(rAt(y + 0.02) + 0.006, rAt(y - 0.02) + 0.006, 0.045, "#d5d8de", { y, sz: 0.85 }))); // bandes réfléchissantes
+    body.add(limb(t));
+    /* La tête : une grosse boule un peu aplatie, avec le visage peint dessus.
+       Les cheveux et les chapeaux sont dessinés à l'échelle d'une petite tête,
+       puis agrandis d'un bloc autour d'elle. */
+    const neck = new THREE.Group();
+    neck.position.y = NECK;
+    body.add(neck);
+    const faceOf = (closed) => canvasTexture(c.small ? 256 : 512, (g, w, hh) => drawFace(g, w, hh, {
+      skin: c.skin, brow: shade(h, 0.7), nose: shade(c.skin, 0.8), eyes: c.eyes, extra: c.extra,
+    }, closed), c.small ? 128 : 256);
+    const faces = [faceOf(false)].concat(c.small ? [] : [faceOf(true)]);
+    const headMat = new THREE.MeshStandardMaterial({ map: faces[0], emissiveMap: faces[0], emissive: 0xffffff, emissiveIntensity: 0.2, roughness: 0.86, metalness: 0, envMapIntensity: 0.25 });
+    const headMesh = new THREE.Mesh(new THREE.SphereGeometry(0.36, 36, 26), headMat);
+    headMesh.scale.set(1, 0.92, 0.98);
+    headMesh.position.y = 1.1 - NECK;
+    headMesh.castShadow = true;
+    headMesh.userData.own = faces; // textures à libérer avec le modèle
+    neck.add(headMesh);
+    const parts = [];
+    [-1, 1].forEach((sx) => parts.push(orb(0.03, c.skin, { x: sx * 0.152, y: 1.59, sy: 1.3, sz: 0.7 }))); // oreilles
     const scalp = () => parts.push(orb(0.168, h, { y: 1.64, z: -0.03 }));
-    const fringe = () => { if (bare) parts.push(orb(0.075, h, { y: 1.722, z: 0.085, sx: 1.7, sy: 0.5, rx: 0.5 })); };
+    const fringe = () => { if (bare) parts.push(orb(0.078, h, { y: 1.728, z: 0.082, sx: 1.75, sy: 0.5, rx: 0.5 })); };
     if (cut === "mohawk") {
       parts.push(orb(0.158, shade(c.skin, 0.82), { y: 1.63, z: -0.02 })); // tempes rasées
       if (bare) for (let k = 0; k < 6; k++) {
@@ -1381,20 +1507,37 @@ export function createParking3D(container, options) {
       else { scalp(); [-1, 1].forEach((sx) => parts.push(orb(0.11, h, { x: sx * 0.17, y: 1.6, z: -0.05 }))); }
     } else {
       scalp();
-      if (cut === "short" || cut === "bob" || cut === "tail" || cut === "twin") fringe();
-      if (cut === "bob") parts.push(orb(0.185, h, { y: 1.57, z: -0.045, sy: 0.85 }));
+      if (["short", "bob", "tail", "twin", "tresses"].includes(cut)) fringe();
+      if (cut === "bol" && bare) {
+        parts.push(orb(0.184, h, { y: 1.665, z: -0.012, sy: 0.72 }));
+        parts.push(orb(0.1, h, { y: 1.712, z: 0.075, sx: 1.6, sy: 0.42 }));
+      }
+      if (cut === "banane" && bare) parts.push(orb(0.09, h, { y: 1.79, z: 0.085, sx: 1.25, sy: 0.75, rx: -0.4 }));
+      if (cut === "tresses") [-1, 1].forEach((sx) => {
+        [1.56, 1.47, 1.39].forEach((y, k) => parts.push(orb(0.042 - k * 0.004, h, { x: sx * (0.185 + k * 0.012), y })));
+        parts.push(orb(0.026, BRAND, { x: sx * 0.212, y: 1.335 }));
+      });
+      if (cut === "piques" && bare) for (let k = 0; k < 9; k++) {
+        const a = (k / 9) * Math.PI * 2, out = k % 2 ? 0.5 : 0.85;
+        parts.push(part(new THREE.ConeGeometry(0.05, 0.16, 6), h, { x: Math.sin(a) * 0.1, y: 1.8, z: Math.cos(a) * 0.1 - 0.03, rx: Math.cos(a) * out, rz: -Math.sin(a) * out }));
+      }
+      if (cut === "boucles") for (let k = 0; k < 12; k++) {
+        const a = (k / 12) * Math.PI * 2, up = bare && k % 2 === 0;
+        parts.push(orb(0.062, h, { x: Math.sin(a) * (up ? 0.1 : 0.155), y: up ? 1.79 : 1.66 - Math.abs(Math.cos(a)) * 0.05, z: Math.cos(a) * (up ? 0.1 : 0.15) - 0.04 - (Math.cos(a) > 0.5 ? 0.12 : 0) }));
+      }
+      if (cut === "bob") parts.push(orb(0.185, h, { y: 1.57, z: -0.05, sy: 0.85 }));
       if (cut === "long") {
-        parts.push(tube(0.15, 0.17, 0.36, h, { y: 1.5, z: -0.085, sz: 0.55 }));
-        [-1, 1].forEach((sx) => parts.push(caps(0.04, 0.2, h, { x: sx * 0.15, y: 1.5, z: 0.03 })));
+        parts.push(tube(0.15, 0.17, 0.3, h, { y: 1.5, z: -0.085, sz: 0.55 }));
+        [-1, 1].forEach((sx) => parts.push(caps(0.04, 0.16, h, { x: sx * 0.155, y: 1.5, z: 0.02 })));
       }
       if (cut === "bun") parts.push(orb(0.085, h, bare ? { y: 1.82, z: -0.07 } : { y: 1.6, z: -0.2 }));
       if (cut === "tail") {
         parts.push(orb(0.04, BRAND, { y: 1.7, z: -0.17 })); // l'élastique
-        parts.push(caps(0.045, 0.22, h, { y: 1.55, z: -0.23, rx: -0.3 }));
+        parts.push(caps(0.045, 0.18, h, { y: 1.56, z: -0.23, rx: -0.3 }));
       }
       if (cut === "twin") [-1, 1].forEach((sx) => {
         parts.push(orb(0.035, BRAND, { x: sx * 0.165, y: 1.66 }));
-        parts.push(caps(0.045, 0.18, h, { x: sx * 0.22, y: 1.54, rz: sx * 0.3 }));
+        parts.push(caps(0.045, 0.15, h, { x: sx * 0.215, y: 1.55, rz: sx * 0.3 }));
       });
     }
     if (hat === "cap") {
@@ -1402,9 +1545,9 @@ export function createParking3D(container, options) {
       parts.push(orb(0.178, color, { y: 1.72, sy: 0.75 }));
       parts.push(orb(0.11, color, { y: 1.705, z: 0.19, sy: 0.12, sz: 1.1, rx: 0.12 })); // visière
     } else if (hat === "straw") {
-      parts.push(tube(0.36, 0.36, 0.025, "#e8cf8a", { y: 1.715 }));
-      parts.push(tube(0.17, 0.186, 0.13, "#e8cf8a", { y: 1.79 }));
-      parts.push(tube(0.188, 0.188, 0.04, BRAND, { y: 1.745 }));
+      parts.push(tube(0.34, 0.34, 0.022, "#e8cf8a", { y: 1.715 }));
+      parts.push(tube(0.17, 0.186, 0.12, "#e8cf8a", { y: 1.785 }));
+      parts.push(tube(0.188, 0.188, 0.036, BRAND, { y: 1.745 }));
     } else if (hat === "bonnet") {
       parts.push(orb(0.18, c.top, { y: 1.69, sy: 0.82 }));
       parts.push(tube(0.176, 0.176, 0.05, dark, { y: 1.675 }));
@@ -1413,43 +1556,39 @@ export function createParking3D(container, options) {
       parts.push(orb(0.2, "#22252e", { x: 0.02, y: 1.775, z: -0.02, sy: 0.3 }));
       parts.push(tube(0.01, 0.01, 0.04, "#22252e", { y: 1.84 }));
     } else if (hat === "couronne") {
-      parts.push(tube(0.125, 0.125, 0.06, gold, { y: 1.8 }));
+      parts.push(tube(0.115, 0.115, 0.05, gold, { y: 1.8 }));
       for (let k = 0; k < 6; k++) {
         const a = (k / 6) * Math.PI * 2;
-        parts.push(part(new THREE.ConeGeometry(0.03, 0.09, 4), gold, { x: Math.sin(a) * 0.115, y: 1.87, z: Math.cos(a) * 0.115 }));
-        parts.push(orb(0.014, k % 2 ? BRAND : "#d92b3a", { x: Math.sin(a) * 0.127, y: 1.8, z: Math.cos(a) * 0.127 }));
+        parts.push(part(new THREE.ConeGeometry(0.028, 0.08, 4), gold, { x: Math.sin(a) * 0.105, y: 1.86, z: Math.cos(a) * 0.105 }));
+        parts.push(orb(0.013, k % 2 ? BRAND : "#d92b3a", { x: Math.sin(a) * 0.117, y: 1.8, z: Math.cos(a) * 0.117 }));
       }
     }
-    // La tête est agrandie autour du cou, et peut se tourner (regard, hochement).
-    const neck = new THREE.Group(), headG = new THREE.Group();
-    neck.position.y = NECK;
-    headG.scale.setScalar(BIG);
-    headG.position.y = -NECK * BIG;
-    headG.add(limb(parts));
-    neck.add(headG);
-    upper.add(neck);
+    const BIG = 2.32, FLAT = 0.86; // de la petite tête de travail (centre y = 1,6) à la grosse
+    const hairG = new THREE.Group();
+    hairG.scale.set(BIG, BIG * FLAT, BIG);
+    hairG.position.y = 1.1 - NECK - 1.6 * BIG * FLAT;
+    hairG.add(limb(parts));
+    neck.add(hairG);
     const bareLeg = low !== "pants";
-    const leg = () => [
-      caps(0.078, 0.34, bareLeg ? c.skin : c.pants, { y: -0.28 }),
-      ...(low === "short" ? [caps(0.084, 0.1, c.pants, { y: -0.12 })] : []),
-      orb(0.092, c.shoes, { y: -0.575, z: 0.045, sy: 0.62, sz: 1.55 }),
-    ];
-    const arm = () => [caps(0.058, 0.2, c.sleeve || c.top, { y: -0.14 }), caps(0.046, 0.2, longSleeve ? c.sleeve || c.top : c.skin, { y: -0.38 }), orb(0.052, c.skin, { y: -0.56 })];
+    const leg = () => [caps(0.085, 0.13, bareLeg ? c.skin : c.pants, { y: -0.14 }), orb(0.105, c.shoes, { y: -0.285, z: 0.035, sy: 0.55, sz: 1.35 })];
+    const arm = () => [caps(0.062, 0.1, c.sleeve || c.top, { y: -0.09 }), caps(0.056, 0.08, longSleeve ? c.sleeve || c.top : c.skin, { y: -0.21 }), orb(0.072, c.skin, { y: -0.31 })];
     const person = {
       root, body, head: neck,
-      legL: pivot(body, -0.095, 0.8 - DROP, 0, leg()), legR: pivot(body, 0.095, 0.8 - DROP, 0, leg()),
-      armL: pivot(upper, -0.262, 1.365, 0, arm()), armR: pivot(upper, 0.262, 1.365, 0, arm()),
+      legL: pivot(body, -0.1, 0.34, 0, leg()), legR: pivot(body, 0.1, 0.34, 0, leg()),
+      armL: pivot(body, -0.19, 0.72, 0, arm()), armR: pivot(body, 0.19, 0.72, 0, arm()),
+      blink(closed) { if (faces[1]) headMat.map = headMat.emissiveMap = faces[closed ? 1 : 0]; },
     };
+    person.armL.rotation.z = -0.38; person.armR.rotation.z = 0.38; // bras un peu écartés
     if (c.balloon && c.balloon !== "none") { // un ballon KingPar, tenu au bout de sa ficelle
       const bg = new THREE.Group();
-      bg.position.set(0.3, 0.62, 0.06);
+      bg.position.set(0.36, 0.42, 0.04);
       bg.add(limb([
-        cyl(0.006, 1.3, cream, { y: 0.65 }, 5), orb(0.24, c.balloon, { y: 1.56, sy: 1.18 }),
-        part(new THREE.ConeGeometry(0.03, 0.05, 6), c.balloon, { y: 1.27 }),
+        cyl(0.006, 1.35, cream, { y: 0.675 }, 5), orb(0.24, c.balloon, { y: 1.62, sy: 1.18 }),
+        part(new THREE.ConeGeometry(0.03, 0.05, 6), c.balloon, { y: 1.33 }),
       ]));
       [0, Math.PI].forEach((ry) => {
         const badge = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.22), M.logo);
-        badge.position.set(0, 1.58, ry ? -0.243 : 0.243);
+        badge.position.set(0, 1.64, ry ? -0.243 : 0.243);
         badge.rotation.y = ry;
         bg.add(badge);
       });
@@ -1457,6 +1596,13 @@ export function createParking3D(container, options) {
       person.balloon = bg;
     }
     return person;
+  }
+  // Libère un modèle : géométries, et textures de visage qui lui sont propres.
+  function disposeModel(group) {
+    group.traverse((node) => {
+      if (node.geometry) node.geometry.dispose();
+      if (node.userData && node.userData.own) { node.userData.own.forEach((tex) => tex.dispose()); node.material.dispose(); }
+    });
   }
   // Le promeneur : sa tenue se choisit dans les boutiques du village (voir `openShop`).
   const look = loadLook();
@@ -1466,7 +1612,9 @@ export function createParking3D(container, options) {
     store(CARNET_KEY, {
       stamps: Array.from(progress.stamps), wins: Array.from(progress.wins), best: progress.best,
       km: Math.round(progress.km * 1000) / 1000, jumps: progress.jumps,
-      pets: progress.pets, cuts: progress.cuts, played: progress.played, fits: progress.fits, day: progress.day,
+      pets: progress.pets, cuts: progress.cuts, played: progress.played, fits: progress.fits, cars: progress.cars, day: progress.day,
+      walked: Math.round(progress.walked), hellos: progress.hellos,
+      quests: progress.quests, qn: progress.qn, qcut: progress.qcut,
       gold: progress.gold, goldDay: progress.goldDay,
     });
   }
@@ -1474,7 +1622,7 @@ export function createParking3D(container, options) {
   const playerLook = () => ({
     top: look.top, hem: shade(look.top, 0.72), skin: look.skin, hair: look.hair,
     pants: look.pants, shoes: "#f4f5f7", pack: look.pack ? "#f2b01e" : null, hat: bareHead ? "none" : look.hat, cut: look.cut,
-    outfit: look.outfit, bottom: look.bottom, extra: look.extra, balloon: look.balloon,
+    outfit: look.outfit, bottom: look.bottom, extra: look.extra, balloon: look.balloon, eyes: look.eyes,
   });
   const player = buildPerson(playerLook());
   // Remplace un modèle (promeneur, compagnon) sans changer l'objet que tout le monde tient.
@@ -1483,7 +1631,7 @@ export function createParking3D(container, options) {
     next.root.position.copy(holder.root.position);
     next.root.rotation.copy(holder.root.rotation);
     next.root.visible = holder.root.visible;
-    holder.root.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
+    disposeModel(holder.root);
     holder.root.removeFromParent();
     Object.assign(holder, next);
     if (parent) parent.add(holder.root);
@@ -1664,7 +1812,8 @@ export function createParking3D(container, options) {
     pops.length = 0;
     labelLayer.replaceChildren();
     signMats.length = 0;
-    net.others.forEach((o) => { if (o.car) o.car.paintMat.dispose(); }); // ils reviennent au prochain échange
+    net.others.forEach((o) => { disposeModel(o.group); if (o.car) o.car.paintMat.dispose(); }); // ils reviennent au prochain échange
+    if (lot) lot.quest.folk.forEach((f) => disposeModel(f.model.root));
     net.others.clear();
 
     const L = computeLayout(zones);
@@ -1792,7 +1941,8 @@ export function createParking3D(container, options) {
 
     // Libre-service : trois véhicules à conduire, sur leur aire, à gauche du parvis
     props.push(box(13.6, 0.1, 6.8, "#4a4e5c", { x: -19.5, y: 0.05, z: RENTAL_Z }));
-    [-25.7, -21.5, -17.5, -13.3].forEach((x) => props.push(box(0.12, 0.02, 5.6, "#f2f3f5", { x, y: 0.11, z: RENTAL_Z })));
+    props.push(box(12.2, 0.1, 6.8, "#4a4e5c", { x: -32.4, y: 0.05, z: RENTAL_Z })); // trois places de plus
+    [-37.7, -33.6, -29.6, -25.7, -21.5, -17.5, -13.3].forEach((x) => props.push(box(0.12, 0.02, 5.6, "#f2f3f5", { x, y: 0.11, z: RENTAL_Z })));
     props.push(cyl(0.08, 3.4, "#30343f", { x: -19.5, y: 1.7, z: RENTAL_Z + 3.7 }, 8));
     props.push(box(5.0, 1.1, 0.14, "#d92b3a", { x: -19.5, y: 3.5, z: RENTAL_Z + 3.7 }));
 
@@ -1879,8 +2029,9 @@ export function createParking3D(container, options) {
       [-1, 1].forEach((sx) => lampions.push({ x: hx + sx * (sw / 2 + 0.55), y: 2.35, z: fzFace + out * 0.45, sx: 0.2, sy: 0.26, sz: 0.2 }));
       const name = SHOPS[i], kind = SHOP_PANELS[name];
       cityPoints.push({
-        x: hx, z: fzFace + out * 1.9, label: SHOP_LABELS[name],
-        action: kind ? () => openShop(kind, out === 1 ? 0 : Math.PI) : () => say(SHOP_SAYS[name]),
+        x: hx, z: fzFace + out * 1.9, label: SHOP_LABELS[name] + (SHOP_GAMES[name] ? " (mini-jeu)" : ""),
+        action: kind ? () => openShop(kind, out === 1 ? 0 : Math.PI)
+          : SHOP_GAMES[name] ? () => { say(SHOP_SAYS[name]); openGame(SHOP_GAMES[name]); } : () => say(SHOP_SAYS[name]),
       });
     });
     // La statue dorée de la mascotte garde l'entrée du village.
@@ -1973,8 +2124,7 @@ export function createParking3D(container, options) {
 
     // 2. Le belvédère sur sa colline : ruelle, escalier sous cinq arches (une par zone), pavillon et cloche
     props.push(box(5, 0.04, 44.5, "#a8a397", { x: laneN, y: 0.02, z: R + 4.5 + 22.25 }));
-    const hillGeo = new THREE.CylinderGeometry(hill.rt, hill.r, hill.h, 20, 1).toNonIndexed();
-    hillGeo.computeVertexNormals();
+    const hillGeo = new THREE.CylinderGeometry(hill.rt, hill.r, hill.h, 44, 1);
     const hillMesh = new THREE.Mesh(hillGeo, M.hill);
     hillMesh.position.set(hill.x, hill.h / 2, hill.z);
     hillMesh.receiveShadow = true;
@@ -2071,6 +2221,7 @@ export function createParking3D(container, options) {
     cityObstacles.push([bal.x - 0.5, bal.x + 0.5, bal.z - 0.5, bal.z + 0.5]);
     cityPoints.push({ x: bal.x, z: bal.z + 1.5, label: "Prendre un ballon KingPar (offert)", action: openBalloons });
     signBoards.push([0.86, 0.3, "BALLONS", "#ffd60a", "#22252e", bal.x, 0.6, bal.z + 0.46, 0]);
+    cityPoints.push({ x: bal.x + 2.6, z: bal.z + 0.4, label: "Jouer à l'éclate-ballons (mini-jeu)", action: () => openGame("ballons") });
     lanternPools.push({ x: fete.x, y: 0.06, z: fete.z, sx: 30, sz: 24 });
 
     // 3. Le jardin de la Tour KingPar : étang aux carpes, passerelle bleue, tour aux cinq étages (un par zone)
@@ -2165,7 +2316,7 @@ export function createParking3D(container, options) {
     bollard(tx + 1.5, R - 8.4);
     cityTrees.push([tx - 3, R + 10.5, true, 0], [tx - 3, R - 10.5, true, 0]);
     const peaks = [], vx = (X0 + cityX1) / 2;
-    const haze = ["#8fb9a8", "#7fa9b5", "#9cc2b0", "#86a8c4", "#a5c8b4"];
+    const haze = ["#9fdc8f", "#8fd3a6", "#a9e39a", "#8ccbb8", "#b4e6a0"];
     for (let i = 0; i < 16; i++) {
       const a = -1.75 + (i / 15) * 3.5 + (cityRnd() - 0.5) * 0.12, dist = 330 + cityRnd() * 190;
       const rr = 75 + cityRnd() * 70, hh = 55 + cityRnd() * 80;
@@ -2176,12 +2327,12 @@ export function createParking3D(container, options) {
     peaks.push({ x: sign.x, y: sign.h / 2 - 2, z: sign.z, sx: sign.r, sy: sign.h, sz: sign.r, color: "#86c46a" });
     "KINGPAR".split("").forEach((letter, i) => {
       const lz = sign.z + (i - 3) * 13.4, lx = sign.x - 92;
-      const ground = sign.h * (1 - Math.hypot(lx - sign.x, lz - sign.z) / sign.r) - 2;
+      const ground = sign.h * Math.sqrt(Math.max(0, 1 - Math.pow(Math.hypot(lx - sign.x, lz - sign.z) / sign.r, 2))) - 2;
       props.push(box(0.7, 14, 0.7, "#3b4252", { x: lx + 0.6, y: ground + 3, z: lz }));
       archSigns.push({ x: lx, y: ground + 15, z: lz, ry: -Math.PI / 2, size: 12, color: BRAND, text: letter, bg: "#ffffff" });
     });
-    const peakGeo = new THREE.ConeGeometry(1, 1, 7, 1).toNonIndexed();
-    peakGeo.computeVertexNormals();
+    peaks.forEach((pk) => { pk.y = -2; }); // des dômes : le centre de la boule est au sol
+    const peakGeo = new THREE.SphereGeometry(1, 24, 16);
     instanced(group, peakGeo, M.far, peaks);
 
     const propsMesh = new THREE.Mesh(merge(props, true), M.props);
@@ -2286,13 +2437,14 @@ export function createParking3D(container, options) {
       const a = rnd() * Math.PI * 2, r = Math.max(W, D) * 0.75 + 22 + rnd() * 150;
       const x = L.cx + Math.cos(a) * r, z = D / 2 + Math.sin(a) * r;
       if (z < ROAD_Z + 9 && z > ROAD_Z - 9) continue;
-      if (x > -30 && x < L.xMax + 6 && z > -9 && z < D + 6) continue;
+      if (x > -42 && x < L.xMax + 6 && z > -10 && z < D + 6) continue;
       if (inCity(x, z)) continue;
       ring(x, z);
     }
     instanced(group, new THREE.CylinderGeometry(0.16, 0.24, 1.8, 7), M.trunk,
       trees.map((t) => ({ x: t.x, y: t.y0 + 0.9 * t.s, z: t.z, sy: t.s })), "cast");
-    const greens = ["#2f7d3b", "#3f9447", "#4fa64f", "#2c6e3f", "#5aa845", "#39853f"];
+    const greens = ["#4fb957", "#5cc95a", "#6fd36a", "#49b05a", "#7ed36f", "#58c26b"];
+    const lighter = (color) => "#" + new THREE.Color(color).lerp(new THREE.Color("#ffffff"), 0.22).getHexString();
     const leaves = [];
     trees.forEach((t) => {
       if (t.pink) {
@@ -2301,19 +2453,36 @@ export function createParking3D(container, options) {
         leaves.push({ x: t.x, y: t.y0 + 2.9 * t.s, z: t.z, sx: 2.2 * t.s, sy: 1.6 * t.s, sz: 2.2 * t.s, ry: rnd() * 6, color: pick() });
         leaves.push({ x: t.x + 0.9 * t.s, y: t.y0 + 3.5 * t.s, z: t.z + 0.5 * t.s, sx: 1.5 * t.s, sy: 1.25 * t.s, sz: 1.5 * t.s, ry: rnd() * 6, color: pick() });
         leaves.push({ x: t.x - 0.8 * t.s, y: t.y0 + 3.7 * t.s, z: t.z - 0.6 * t.s, sx: 1.4 * t.s, sy: 1.2 * t.s, sz: 1.4 * t.s, ry: rnd() * 6, color: pick() });
+        leaves.push({ x: t.x - 0.5 * t.s, y: t.y0 + 4.1 * t.s, z: t.z + 0.5 * t.s, sx: 0.8 * t.s, sy: 0.7 * t.s, sz: 0.8 * t.s, color: "#ffe3ec" }); // reflet
         return;
       }
       const color = greens[Math.floor(rnd() * greens.length)];
       leaves.push({ x: t.x, y: t.y0 + 2.6 * t.s, z: t.z, sx: 1.7 * t.s, sy: 1.9 * t.s, sz: 1.7 * t.s, ry: rnd() * 6, color });
       leaves.push({ x: t.x + 0.3, y: t.y0 + 3.9 * t.s, z: t.z - 0.2, sx: 1.15 * t.s, sy: 1.3 * t.s, sz: 1.15 * t.s, ry: rnd() * 6, color });
+      leaves.push({ x: t.x - 0.55 * t.s, y: t.y0 + 3.5 * t.s, z: t.z + 0.6 * t.s, sx: 0.8 * t.s, sy: 0.85 * t.s, sz: 0.8 * t.s, color: lighter(color) }); // reflet
     });
     cityLeaves.forEach((l) => leaves.push(l));
+    // Fleurs et buissons ronds, semés dans le village et autour du parking.
+    const petalsOf = ["#ff7aa8", "#ffd60a", "#ffffff", "#ff9f1c", "#b388ff", "#ff5d6c"];
+    for (let i = 0; i < 340; i++) {
+      const x = X0 - 60 + rnd() * (cityX1 - X0 + 70), z = vz0 + rnd() * (vz1 - vz0);
+      if (Math.abs(z - ROAD_Z) < 5.5) continue;
+      if (i % 9 === 0) {
+        const bs = 0.45 + rnd() * 0.4, color = greens[i % greens.length];
+        leaves.push({ x, y: bs * 0.75, z, sx: bs * 1.25, sy: bs, sz: bs * 1.25, color });
+        leaves.push({ x: x + bs * 0.7, y: bs * 0.6, z: z + 0.2, sx: bs * 0.85, sy: bs * 0.75, sz: bs * 0.85, color: lighter(color) });
+      } else {
+        leaves.push({ x, y: 0.2, z, sx: 0.035, sy: 0.2, sz: 0.035, color: "#49b05a" });
+        leaves.push({ x, y: 0.42, z, sx: 0.15, sy: 0.11, sz: 0.15, color: petalsOf[i % petalsOf.length] });
+        leaves.push({ x, y: 0.47, z, sx: 0.06, sy: 0.06, sz: 0.06, color: "#ffd60a" });
+      }
+    }
     L.islands.forEach((it) => {
       leaves.push({ x: it.x, y: 0.55, z: it.z - 1.2, sx: 0.6, sy: 0.6, sz: 0.6, color: "#3f9447" });
       leaves.push({ x: it.x, y: 0.55, z: it.z + 1.2, sx: 0.6, sy: 0.6, sz: 0.6, color: "#2f7d3b" });
       leaves.push({ x: it.x, y: 0.7, z: it.z, sx: 0.75, sy: 0.75, sz: 0.75, color: "#4fa64f" });
     });
-    instanced(group, new THREE.IcosahedronGeometry(1, 0), M.foliage, leaves, "cast");
+    instanced(group, new THREE.SphereGeometry(1, 16, 12), M.foliage, leaves, "cast");
 
     // Panneaux : portique, totem
     const gantry = signMaterial(1024, (ctx, w, h) => {
@@ -2578,6 +2747,38 @@ export function createParking3D(container, options) {
     tag("Véhicules à conduire", -19.5, 4.9, RENTAL_Z + 3.7, null, true).node.style.background = "#d92b3a";
     tag(CITY_NAME, (X0 + cityX1) / 2, 46, ROAD_Z, null, true);
     const city = { x0: X0, x1: cityX1, z0: vz0, z1: vz1, pond, hill, petals, koi, fireworks, gate: tx, bay, pumps: { x: gs.x, z: gz } };
+    // Les habitants et leurs quêtes : chacun attend près de chez lui.
+    const spots = {
+      chat: [X0 + 103.5, R + 6.1, Math.PI], fleurs: [X0 + 13, R - 26, 0], cloche: [fete.x - 5.5, fete.z - 9.4, Math.PI],
+      olives: [X0 + 65.6, R - 6.1, 0], coupe: [X0 + 26.6, R - 6.1, 0], colis: [gs.x - 3, gs.z + 3.2, Math.PI],
+    };
+    const folk = QUESTS.map((q) => {
+      const at = spots[q.id], lk = q.look;
+      const model = buildPerson({
+        top: lk.top, hem: shade(lk.top, 0.72), skin: lk.skin, hair: lk.hair, pants: lk.pants, shoes: "#f4f5f7",
+        hat: lk.hat, cut: lk.cut, outfit: lk.outfit, bottom: lk.bottom, extra: lk.extra, eyes: lk.eyes, small: true,
+      });
+      model.root.position.set(at[0], 0, at[1]);
+      model.root.rotation.y = at[2];
+      group.add(model.root);
+      const mark = tag("!", at[0], 2.15, at[1], null, true);
+      mark.node.classList.add("quest");
+      obstacles.push([at[0] - 0.28, at[0] + 0.28, at[1] - 0.28, at[1] + 0.28]);
+      points.push({ x: at[0] + Math.sin(at[2]) * 1.2, z: at[1] + Math.cos(at[2]) * 1.2, label: "Parler à " + q.who, action: () => talk(q.id) });
+      return { id: q.id, x: at[0], z: at[1], rot: at[2], model, tag: mark };
+    });
+    const moustache = buildPet("chat"); // le chat de Mamie Gisèle, caché près de l'étang
+    moustache.root.position.set(pond.x + 9.6, 0, pond.z + 6.6);
+    moustache.root.rotation.y = -2.2;
+    group.add(moustache.root);
+    const goldFlower = new THREE.MeshBasicMaterial({ color: 0xffd60a, toneMapped: false });
+    const blooms = [[X0 + 25, R - 24.4], [X0 + 49.5, R - 26.4], [X0 + 74, R - 24.4], [X0 + 98.5, R - 25.2], [X0 + 61.75, R - 53.2]].map((at) => {
+      const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 8), goldFlower);
+      mesh.position.set(at[0], 0.55, at[1]);
+      group.add(mesh);
+      return { mesh, x: at[0], z: at[1] };
+    });
+    const quest = { folk, cat: { model: moustache, x: pond.x + 9.6, z: pond.z + 6.6 }, blooms, drop: { x: X0 + 52, z: R + 5.6 } };
     // Le ticket d'or du jour : une cachette parmi douze, choisie par la date.
     const hides = [
       [mascot.x + 2.4, mascot.z + 1.6, 0], [pond.x, pond.z, 1.47], [hill.x + 5.2, hill.z + 8.4, hill.h], [fete.x - 13, fete.z + 9.4, 0],
@@ -2621,9 +2822,10 @@ export function createParking3D(container, options) {
 
     lot = {
       L, group, zones, fleet, leds, rings, hover, gateIn, gateOut, textures, tags, resaSprites,
-      obstacles, points, dogTag, agentTag, playerTag, addTag, removeTag, live, gold: goldTicket, D, city, bounds, decor: [], seq: 0, pickDirty: true,
+      obstacles, points, dogTag, agentTag, playerTag, addTag, removeTag, live, gold: goldTicket, quest, D, city, bounds, decor: [], seq: 0, pickDirty: true,
     };
     spawnTraffic();
+    refreshQuests();
   }
 
   // --- Véhicules -----------------------------------------------------------------------
@@ -3175,7 +3377,7 @@ export function createParking3D(container, options) {
   function netDrop(id) {
     const o = net.others.get(id);
     if (!o) return;
-    o.group.traverse((node) => { if (node.geometry) node.geometry.dispose(); });
+    disposeModel(o.group);
     o.group.removeFromParent();
     if (o.car) o.car.paintMat.dispose();
     lot.removeTag(o.tag);
@@ -3196,14 +3398,14 @@ export function createParking3D(container, options) {
       const sig = JSON.stringify(p.look) + "|" + (p.drive || "");
       if (o.sig !== sig) { // tenue, compagnon ou véhicule changés : on refait le modèle
         o.sig = sig;
-        o.group.traverse((node) => { if (node.geometry) node.geometry.dispose(); });
+        disposeModel(o.group);
         o.group.clear();
         if (o.car) o.car.paintMat.dispose();
         const lk = p.look;
         o.person = buildPerson({
           top: lk.top, hem: shade(lk.top, 0.72), skin: lk.skin, hair: lk.hair, pants: lk.pants, shoes: "#f4f5f7",
           pack: lk.pack ? "#f2b01e" : null, hat: lk.hat, cut: lk.cut,
-          outfit: lk.outfit, bottom: lk.bottom, extra: lk.extra, balloon: /^#[0-9a-f]{6}$/.test(lk.balloon || "") ? lk.balloon : null,
+          outfit: lk.outfit, bottom: lk.bottom, extra: lk.extra, balloon: /^#[0-9a-f]{6}$/.test(lk.balloon || "") ? lk.balloon : null, eyes: lk.eyes, small: true,
         });
         o.pet = buildPet(lk.pet);
         o.car = p.drive && MODELS[p.drive] ? buildCar(p.drive, lk.top) : null;
@@ -3228,7 +3430,7 @@ export function createParking3D(container, options) {
           speed: Math.round(Math.min(80, Math.abs(walk.speed)) * 10) / 10,
           look: {
             top: lk.top, pants: lk.pants, hair: lk.hair, skin: lk.skin, hat: lk.hat, cut: lk.cut, pet: lk.pet, pack: lk.pack,
-            outfit: lk.outfit, bottom: lk.bottom, extra: lk.extra, balloon: lk.balloon,
+            outfit: lk.outfit, bottom: lk.bottom, extra: lk.extra, balloon: lk.balloon, eyes: lk.eyes,
           },
           ride: walk.ride || null,
           drive: rv ? rv.def.model : null,
@@ -3256,6 +3458,7 @@ export function createParking3D(container, options) {
   function emote(i) {
     if (!walk.on || walk.drive) return;
     say(EMOTES[i]);
+    if (++progress.hellos >= 10) win("sociable");
     net.emote = i;
     net.emoteFor = 3.5;
   }
@@ -3280,7 +3483,7 @@ export function createParking3D(container, options) {
       c.x = lerp(c.x, g.x, k); c.z = lerp(c.z, g.z, k); c.y = lerp(c.y, g.y, k);
       c.rot = angleTo(c.rot, g.rot, k);
       const speed = moved > 0.03 ? Math.min(g.speed, 9) : 0, sn = Math.sin(c.rot), cs = Math.cos(c.rot);
-      const car = o.car, onBike = car && g.drive === "scooter";
+      const car = o.car, onBike = car && BIKES.includes(g.drive);
       const riding = Boolean(g.ride); // passager d'une autre voiture : on ne voit que son nom
       o.person.root.visible = !riding && (!car || onBike);
       o.pet.root.visible = !riding && !car;
@@ -3300,6 +3503,7 @@ export function createParking3D(container, options) {
         o.person.legL.rotation.x = swing; o.person.legR.rotation.x = -swing;
         o.person.armL.rotation.x = -swing * 0.85; o.person.armR.rotation.x = swing * 0.85;
         o.person.body.position.y = Math.abs(Math.sin(o.phase)) * 0.06 * stride;
+        o.person.body.rotation.z = Math.sin(o.phase) * 0.07 * stride;
         o.person.root.position.set(c.x, c.y, c.z);
         o.person.root.rotation.set(0, c.rot, 0);
         const px = c.x - sn * 0.7 - cs * 0.6, pz = c.z - cs * 0.7 + sn * 0.6, trot = Math.min(1, speed / 3) * 0.9;
@@ -3309,6 +3513,8 @@ export function createParking3D(container, options) {
         o.pet.legs[1].rotation.x = o.pet.legs[2].rotation.x = -Math.sin(o.phase * 3.6) * trot;
         o.pet.tail.rotation.z = Math.sin(performance.now() / 70) * o.pet.wag;
       }
+      // Le nom ne s'affiche que de près en promenade ; vu de haut, on voit tout le monde.
+      o.tag.hidden = walk.on && !walk.ride && Math.hypot(c.x - walk.x, c.z - walk.z) > 14;
       const hello = g.emote != null && EMOTES[g.emote] ? " : " + EMOTES[g.emote] : "";
       const label = g.pseudo + (g.stars ? " ★" + g.stars : "") + hello;
       if (o.label !== label) { o.label = label; o.tag.name.textContent = label; }
@@ -3382,6 +3588,7 @@ export function createParking3D(container, options) {
     if (!progress.played.includes(id) && MINI[id]) progress.played.push(id);
     saveProgress();
     if (score >= GOALS[id]) win(id);
+    if (id === "olives" && score >= 12) questEvent("olives");
     if (progress.played.length >= Object.keys(MINI).length) win("tournee");
     if (net.url && score > 0) {
       fetch(net.url + "/scores", {
@@ -3569,6 +3776,7 @@ export function createParking3D(container, options) {
     dong();
     launchFireworks(3);
     stamp("cloche");
+    questEvent("cloche");
   }
   function panelTitle(letter, text, color) {
     const title = elem("h3");
@@ -3585,6 +3793,7 @@ export function createParking3D(container, options) {
   }
   function showPanel(label, side, nodes) {
     if (walk.game) { walk.game.stop(); walk.game = null; }
+    panel.classList.remove("talk");
     panel.replaceChildren();
     nodes.forEach((n) => panel.appendChild(n));
     panel.setAttribute("aria-label", label);
@@ -3619,6 +3828,7 @@ export function createParking3D(container, options) {
     if (!progress.cuts.includes(look.cut)) { progress.cuts.push(look.cut); saveProgress(); }
     if (!progress.fits.includes(look.outfit)) { progress.fits.push(look.outfit); saveProgress(); }
     if (progress.fits.length >= 4) win("style");
+    if (qs("coupe") === 1 && look.cut !== progress.qcut) questEvent("coupe");
     if (progress.cuts.length >= 4) win("coiffe");
   }
   function changePet(kind) {
@@ -3636,7 +3846,7 @@ export function createParking3D(container, options) {
     if (facing != null) { walk.rot = facing; walk.yaw = facing + Math.PI; }
     if (kind === "coiffure" && look.hat !== "none") { bareHead = true; swapModel(player, buildPerson(playerLook())); }
     // La caméra s'approche : le visage chez le coiffeur, la silhouette ailleurs.
-    walk.zoom = kind === "coiffure" ? { dist: 2.1, pitch: 0.06, y: 1.58 } : { dist: 4.4, pitch: 0.2, y: 1.15 };
+    walk.zoom = kind === "coiffure" ? { dist: 2.3, pitch: 0.05, y: 1.12 } : { dist: 4.0, pitch: 0.14, y: 0.85 };
     const set = (field, stampId) => (value) => { look[field] = value; redress(stampId); };
     let nodes;
     if (kind === "tenue") {
@@ -3661,13 +3871,91 @@ export function createParking3D(container, options) {
     } else if (kind === "coiffure") {
       nodes = [panelTitle("C", "Coiffure Le Créneau", "#5b3a8c"), elem("p", null, "Ici, on réussit tous les créneaux. C'est la maison qui offre." + (look.hat !== "none" ? " Votre chapeau vous attend à la sortie." : ""))]
         .concat(choices("Couleur", HAIRS, look.hair, set("hair", "look"), true))
-        .concat(choices("Coupe", CUTS, look.cut, set("cut", "look")));
+        .concat(choices("Coupe", CUTS, look.cut, set("cut", "look")))
+        .concat(choices("Regard", EYES, look.eyes, set("eyes", "look")));
     } else {
       nodes = [panelTitle("C", "Animalerie du Copilote", "#1f6f5c"), elem("p", null, "Qui sera votre copilote ? Il monte aussi en voiture.")]
         .concat(choices("Compagnon", Object.keys(PETS).map((k) => [k, PETS[k].name]), look.pet, changePet));
     }
     nodes.push(panelClose("C'est parfait"));
     showPanel(kind === "tenue" ? "Boutique KingPar" : kind === "coiffure" ? "Coiffure Le Créneau" : "Animalerie du Copilote", true, nodes);
+  }
+  const qs = (id) => progress.quests[id] || 0; // 0 : à proposer, 1 : en cours, 2 : à rendre, 3 : terminée
+  function refreshQuests() {
+    if (!lot) return;
+    lot.quest.folk.forEach((f) => {
+      const v = qs(f.id);
+      f.tag.name.textContent = v === 0 ? "!" : v === 3 ? "♥" : "?";
+      f.tag.node.classList.toggle("idle", v === 1);
+      f.tag.node.classList.toggle("over", v === 3);
+    });
+    lot.quest.cat.model.root.visible = qs("chat") === 1;
+    lot.quest.blooms.forEach((b, i) => { b.mesh.visible = qs("fleurs") === 1 && i >= progress.qn; });
+  }
+  function setQuest(id, v) {
+    progress.quests[id] = v;
+    saveProgress();
+    refreshQuests();
+  }
+  // L'objectif d'une quête vient d'être rempli : il reste à retourner voir l'habitant.
+  function questEvent(id) {
+    if (qs(id) !== 1) return;
+    setQuest(id, 2);
+    toast("Quête : c'est fait ! Retournez voir " + QUESTS.find((q) => q.id === id).who + ".", 5);
+  }
+  /* Parler à un habitant : une bulle douce en bas de l'écran, comme dans les
+     jeux de vie tranquille. */
+  function talk(id) {
+    const q = QUESTS.find((it) => it.id === id), v = qs(id);
+    const f = lot.quest.folk.find((it) => it.id === id);
+    walk.rot = Math.atan2(f.x - walk.x, f.z - walk.z);
+    const button = (label, fn) => { const b = elem("button", null, label); b.type = "button"; b.addEventListener("click", fn); return b; };
+    const line = v === 0 ? q.ask : v === 1 ? "Alors, ça avance ? " + q.todo : v === 2 ? q.done : "Encore merci pour tout à l'heure !";
+    const nodes = [elem("span", "p3d-who", q.who), elem("p", "p3d-say", line)];
+    if (v === 0) {
+      nodes.push(button("D'accord !", () => {
+        if (id === "fleurs") progress.qn = 0;
+        if (id === "coupe") progress.qcut = look.cut;
+        setQuest(id, 1);
+        closeResa();
+        toast("Nouvelle quête : " + q.todo, 5);
+      }), panelClose("Plus tard"));
+    } else if (v === 2) {
+      nodes.push(button("Avec plaisir !", () => {
+        setQuest(id, 3);
+        closeResa();
+        const count = QUESTS.filter((it) => qs(it.id) === 3).length;
+        toast("Quête terminée (" + count + "/" + QUESTS.length + ") : merci de la part de " + q.who + " !", 5);
+        launchFireworks(2, true);
+        win("voisin", true);
+        if (count >= 3) win("serviable", true);
+        if (count >= QUESTS.length) win("heros");
+      }));
+    } else nodes.push(panelClose(v === 1 ? "J'y vais" : "À bientôt"));
+    showPanel(q.who, false, nodes);
+    panel.classList.add("talk");
+  }
+  // Objectifs qu'on remplit en marchant : le chat, les fleurs dorées, le colis.
+  function stepQuests(now) {
+    const qz = lot.quest;
+    qz.folk.forEach((f) => { // les habitants suivent le promeneur du regard
+      const d = Math.hypot(walk.x - f.x, walk.z - f.z);
+      const want = walk.on && d < 7 ? clamp(angleTo(0, Math.atan2(walk.x - f.x, walk.z - f.z) - f.rot, 1), -1, 1) : Math.sin(now * 0.6 + f.x) * 0.25;
+      f.model.head.rotation.y = lerp(f.model.head.rotation.y, want, 0.08);
+      f.model.body.position.y = Math.sin(now * 2 + f.x) * 0.012;
+    });
+    if (!walk.on || walk.drive || walk.ride) return;
+    if (qs("chat") === 1 && Math.hypot(walk.x - qz.cat.x, walk.z - qz.cat.z) < 2.2) { say("Moustache ! Viens là."); questEvent("chat"); }
+    if (qs("colis") === 1 && Math.hypot(walk.x - qz.drop.x, walk.z - qz.drop.z) < 3) { say("Colis déposé !"); questEvent("colis"); }
+    if (qs("fleurs") === 1) qz.blooms.forEach((b, i) => {
+      b.mesh.position.y = 0.55 + Math.sin(now * 3 + i) * 0.08;
+      if (!b.mesh.visible || Math.hypot(walk.x - b.x, walk.z - b.z) > 1.4) return;
+      b.mesh.visible = false;
+      progress.qn = Math.min(5, progress.qn + 1);
+      saveProgress();
+      if (qz.blooms.every((bl) => !bl.mesh.visible)) questEvent("fleurs");
+      else toast("Fleur dorée cueillie.", 2.5);
+    });
   }
   function openBalloons() {
     walk.zoom = { dist: 5.2, pitch: 0.12, y: 1.6 };
@@ -3721,7 +4009,8 @@ export function createParking3D(container, options) {
   function openCarnet(tab) {
     tab = tab || "tampons";
     const tabs = choices("Carnet", [["tampons", "Tampons " + carnet.size + "/" + STAMPS.length],
-      ["succes", "Succès " + progress.wins.size + "/" + WINS.length], ["scores", "Scores"]], tab, openCarnet);
+      ["succes", "Succès " + progress.wins.size + "/" + WINS.length],
+      ["quetes", "Quêtes " + QUESTS.filter((q) => qs(q.id) === 3).length + "/" + QUESTS.length], ["scores", "Scores"]], tab, openCarnet);
     const nodes = [panelTitle("★", "Carnet de " + (net.you ? net.you.pseudo : "promenade"), "#d92b3a"), tabs[1]];
     const listOf = (items, done, cls) => {
       const list = elem("ul", "p3d-stamps");
@@ -3737,6 +4026,10 @@ export function createParking3D(container, options) {
       nodes.push(elem("p", null, carnet.size >= STAMPS.length
         ? "Carnet complet, bravo ! Vous connaissez le parking et son village par cœur."
         : STAMPS.length + " choses à découvrir, du parking au village de " + CITY_NAME + "."), listOf(STAMPS, carnet));
+    } else if (tab === "quetes") {
+      nodes.push(elem("p", null, "Les habitants de " + CITY_NAME + " ont un « ! » au-dessus de la tête quand ils ont un service à demander."),
+        listOf(QUESTS.map((q) => [q.id, q.who, qs(q.id) === 0 ? "Allez lui parler." : qs(q.id) === 3 ? "Quête terminée." : qs(q.id) === 2 ? "C'est fait : retournez le voir." : q.todo]),
+          new Set(QUESTS.filter((q) => qs(q.id) === 3).map((q) => q.id))));
     } else if (tab === "succes") {
       nodes.push(elem("p", null, "Votre rang : " + rank() + ". Les autres promeneurs voient votre nombre d'étoiles. " +
         (progress.goldDay === new Date().toISOString().slice(0, 10) ? "Ticket d'or du jour : trouvé." : "Un ticket d'or est caché quelque part aujourd'hui.")), listOf(WINS, progress.wins, "win"));
@@ -3936,17 +4229,19 @@ export function createParking3D(container, options) {
       }
     }
     const ratio = clamp(rv.v / def.max, -1, 1);
-    const lean = rv.def.model === "scooter" ? rv.steer * 0.36 * Math.abs(ratio) * 2 : -rv.steer * 0.05 * Math.abs(ratio) * 2;
+    const lean = BIKES.includes(rv.def.model) ? rv.steer * 0.36 * Math.abs(ratio) * 2 : -rv.steer * 0.05 * Math.abs(ratio) * 2;
     rv.body.rotation.z = lerp(rv.body.rotation.z, clamp(lean, -0.4, 0.4), 1 - Math.exp(-dt * 9));
     walk.x = rv.x; walk.z = rv.z; walk.rot = rv.rot; walk.speed = Math.abs(rv.v);
     // Le conducteur : assis sur le scooter (le chien à ses pieds), caché en voiture —
     // où le chien passe la tête par la fenêtre du passager.
-    const onBike = def.model === "scooter";
+    const onBike = BIKES.includes(def.model);
+    if (!progress.cars.includes(def.model)) { progress.cars.push(def.model); saveProgress(); }
+    if (progress.cars.length >= RENTALS.length) win("garage");
     player.root.visible = onBike;
     dog.root.visible = true;
     dog.root.scale.setScalar(Math.min(dog.def.scale, 1.5)); // à bord, les grands se font petits
     if (!onBike) {
-      const seat = def.model === "camper" ? { fwd: 2.3, side: 1.0, y: 1.02 } : { fwd: 0.3, side: 0.76, y: 0.52 };
+      const seat = def.model === "camper" ? { fwd: 2.3, side: 1.0, y: 1.02 } : def.model === "suv" ? { fwd: 0.3, side: 0.8, y: 0.68 } : { fwd: 0.3, side: 0.76, y: 0.52 };
       const d = walk.dog, fx = Math.sin(rv.rot), fz = Math.cos(rv.rot);
       d.x = rv.x + fx * seat.fwd - fz * seat.side; d.z = rv.z + fz * seat.fwd + fx * seat.side;
       d.rot = rv.rot - Math.PI / 2; d.y = seat.y - Math.max(0, dog.top - 0.96);
@@ -3969,7 +4264,7 @@ export function createParking3D(container, options) {
     if (rv.v >= def.max * 0.97) win("bolide");
     const bay = lot.city.bay, inBay = Math.abs(rv.x - bay.x) < bay.w / 2 && Math.abs(rv.z - bay.z) < bay.d / 2;
     if (!inBay) walk.parked = false;
-    else if (!walk.parked && Math.abs(rv.v) < 0.15 && def.model !== "scooter") {
+    else if (!walk.parked && Math.abs(rv.v) < 0.15 && !onBike) {
       walk.parked = true;
       const off = Math.hypot(rv.x - bay.x, (rv.z - bay.z) * 0.6);
       const score = clamp(Math.round(100 - off * 48 - Math.abs(Math.sin(rv.rot)) * 150), 0, 100);
@@ -4032,7 +4327,7 @@ export function createParking3D(container, options) {
     let f = 0, sd = 0, turn = 0, run = false;
     if (walk.ride) { // passager : on suit la voiture de l'autre promeneur
       const host = net.others.get(walk.ride);
-      if (!host || !host.car || host.goal.drive === "scooter" || !walk.on) stopRide();
+      if (!host || !host.car || BIKES.includes(host.goal.drive) || !walk.on) stopRide();
       else {
         walk.x = host.cur.x; walk.z = host.cur.z; walk.rot = host.cur.rot;
         walk.yaw = angleTo(walk.yaw, host.cur.rot, 1 - Math.exp(-dt * 3));
@@ -4089,6 +4384,8 @@ export function createParking3D(container, options) {
         walk.x = next[0]; walk.z = next[1];
       }
       walk.still = 0;
+      progress.walked += walk.speed * dt;
+      if (progress.walked >= 2000) win("marche");
     } else {
       walk.still += dt;
     }
@@ -4103,6 +4400,8 @@ export function createParking3D(container, options) {
       player.root.position.set(walk.x, walk.y + groundAt(walk.x, walk.z), walk.z);
       player.root.rotation.set(0, walk.rot, 0);
       player.head.rotation.y = walk.speed < 0.3 ? Math.sin(now * 0.7) * 0.28 : 0; // à l'arrêt, il regarde autour de lui
+      player.body.rotation.z = Math.sin(walk.phase) * 0.07 * stride; // il se dandine
+      player.blink(now % 4.3 < 0.13 || (now % 9.7 > 5 && now % 9.7 < 5.12));
       player.head.rotation.x = air ? -0.2 : 0;
       if (player.balloon) {
         player.balloon.rotation.z = Math.sin(now * 1.7) * 0.07;
@@ -4471,6 +4770,7 @@ export function createParking3D(container, options) {
     stepFireworks(dt);
     stepNet(dt);
     stepLive(now);
+    stepQuests(now);
     // Promeneur et chien (toujours animés) ; en promenade, la caméra les suit.
     stepWalk(dt, now);
     sun.target.position.set(0, 0, 0);
@@ -4633,6 +4933,8 @@ export function createParking3D(container, options) {
         look: Object.assign({}, look),
         carnet: Array.from(carnet),
         wins: Array.from(progress.wins),
+        quests: Object.assign({}, progress.quests),
+        folk: lot ? lot.quest.folk.map((f) => ({ id: f.id, x: Math.round(f.x * 10) / 10, z: Math.round(f.z * 10) / 10, mark: f.tag.name.textContent })) : [],
         gold: lot ? { x: Math.round(lot.gold.x * 10) / 10, z: Math.round(lot.gold.z * 10) / 10, hidden: lot.gold.mesh.visible, found: progress.gold } : null,
         best: Object.assign({}, progress.best),
         game: Boolean(walk.game),
