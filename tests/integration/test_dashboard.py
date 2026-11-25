@@ -271,6 +271,44 @@ def test_plan_3d_decor_de_village(client):
         assert word in source
 
 
+def test_plan_3d_kingpar_tuning(client):
+    """L'atelier de tuning : peinture, jantes, pneus, autocollants, néon, gardés sur l'appareil."""
+
+    source = client.get("/static/parking3d.js").text
+    for name in (
+        "function cleanTune",
+        "function loadGarage",
+        "function drawSticker",
+        "function stickerMat",
+        "function retune",
+        "function openTuning",
+        "function honk",
+    ):
+        assert name in source
+    for word in (
+        "KINGPAR TUNING",
+        "const CAR_PAINTS",
+        "const RIMS",
+        "const TYRES",
+        "const STICKERS",
+        "const NEONS",
+        "const HORNS",
+        '"etoile"',
+        '"cross"',
+        '"aileron"',
+        "Remettre d'origine",
+    ):
+        assert word in source
+    # Le réglage reste sur l'appareil (cinquième clé, même écriture unique) ; il n'est
+    # envoyé qu'avec la position, sur la route du multijoueur, et relu avec prudence.
+    assert 'const TUNE_KEY = "access.plan3d.garage"' in source
+    assert source.count("localStorage.setItem") == 1
+    assert "tune: rv ? garage[rv.def.model] : null" in source
+    assert "cleanTune(p.tune, p.drive, lk.top)" in source
+    # Tout est offert : aucun prix, aucun paiement dans l'atelier.
+    assert "Tout est offert" in source
+
+
 def test_sons_enregistres_libres_et_servis_par_access(client):
     """Dix petits sons en licence CC0, servis par Access ; rien n'est chargé d'ailleurs."""
 

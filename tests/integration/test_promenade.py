@@ -176,3 +176,49 @@ def test_defi_amical_de_bout_en_bout(client):
         {"action": "invite", "target": a, "game": "pfc", "message": "coucou"},
     ):
         assert client.post(f"{URL}/defi", json={"token": B, **bad}).status_code == 422
+
+
+TUNE = {
+    "paint": "#ffd60a",
+    "finish": "metal",
+    "rims": "etoile",
+    "rimc": "#d4af37",
+    "tyres": "blanc",
+    "sticker": "kingpar",
+    "stripes": "double",
+    "stripec": "#22252e",
+    "tint": "bleu",
+    "addon": "aileron",
+    "neon": "vert",
+    "horn": "coin",
+}
+
+
+def test_tuning_du_vehicule_conduit_visible_des_autres(client):
+    client.post(URL, json=state(A, drive="sedan", tune=TUNE))
+    seen = client.post(URL, json=state(B)).json()["players"][0]
+    assert seen["drive"] == "sedan" and seen["tune"] == TUNE
+    # Une page restée sur l'ancienne version n'envoie pas de tuning : toujours acceptée.
+    client.post(URL, json=state(A, drive="sedan"))
+    assert client.post(URL, json=state(B)).json()["players"][0]["tune"] is None
+    # Seule la peinture est obligatoire : le reste a une valeur d'origine.
+    client.post(URL, json=state(A, drive="moto", tune={"paint": "#d92b3a"}))
+    partial = client.post(URL, json=state(B)).json()["players"][0]["tune"]
+    assert (
+        partial["paint"] == "#d92b3a" and partial["rims"] == "serie" and partial["neon"] == "none"
+    )
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {"paint": "rouge"},
+        {"paint": "#ffd60a", "sticker": "<script>"},
+        {"paint": "#ffd60a", "neon": "Vert Fluo"},
+        {"paint": "#ffd60a", "rimc": "#ZZZZZZ"},
+        {"paint": "#ffd60a", "texte": "bonjour"},
+        {"rims": "etoile"},
+    ],
+)
+def test_tuning_hors_format_refuse(client, bad):
+    assert client.post(URL, json=state(A, drive="sedan", tune=bad)).status_code == 422
