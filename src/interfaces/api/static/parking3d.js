@@ -14,7 +14,7 @@
    et des identifiants pseudonymisés. */
 
 import * as THREE from "./vendor/three-0.160.0.module.min.js";
-import { GAMES as MINI, startGame } from "./promenade-jeux.js?v=4.22.0";
+import { GAMES as MINI, startGame } from "./promenade-jeux.js?v=4.23.0";
 
 // --- Catégories de Parking → zones du plan -----------------------------------
 
@@ -395,7 +395,7 @@ const SHOP_SAYS = {
 };
 const SHOP_LABELS = {
   "BISTROT DU PARVIS": "Commander le plat du jour", "CAFÉ LA BARRIÈRE": "Prendre un café", "PIZZERIA DU ROND-POINT": "Goûter la pizza",
-  "GLACES DU FEU VERT": "Prendre une glace", "SPA DU POINT MORT": "Jeter un œil au spa",
+  "GLACES DU FEU VERT": "Prendre une glace", "SPA DU POINT MORT": "Voir la course de canards du spa",
   "BOUTIQUE KINGPAR": "Changer de tenue (tout est offert)", "COIFFURE LE CRÉNEAU": "Passer chez le coiffeur (offert)",
   "ANIMALERIE DU COPILOTE": "Choisir un compagnon à l'animalerie",
 };
@@ -537,9 +537,9 @@ function store(key, value) {
 const FIREWORKS = ["#ff5d8f", "#ffd166", "#7bdff2", "#b8f2a0", "#f7aef8", "#ffffff", "#ff9f1c"];
 // Mini-jeux : stand de la fête → jeu, et score à atteindre pour le succès du même nom.
 const STALL_GAMES = ["crepes", "frites", "barbe", "canards"];
-const SHOP_GAMES = { "BISTROT DU PARVIS": "passage", "CAFÉ LA BARRIÈRE": "paires", "PIZZERIA DU ROND-POINT": "olives", "GLACES DU FEU VERT": "feu" };
-const GOALS = { canards: 15, crepes: 80, frites: 25, barbe: 100, tambour: 8, plein: 95, paires: 70, ballons: 20, passage: 8, olives: 18, feu: 70, creneau: 80 };
-const GAME_NAMES = { canards: "Pêche aux canards", crepes: "Crêpes", frites: "Frites", barbe: "Barbe à papa", tambour: "Grosse caisse", plein: "Le plein pile", paires: "Jeu des paires", ballons: "Éclate-ballons", passage: "Le passage piéton", olives: "Chasse aux olives", feu: "Feu vert !", creneau: "Le créneau parfait" };
+const SHOP_GAMES = { "BISTROT DU PARVIS": "passage", "CAFÉ LA BARRIÈRE": "paires", "PIZZERIA DU ROND-POINT": "olives", "GLACES DU FEU VERT": "feu", "SPA DU POINT MORT": "course" };
+const GOALS = { canards: 15, crepes: 80, frites: 25, barbe: 100, tambour: 8, plein: 95, paires: 70, ballons: 20, passage: 8, olives: 18, feu: 70, course: 80, creneau: 80 };
+const GAME_NAMES = { canards: "Pêche aux canards", crepes: "Crêpes", frites: "Frites", barbe: "Barbe à papa", tambour: "Grosse caisse", plein: "Le plein pile", paires: "Jeu des paires", ballons: "Éclate-ballons", passage: "Le passage piéton", olives: "Chasse aux olives", feu: "Feu vert !", course: "Course de canards", creneau: "Le créneau parfait" };
 // Succès : ce qu'on gagne en jouant. Le dernier récompense tous les autres.
 const WINS = [
   ["carnet", "Carnet complet", "Obtenir tous les tampons du carnet."],
@@ -588,6 +588,12 @@ const WINS = [
   ["voisin", "Bon voisin", "Rendre service à un habitant : terminer une quête."],
   ["serviable", "Serviable", "Terminer trois quêtes."],
   ["heros", "Héros de Bonneplace", "Terminer toutes les quêtes."],
+  ["course", "Canard de bain", "80 points à la course de canards du spa."],
+  ["chef", "Chef d'orchestre", "Klaxonner cinq fois.", true], // les cinq suivants sont secrets : « ??? » tant qu'on ne les a pas
+  ["minuit", "Cloche de minuit", "Sonner la cloche du belvédère la nuit.", true],
+  ["ange", "Saut de l'ange", "Sauter du haut de la passerelle.", true],
+  ["montgolfiere", "Montgolfière", "Sauter au sommet du belvédère avec un ballon.", true],
+  ["echo", "Écho", "Saluer au fond de la grotte.", true],
   ["legende", "Légende de Bonneplace", "Obtenir tous les autres succès."],
 ];
 /* Quêtes : six habitants ont un petit service à demander. « ! » : il a quelque
@@ -3021,6 +3027,13 @@ export function createParking3D(container, options) {
       return { mesh, x: at[0], z: at[1] };
     });
     const quest = { folk, cat: { model: moustache, x: pond.x + 9.6, z: pond.z + 6.6 }, blooms, drop: { x: X0 + 52, z: R + 5.6 } };
+    // Des papillons au-dessus des fleurs du village.
+    const flyGeo = new THREE.BufferGeometry();
+    flyGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(18 * 3), 3));
+    const flyPoints = new THREE.Points(flyGeo, new THREE.PointsMaterial({ color: 0xffe066, size: 0.34, map: dotTexture, transparent: true, alphaTest: 0.2 }));
+    flyPoints.frustumCulled = false;
+    group.add(flyPoints);
+    const flies = { points: flyPoints, home: Array.from({ length: 18 }, () => [X0 + 8 + rnd() * 150, vz0 + 24 + rnd() * (vz1 - vz0 - 48), rnd() * 6]) };
     // Le ticket d'or du jour : une cachette parmi douze, choisie par la date.
     const hides = [
       [mascot.x + 2.4, mascot.z + 1.6, 0], [pond.x, pond.z, 1.47], [hill.x + 5.2, hill.z + 8.4, hill.h], [fete.x - 13, fete.z + 9.4, 0],
@@ -3064,7 +3077,7 @@ export function createParking3D(container, options) {
 
     lot = {
       L, group, zones, fleet, leds, rings, hover, gateIn, gateOut, textures, tags, resaSprites,
-      obstacles, points, dogTag, agentTag, playerTag, addTag, removeTag, live, gold: goldTicket, quest, farm, D, city, bounds, decor: [], seq: 0, pickDirty: true,
+      obstacles, points, dogTag, agentTag, playerTag, addTag, removeTag, live, gold: goldTicket, quest, farm, flies, D, city, bounds, decor: [], seq: 0, pickDirty: true,
     };
     spawnTraffic();
     refreshQuests();
@@ -3485,7 +3498,7 @@ export function createParking3D(container, options) {
     } else if (e.code === "KeyF") {
       if (down && !e.repeat) { bark(); sound([[980 / dog.def.scale, 0.07, 0], [760 / dog.def.scale, 0.06, 0.09]], 0.13, "triangle", true); }
     } else if (e.code === "KeyH") {
-      if (down && !e.repeat && walk.drive) sfx("klaxon");
+      if (down && !e.repeat && walk.drive) { sfx("klaxon"); walk.honks = (walk.honks || 0) + 1; if (walk.honks >= 5) win("chef"); }
     } else if (e.code === "KeyC") {
       if (down && !e.repeat) { if (walk.panel) closeResa(); else openCarnet(); }
     } else if (/^Digit[1-4]$/.test(e.code)) {
@@ -3706,6 +3719,7 @@ export function createParking3D(container, options) {
     say(EMOTES[i]);
     if (++progress.hellos >= 10) win("sociable");
     sfx("coucou");
+    if (Math.hypot(walk.x - lot.farm.cave.x, walk.z - lot.farm.cave.z) < lot.farm.cave.r) win("echo");
     net.emote = i;
     net.emoteFor = 3.5;
   }
@@ -3874,6 +3888,12 @@ export function createParking3D(container, options) {
   /* Le panneau de la station affiche les places libres du parking (les vraies,
      dès que Parking répond), et le ticket d'or du jour tourne dans sa cachette. */
   function stepLive(now) {
+    const fp = lot.flies.points.geometry.attributes.position;
+    lot.flies.home.forEach((h, i) => { // les papillons tournent autour de leur coin de fleurs
+      const a = now * 0.8 + h[2];
+      fp.setXYZ(i, h[0] + Math.cos(a) * 1.6, 0.9 + Math.sin(now * 3 + i) * 0.35 + groundAt(h[0], h[1]), h[1] + Math.sin(a * 1.3) * 1.6);
+    });
+    fp.needsUpdate = true;
     const live = lot.live, free = lot.zones.reduce((n, zone) => n + Math.max(0, zone.cap - zone.taken), 0);
     const shown = free + ":" + data.source;
     if (live.shown !== shown) {
@@ -4066,6 +4086,7 @@ export function createParking3D(container, options) {
     launchFireworks(3);
     stamp("cloche");
     questEvent("cloche");
+    if (night > 0.5) win("minuit");
   }
   function panelTitle(letter, text, color) {
     const title = elem("h3");
@@ -4467,7 +4488,7 @@ export function createParking3D(container, options) {
           new Set(QUESTS.filter((q) => qs(q.id) === 3).map((q) => q.id))));
     } else if (tab === "succes") {
       nodes.push(elem("p", null, "Votre rang : " + rank() + ". Les autres promeneurs voient votre nombre d'étoiles. " +
-        (progress.goldDay === new Date().toISOString().slice(0, 10) ? "Ticket d'or du jour : trouvé." : "Un ticket d'or est caché quelque part aujourd'hui.")), listOf(WINS, progress.wins, "win"));
+        (progress.goldDay === new Date().toISOString().slice(0, 10) ? "Ticket d'or du jour : trouvé." : "Un ticket d'or est caché quelque part aujourd'hui.")), listOf(WINS.map((w) => (w[3] && !progress.wins.has(w[0]) ? [w[0], "???", "Succès secret : à vous de le trouver."] : w)), progress.wins, "win"));
     } else {
       const table = elem("table", "p3d-scores"), head = elem("tr");
       ["Jeu", "Votre record", "Meilleur en ligne"].forEach((hh) => head.appendChild(elem("th", null, hh)));
@@ -4799,6 +4820,9 @@ export function createParking3D(container, options) {
       if (k.Space && walk.on && !walk.panel && !walk.ride && walk.y === 0) {
         if (look.balloon !== "none") win("ballon");
         sfx("saut");
+        const pd = lot.city.pond;
+        if (pd && Math.abs(walk.x - pd.x) < 1.1 && Math.abs(walk.z - pd.z) < 1.6) win("ange");
+        if (look.balloon !== "none" && groundAt(walk.x, walk.z) >= lot.city.hill.h - 0.01) win("montgolfiere");
         walk.vy = look.balloon !== "none" ? 6.6 : 5.8;
         if (d.y === 0) d.vy = 4.4;
         if (++progress.jumps >= 25) win("kangourou");

@@ -570,6 +570,43 @@ export const GAMES = {
       return game;
     },
   },
+
+  /* Course de canards : appuyer vite pour que son canard arrive avant les deux autres. */
+  course: {
+    title: "Course de canards", max: 100, time: 15,
+    help: "Touchez l'écran ou appuyez sur Espace, vite et sans relâche : votre canard jaune doit arriver le premier.",
+    create() {
+      const x = [22, 22, 22], v = [0, rand(50, 58), rand(44, 54)];
+      const game = {
+        score: 0, done: false,
+        step(dt) {
+          if (game.done) return;
+          v[0] *= Math.exp(-dt * 2.2);
+          for (let i = 0; i < 3; i++) x[i] += v[i] * dt;
+          const first = x.findIndex((p) => p >= W - 44);
+          if (first < 0) return;
+          const gap = x[0] - Math.max(x[1], x[2]);
+          game.done = true;
+          game.score = first === 0 ? Math.min(100, Math.round(62 + gap * 1.2)) : Math.max(0, Math.round(50 + gap * 0.5));
+        },
+        tap() { v[0] = Math.min(150, v[0] + 26); },
+        down() { game.tap(); },
+        key(code, on) { if (on && code === "Space") game.tap(); },
+        draw(g, t) {
+          backdrop(g, "#c9f1ff", "#7fd3f4");
+          g.fillStyle = "#ffffff"; for (let k = 0; k < 10; k++) g.fillRect(W - 44, 40 + k * 19, 5, 10); // la ligne d'arrivée
+          [0, 1, 2].forEach((i) => {
+            const y = 84 + i * 52 + Math.sin(t * 6 + i) * 2, c = ["#ffd60a", "#ff9db0", "#b8f2a0"][i];
+            blob(g, x[i], y + 9, 15, 3.5, "rgba(20,70,110,.25)");
+            soft(g, true); blob(g, x[i], y, 16, 11, c); blob(g, x[i] + 12, y - 11, 9, 9, c); soft(g, false);
+            blob(g, x[i] + 22, y - 10, 5.5, 3, "#fe640b"); blob(g, x[i] + 14, y - 13, 2, 2, INK);
+            if (i === 0) text(g, "vous", x[i], y + 27, 10, INK);
+          });
+        },
+      };
+      return game;
+    },
+  },
 };
 
 /* Lance un jeu dans `mount`. `opts.onEnd(score)` à la fin ; `opts.sound` joue

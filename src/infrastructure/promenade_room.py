@@ -50,6 +50,7 @@ GAMES: dict[str, int] = {
     "passage": 30,
     "olives": 60,
     "feu": 100,
+    "course": 100,
     "creneau": 100,
 }
 BOARD_SIZE = 5
