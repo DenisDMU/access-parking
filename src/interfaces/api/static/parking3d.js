@@ -14,7 +14,7 @@
    et des identifiants pseudonymisés. */
 
 import * as THREE from "./vendor/three-0.160.0.module.min.js";
-import { GAMES as MINI, startGame } from "./promenade-jeux.js?v=4.21.0";
+import { GAMES as MINI, startGame } from "./promenade-jeux.js?v=4.22.0";
 
 // --- Catégories de Parking → zones du plan -----------------------------------
 
@@ -101,7 +101,29 @@ function part(geo, color, t) {
   );
   return { g, color };
 }
-const box = (w, h, d, color, t) => part(new THREE.BoxGeometry(w, h, d), color, t);
+/* Monde courbé, comme une petite planète : en promenade, chaque point descend
+   d'autant plus qu'il est loin de la caméra. C'est un effet de dessin (dans le
+   nuanceur) : les positions réelles, les collisions et le plan vu de haut
+   restent à plat. Le ciel n'est pas courbé ; les ombres sont calculées à plat. */
+const BEND = { value: 0 };
+const BEND_MAX = 0.0016;
+if (!THREE.Material.prototype.p3dBend) {
+  THREE.Material.prototype.p3dBend = true;
+  const curve = "mvPosition = modelMatrix * mvPosition;\n\tvec2 bendOff = mvPosition.xz - cameraPosition.xz;\n\tmvPosition.y -= uBend * dot( bendOff, bendOff );\n\tmvPosition = viewMatrix * mvPosition;";
+  THREE.Material.prototype.onBeforeCompile = function (shader) {
+    if (this.isMeshDepthMaterial || this.isMeshDistanceMaterial || (this.userData && this.userData.noBend)) return;
+    shader.uniforms.uBend = BEND;
+    shader.vertexShader = "uniform float uBend;\n" + shader.vertexShader
+      .replace("#include <project_vertex>", THREE.ShaderChunk.project_vertex.replace("mvPosition = modelViewMatrix * mvPosition;", curve))
+      .replace("vec4 mvPosition = modelViewMatrix * vec4( 0.0, 0.0, 0.0, 1.0 );", "vec4 mvPosition = vec4( 0.0, 0.0, 0.0, 1.0 );\n\t" + curve);
+  };
+  THREE.Material.prototype.customProgramCacheKey = function () {
+    return this.isMeshDepthMaterial || this.isMeshDistanceMaterial || (this.userData && this.userData.noBend) ? "plat" : "courbe";
+  };
+}
+// Les grandes surfaces sont découpées en carreaux : sans cela, elles ne pourraient pas se courber.
+const seg = (v) => (v > 8 ? Math.ceil(v / 5) : 1);
+const box = (w, h, d, color, t) => part(new THREE.BoxGeometry(w, h, d, seg(w), 1, seg(d)), color, t);
 const cyl = (r, len, color, t, seg) => part(new THREE.CylinderGeometry(r, r, len, seg || 16), color, t);
 const ball = (r, color, t) => part(new THREE.SphereGeometry(r, 12, 8), color, t);
 
@@ -438,7 +460,7 @@ const STAMPS = [
   ["fete", "Frapper la grosse caisse de la fête", "Sur la place aux guirlandes, derrière la rue."],
   ["chance", "Tirer un ticket chance", "Au belvédère : une prédiction sur ticket."],
   ["station", "S'arrêter à la Station KingPar", "Sur la route du village : jouez au plein pile."],
-  ["ferme", "Visiter la Suppositofarm", "Au sud du village : plantes, arbres et grotte à minerais."],
+  ["ferme", "Visiter la Kingfarm", "Au sud du village : potager, verger et mine à minerais."],
 ];
 // Tenue, coiffure, compagnon et carnet : gardés sur l'appareil, rien n'est envoyé.
 const LOOK_KEY = "access.plan3d.look";
@@ -559,10 +581,10 @@ const WINS = [
   ["roi", "Roi de KingPar", "Porter la couronne KingPar (" + CROWN_WINS + " succès pour l'obtenir)."],
   ["duel", "Bon joueur", "Disputer un défi amical avec un autre promeneur."],
   ["champion", "Champion du parvis", "Gagner trois défis."],
-  ["jardinier", "Main verte", "Ramasser 10 plantes à la Suppositofarm."],
+  ["jardinier", "Main verte", "Ramasser 10 plantes à la Kingfarm."],
   ["bucheron", "Bûcheron", "Abattre 5 arbres à coups de poing."],
-  ["mineur", "Mineur de fond", "Extraire 8 minerais dans la grotte."],
-  ["fermier", "Roi de la Suppositofarm", "Récolter 30 ressources en tout."],
+  ["mineur", "Mineur de fond", "Extraire 8 minerais à la mine."],
+  ["fermier", "Roi de la Kingfarm", "Récolter 30 ressources en tout."],
   ["voisin", "Bon voisin", "Rendre service à un habitant : terminer une quête."],
   ["serviable", "Serviable", "Terminer trois quêtes."],
   ["heros", "Héros de Bonneplace", "Terminer toutes les quêtes."],
@@ -1022,6 +1044,28 @@ const CSS = `
   color: #1e66f5; font-size: 32px; font-weight: 900; border: 3px solid #f1dfb6; box-shadow: 0 3px 0 rgba(91,70,54,.14); }
 .p3d-panel button.p3d-cell[disabled] { cursor: default; filter: none; transform: none; }
 .p3d-row.center { justify-content: center; }
+/* Défis : la pièce tourne puis retombe, les mains se secouent trois fois avant de se montrer. */
+.p3d-stage { display: flex; align-items: center; justify-content: center; gap: 22px; height: 110px; margin: 6px 0; perspective: 500px; }
+.p3d-coin { display: grid; place-items: center; width: 84px; height: 84px; border-radius: 50%; font: 900 17px/1 system-ui, sans-serif; color: #7a5a00;
+  background: radial-gradient(circle at 35% 30%, #fff3a8, #ffd60a 55%, #d9a900); border: 4px solid #d9a900; box-shadow: 0 6px 0 rgba(91,70,54,.2);
+  animation: p3d-flip 1.5s cubic-bezier(.2, .7, .3, 1) both; }
+@keyframes p3d-flip { 0% { transform: translateY(0) rotateX(0); } 45% { transform: translateY(-46px) rotateX(1260deg); } 100% { transform: translateY(0) rotateX(2160deg); } }
+.p3d-hand { position: relative; width: 84px; height: 84px; border-radius: 22px; background: #fff; border: 4px solid #f1dfb6; box-shadow: 0 5px 0 rgba(91,70,54,.16);
+  animation: p3d-shake .3s ease-in-out 3; }
+.p3d-hand i { position: absolute; inset: 0; display: grid; place-items: center; font-style: normal; font-size: 44px; }
+.p3d-hand i:first-child { animation: p3d-out .01s .9s both; }
+.p3d-hand i:last-child { animation: p3d-in .25s .9s both; }
+.p3d-hand.right { transform: scaleX(-1); }
+.p3d-hand.right i { transform: scaleX(-1); }
+.p3d-stage b { font-size: 18px; color: #d92b3a; }
+@keyframes p3d-shake { 50% { margin-top: -26px; } }
+@keyframes p3d-out { to { opacity: 0; } }
+@keyframes p3d-in { from { opacity: 0; transform: scale(.4); } to { opacity: 1; } }
+.p3d-reveal { animation: p3d-in .35s 1.5s both; }
+.p3d-reveal.fast { animation-delay: 1s; }
+.p3d-panel button.p3d-cell.mark { animation: p3d-in .25s both; }
+.p3d-panel button.p3d-cell.won { background: #ffd60a; border-color: #d9a900; color: #5b4636; animation: p3d-pulse .7s ease-in-out 3; }
+@media (prefers-reduced-motion: reduce) { .p3d-coin, .p3d-hand, .p3d-hand i, .p3d-reveal, .p3d-panel button.p3d-cell.mark { animation: none; } .p3d-hand i:first-child { display: none; } }
 .p3d-fail { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center;
   color: var(--text, #4c4f69); background: var(--mantle, #e6e9ef); font: 600 15px/1.4 system-ui, sans-serif; }
 @media (max-width: 640px) {
@@ -1131,7 +1175,8 @@ export function createParking3D(container, options) {
     container.replaceChildren(elem("div", "p3d-fail", "Le plan 3D a besoin de WebGL, indisponible dans ce navigateur."));
     return null;
   }
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  const coarse = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, coarse ? 1.5 : 2));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -1161,7 +1206,7 @@ export function createParking3D(container, options) {
   const hint = elem("div", "p3d-card p3d-hint", "Glisser : tourner · Molette : zoom · Clic droit ou Maj : déplacer");
   const HINT_ORBIT = hint.textContent;
   const HINT_WALK = "ZQSD : marcher · Maj : courir · Espace : sauter · E : interagir · F : compagnon · 1-4 : saluer · C : carnet · P : photo · Échap : quitter";
-  const HINT_DRIVE = "Z : accélérer · S : freiner, reculer · Q D : tourner · Espace : frein à main · E : descendre · Échap : quitter";
+  const HINT_DRIVE = "Z : accélérer · S : freiner, reculer · Q D : tourner · Espace : frein à main · H : klaxon · E : descendre · Échap : quitter";
   const speedo = elem("div", "p3d-card p3d-speed");
   const speedoValue = elem("b", null, "0");
   const speedoUnit = elem("span", null, "km/h");
@@ -1227,6 +1272,7 @@ export function createParking3D(container, options) {
   const skyGeo = new THREE.SphereGeometry(900, 32, 16);
   skyGeo.setAttribute("color", new THREE.BufferAttribute(new Float32Array(skyGeo.attributes.position.count * 3), 3));
   const sky = new THREE.Mesh(skyGeo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false, depthWrite: false }));
+  sky.material.userData.noBend = true;
   sky.renderOrder = -10;
   scene.add(sky);
 
@@ -1403,7 +1449,7 @@ export function createParking3D(container, options) {
   const dummy = new THREE.Object3D();
   const tmpColor = new THREE.Color();
   const HIDDEN = new THREE.Matrix4().makeScale(0, 0, 0);
-  const flat = (w, d) => new THREE.PlaneGeometry(w, d).rotateX(-Math.PI / 2);
+  const flat = (w, d) => new THREE.PlaneGeometry(w, d, seg(w), seg(d)).rotateX(-Math.PI / 2);
 
   function instanced(parent, geo, mat, items, shadow) {
     if (!items.length) return null;
@@ -1880,8 +1926,8 @@ export function createParking3D(container, options) {
     const W = L.xMax - L.xMin, D = L.zMax;
 
     // Sol : herbe, route, parking, voie d'accès
-    const grass = new THREE.Mesh(new THREE.CircleGeometry(700, 48).rotateX(-Math.PI / 2), M.grass);
-    M.grass.map.repeat.set(110, 110);
+    const grass = new THREE.Mesh(new THREE.PlaneGeometry(1400, 1000, 100, 72).rotateX(-Math.PI / 2), M.grass); // carreaux de 14 m : léger, même sur téléphone
+    M.grass.map.repeat.set(110, 79);
     grass.position.set(L.cx, -0.06, L.cz);
     grass.receiveShadow = true;
     group.add(grass);
@@ -2077,7 +2123,7 @@ export function createParking3D(container, options) {
     };
 
     // 1. La rue commerçante : huit échoppes de part et d'autre de la route
-    const shopDefs = [[24, 1, 11, 8, 2], [52, 1, 9.5, 7.5, 1], [98, 1, 12, 8.5, 2], [124, 1, 9, 7, 1], [32, -1, 10, 8, 1], [60, -1, 12, 8, 2], [104, -1, 9.5, 7.5, 1], [152, -1, 11, 8, 2]];
+    const shopDefs = [[24, 1, 8, 6.5, 1], [52, 1, 7.5, 6, 1], [98, 1, 8.5, 6.5, 2], [124, 1, 7.5, 6, 1], [32, -1, 7.5, 6, 1], [60, -1, 8.5, 6.5, 2], [104, -1, 7.5, 6, 1], [152, -1, 8, 6.5, 1]];
     shopDefs.forEach((sd, i) => {
       const hx = X0 + sd[0], w = sd[2], d = sd[3], out = -sd[1]; // la façade regarde la route
       const hz = R + sd[1] * (7.4 + d / 2);
@@ -2351,8 +2397,8 @@ export function createParking3D(container, options) {
       paddies.push({ x: cx, y: 0.235, z: cz, sx: 22, sz: 16 });
       for (let r = 0; r < 12; r++) rice.push({ x: cx, y: 0.42, z: cz - 7 + r * 1.27, sx: 20.6, sy: 0.42, sz: 0.34, color: r % 3 === 2 ? "#6fbf5a" : FLOWERS[(i * 2 + j) % FLOWERS.length] });
     }
-    instanced(group, flat(1, 1), M.soil, paddies, "receive");
-    instanced(group, new THREE.BoxGeometry(1, 1, 1), M.foliage, rice);
+    instanced(group, new THREE.PlaneGeometry(1, 1, 5, 4).rotateX(-Math.PI / 2), M.soil, paddies, "receive");
+    instanced(group, new THREE.BoxGeometry(1, 1, 1, 5, 1, 1), M.foliage, rice);
     const crow = { x: X0 + 49.5, z: R - 34 }; // l'épouvantail
     props.push(box(0.1, 2.0, 0.1, wood, { x: crow.x, y: 1.2, z: crow.z }));
     props.push(box(1.7, 0.1, 0.1, wood, { x: crow.x, y: 1.78, z: crow.z }));
@@ -2361,7 +2407,7 @@ export function createParking3D(container, options) {
     props.push(ball(0.24, "#f0d9b5", { x: crow.x, y: 2.34, z: crow.z }));
     props.push(box(0.5, 0.2, 0.5, "#1f2a44", { x: crow.x, y: 2.62, z: crow.z })); // et sa casquette
     props.push(box(0.42, 0.05, 0.24, "#1f2a44", { x: crow.x, y: 2.55, z: crow.z - 0.34 }));
-    [[22, -28, 12, 9], [44, -46, 11, 8.5], [18, -66, 12.5, 9]].forEach((f, i) => {
+    [[22, -28, 9, 7], [44, -46, 8.5, 6.5], [18, -66, 9, 7]].forEach((f, i) => {
       house(laneS + f[0], R + f[1], f[2], f[3], 1, i % 2 ? "#7a5a36" : "#8a6b3c", { steep: true, wall: "#efe0c4" });
       cityTrees.push([laneS + f[0] - f[2] / 2 - 3, R + f[1] + 3, i !== 1, 0], [laneS + f[0] + f[2] / 2 + 2.6, R + f[1] - f[3] / 2 - 2, false, 0]);
     });
@@ -2848,7 +2894,7 @@ export function createParking3D(container, options) {
     tag("Véhicules à conduire", -19.5, 4.9, RENTAL_Z + 3.7, null, true).node.style.background = "#d92b3a";
     tag(CITY_NAME, (X0 + cityX1) / 2, 46, ROAD_Z, null, true);
     const city = { x0: X0, x1: cityX1, z0: vz0, z1: vz1, pond, hill, petals, koi, fireworks, gate: tx, bay, pumps: { x: gs.x, z: gz } };
-    // La Suppositofarm, au sud des champs : carottes, arbres à cogner, grotte à minerais.
+    // La Kingfarm, au sud des champs : potager de citrouilles, verger à cogner, mine à ciel ouvert.
     const farm = { x: X0 + 104, z: R - 75, nodes: [] };
     const addNode = (kind, x, z, parts) => {
       const mesh = limb(parts);
@@ -2858,54 +2904,91 @@ export function createParking3D(container, options) {
       node.action = { label: FARM[kind].verb, action: () => hitNode(node) };
       farm.nodes.push(node);
     };
-    const decor = [box(0.2, 3.4, 0.2, "#8a5a3c", { x: farm.x - 15, y: 1.7, z: farm.z + 9 }), box(0.2, 3.4, 0.2, "#8a5a3c", { x: farm.x - 8.6, y: 1.7, z: farm.z + 9 })];
-    for (let k = 0; k < 8; k++) { // le carré de carottes
-      const px = farm.x - 15 + (k % 4) * 2.4, pz = farm.z - 1 + Math.floor(k / 4) * 3;
-      decor.push(box(1.6, 0.14, 1.6, "#8f7355", { x: px, y: 0.07, z: pz }));
-      addNode("plante", px, pz, [part(new THREE.ConeGeometry(0.13, 0.3, 8), "#fe640b", { y: 0.12, rx: Math.PI }),
-        orb(0.2, "#5cc95a", { y: 0.42, sy: 0.9 }), orb(0.13, "#7ed36f", { x: 0.12, y: 0.5 })]);
+    const timber = "#b9824f", plank = "#c9955f", rock = ["#a39d92", "#b9b4a6", "#8f897f"];
+    const fx0 = farm.x - 19.4, fx1 = farm.x - 4.6, fz0 = farm.z - 4.4, fz1 = farm.z + 5.2;
+    const decor = [box(fx1 - fx0 - 0.5, 0.1, fz1 - fz0 - 0.5, "#a9764d", { x: (fx0 + fx1) / 2, y: 0.05, z: (fz0 + fz1) / 2 })]; // la terre du potager
+    const veg = ["#f28c28", "#ffd60a", "#fdf6e3", "#f28c28"];
+    for (let k = 0; k < 15; k++) { // citrouilles posées sur leur feuillage, chacune sur sa butte
+      const px = farm.x - 17.4 + (k % 5) * 2.7, pz = farm.z - 2.6 + Math.floor(k / 5) * 2.9;
+      decor.push(orb(0.62, "#8f6240", { x: px, y: 0.08, z: pz, sy: 0.22 }));
+      const parts = [orb(0.3, veg[k % 4], { y: 0.34, sy: 0.74 }), orb(0.3, shade(veg[k % 4], 0.9), { y: 0.34, sx: 0.55, sy: 0.76 }), cyl(0.03, 0.12, "#5a8f3c", { y: 0.6 }, 6)];
+      for (let j = 0; j < 4; j++) parts.push(orb(0.24, j % 2 ? "#5cc95a" : "#49b05a", { x: Math.cos(j * 1.57 + 0.6) * 0.34, y: 0.17, z: Math.sin(j * 1.57 + 0.6) * 0.34, sy: 0.22 }));
+      addNode("plante", px, pz, parts);
     }
-    [[-3, 2.5], [0.5, -2.5], [3.5, 3], [6, -1.5], [-1, -6]].forEach((at) => { // arbres à abattre
-      const tx2 = farm.x + at[0], tz2 = farm.z + at[1];
-      addNode("bois", tx2, tz2, [cyl(0.22, 1.5, "#8a5a3c", { y: 0.75 }, 10), orb(1.15, "#4fb957", { y: 2.3 }), orb(0.6, "#7ed36f", { x: -0.4, y: 2.8, z: 0.4 }),
-        orb(0.11, "#d92b3a", { x: 0.7, y: 2.2, z: 0.8 }), orb(0.11, "#d92b3a", { x: -0.5, y: 1.9, z: 0.95 })]);
-      obstacles.push([tx2 - 0.25, tx2 + 0.25, tz2 - 0.25, tz2 + 0.25]);
-    });
-    const cave = { x: farm.x + 15, z: farm.z - 1, r: 5.4 }; // la mini-grotte : on voit dedans, l'entrée est au nord
-    const shell = new THREE.Mesh(new THREE.SphereGeometry(cave.r, 28, 14, Math.PI / 2 + 0.55, Math.PI * 2 - 1.1, 0, Math.PI / 2),
-      new THREE.MeshStandardMaterial({ color: 0x7b7486, roughness: 1, side: THREE.BackSide }));
-    shell.position.set(cave.x, 0, cave.z);
-    group.add(shell);
-    const floor = new THREE.Mesh(new THREE.CircleGeometry(cave.r, 28).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x5d5868, roughness: 1 }));
-    floor.position.set(cave.x, 0.04, cave.z);
-    group.add(floor);
-    for (let k = 0; k < 14; k++) { // les rochers qui ferment la grotte, sauf à l'entrée
-      const a = (k / 14) * Math.PI * 2;
-      if (Math.abs(angleTo(Math.PI / 2, a, 1) - Math.PI / 2) < 0.62) continue;
-      const bx = cave.x + Math.cos(a) * (cave.r + 0.3), bz = cave.z + Math.sin(a) * (cave.r + 0.3);
-      decor.push(orb(1.25, k % 2 ? "#8d8798" : "#7b7486", { x: bx, y: 0.6, z: bz, sy: 0.75 }));
-      obstacles.push([bx - 1.25, bx + 1.25, bz - 1.25, bz + 1.25]);
-    }
-    [[-2.6, -1.4, BRAND], [0.4, -3.2, "#ffd60a"], [2.9, -0.8, "#ff5d8f"], [1.2, 2.0, "#17c3b2"]].forEach((at) => { // les filons
-      const gem = () => part(new THREE.OctahedronGeometry(0.2), at[2], { x: (rnd() - 0.5) * 0.6, y: 0.5 + rnd() * 0.2, z: (rnd() - 0.5) * 0.6, ry: rnd() * 3 });
-      addNode("minerai", cave.x + at[0], cave.z + at[1], [orb(0.6, "#8d8798", { y: 0.3, sy: 0.7 }), gem(), gem(), gem()]);
-    });
-    const fx0 = farm.x - 16.6, fx1 = farm.x - 6.2, fz0 = farm.z - 2.6, fz1 = farm.z + 3.6; // clôture en bois, ouverte au nord
+    // Clôture en bois, ouverte au nord ; pompe à eau et seau
     for (let x = fx0; x <= fx1 + 0.01; x += 1.3) {
-      decor.push(cyl(0.09, 1.0, "#b9824f", { x, y: 0.5, z: fz0 }, 8));
-      if (Math.abs(x - (fx0 + fx1) / 2) > 1.2) decor.push(cyl(0.09, 1.0, "#b9824f", { x, y: 0.5, z: fz1 }, 8));
+      decor.push(cyl(0.09, 1.0, timber, { x, y: 0.5, z: fz0 }, 8));
+      if (Math.abs(x - (fx0 + fx1) / 2) > 1.2) decor.push(cyl(0.09, 1.0, timber, { x, y: 0.5, z: fz1 }, 8));
     }
-    for (let z = fz0 + 1.24; z < fz1; z += 1.24) [fx0, fx1].forEach((x) => decor.push(cyl(0.09, 1.0, "#b9824f", { x, y: 0.5, z }, 8)));
+    for (let z = fz0 + 1.24; z < fz1; z += 1.24) [fx0, fx1].forEach((x) => decor.push(cyl(0.09, 1.0, timber, { x, y: 0.5, z }, 8)));
     [0.45, 0.8].forEach((y) => {
-      decor.push(box(fx1 - fx0, 0.07, 0.06, "#c9955f", { x: (fx0 + fx1) / 2, y, z: fz0 }));
-      [fx0, fx1].forEach((x) => decor.push(box(0.06, 0.07, fz1 - fz0, "#c9955f", { x, y, z: (fz0 + fz1) / 2 })));
-      [-1, 1].forEach((sx) => decor.push(box((fx1 - fx0) / 2 - 1.2, 0.07, 0.06, "#c9955f", { x: (fx0 + fx1) / 2 + sx * ((fx1 - fx0) / 4 + 0.6), y, z: fz1 })));
+      decor.push(box(fx1 - fx0, 0.07, 0.06, plank, { x: (fx0 + fx1) / 2, y, z: fz0 }));
+      [fx0, fx1].forEach((x) => decor.push(box(0.06, 0.07, fz1 - fz0, plank, { x, y, z: (fz0 + fz1) / 2 })));
+      [-1, 1].forEach((sx) => decor.push(box((fx1 - fx0) / 2 - 1.2, 0.07, 0.06, plank, { x: (fx0 + fx1) / 2 + sx * ((fx1 - fx0) / 4 + 0.6), y, z: fz1 })));
     });
     obstacles.push([fx0 - 0.1, fx1 + 0.1, fz0 - 0.1, fz0 + 0.1], [fx0 - 0.1, fx0 + 0.1, fz0, fz1], [fx1 - 0.1, fx1 + 0.1, fz0, fz1],
       [fx0, (fx0 + fx1) / 2 - 1.2, fz1 - 0.1, fz1 + 0.1], [(fx0 + fx1) / 2 + 1.2, fx1, fz1 - 0.1, fz1 + 0.1]);
+    const pump = { x: fx1 + 1.4, z: fz1 - 0.6 };
+    decor.push(box(0.5, 0.16, 0.5, "#cfc6b4", { x: pump.x, y: 0.08, z: pump.z }), cyl(0.11, 0.9, "#3f8f77", { x: pump.x, y: 0.6, z: pump.z }, 10),
+      orb(0.16, "#3f8f77", { x: pump.x, y: 1.08, z: pump.z }), box(0.5, 0.07, 0.07, "#3f8f77", { x: pump.x + 0.25, y: 1.0, z: pump.z }),
+      cyl(0.22, 0.34, "#8a5a3c", { x: pump.x + 0.75, y: 0.17, z: pump.z + 0.2 }, 12), cyl(0.19, 0.04, "#7fc8f0", { x: pump.x + 0.75, y: 0.33, z: pump.z + 0.2 }, 12));
+    obstacles.push([pump.x - 0.3, pump.x + 1.0, pump.z - 0.3, pump.z + 0.45]);
+    [[-1.5, 2.5], [1.5, -2.5], [4.5, 3], [6.5, -2], [-1, -6.5], [8, 5.5], [3, 7.5], [-3.5, 8], [9.5, -6.5]].forEach((at, k) => { // le verger : arbres touffus à pommes, à abattre
+      const tx2 = farm.x + at[0], tz2 = farm.z + at[1], green = k % 2 ? "#4fb957" : "#5cc95a";
+      const parts = [cyl(0.26, 1.5, timber, { y: 0.75 }, 10), cyl(0.36, 0.3, timber, { y: 0.15 }, 10), orb(1.15, green, { y: 2.35 })];
+      for (let j = 0; j < 5; j++) parts.push(orb(0.72, j % 2 ? "#7ed36f" : green, { x: Math.cos(j * 1.26) * 0.9, y: 2.1 + (j % 2) * 0.75, z: Math.sin(j * 1.26) * 0.9 }));
+      [[0.85, 2.0, 0.75], [-0.75, 1.85, 0.85], [0.1, 1.55, 1.2], [-1.0, 2.5, -0.6]].forEach((a) => parts.push(orb(0.14, "#e2372f", { x: a[0], y: a[1], z: a[2] })));
+      addNode("bois", tx2, tz2, parts);
+      obstacles.push([tx2 - 0.3, tx2 + 0.3, tz2 - 0.3, tz2 + 0.3]);
+    });
+    // La mine à ciel ouvert : un fer à cheval de gros rochers ronds, un portail en bois au nord,
+    // des rails, un wagonnet, et quatre filons de pierres précieuses.
+    const cave = { x: farm.x + 15, z: farm.z - 1, r: 5.2 };
+    decor.push(cyl(cave.r + 0.5, 0.06, "#d6ccb8", { x: cave.x, y: 0.04, z: cave.z }, 30));
+    for (let k = 0; k < 13; k++) {
+      const a = (k / 13) * Math.PI * 2;
+      if (Math.abs(angleTo(Math.PI / 2, a, 1) - Math.PI / 2) < 0.6) continue;
+      const bx = cave.x + Math.cos(a) * (cave.r + 0.5), bz = cave.z + Math.sin(a) * (cave.r + 0.5);
+      decor.push(orb(1.5, rock[k % 3], { x: bx, y: 0.95, z: bz, sy: 0.85 }));
+      obstacles.push([bx - 1.3, bx + 1.3, bz - 1.3, bz + 1.3]);
+    }
+    /* La voûte de pierre : fermée vue de dehors ; quand on entre, elle s'efface
+       et on voit l'intérieur de la grotte. */
+    const vault = (radius, material) => {
+      const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 30, 14, Math.PI / 2 + 0.42, Math.PI * 2 - 0.84, 0, Math.PI / 2), material);
+      mesh.position.set(cave.x, 0, cave.z);
+      mesh.scale.y = 0.82;
+      group.add(mesh);
+      return mesh;
+    };
+    cave.outer = vault(cave.r + 1.0, new THREE.MeshStandardMaterial({ color: 0xa39d92, roughness: 1, flatShading: true }));
+    cave.outer.castShadow = true;
+    cave.inner = vault(cave.r + 0.9, new THREE.MeshStandardMaterial({ color: 0x6f6a78, roughness: 1, side: THREE.BackSide }));
+    cave.inner.visible = false;
+    const moss = [];
+    for (let k = 0; k < 9; k++) { const a = k * 0.7 + 0.3, rr = 1.2 + (k % 3) * 1.5; moss.push(orb(0.9, k % 2 ? "#6fd36a" : "#58c26b", { x: Math.cos(a) * rr, y: Math.sqrt(Math.max(0.1, 38 - rr * rr)) * 0.82 + 0.1, z: Math.sin(a) * rr, sy: 0.35 })); }
+    cave.outer.add(limb(moss));
+    // La voûte se referme au-dessus du portail : il ne reste que l'arche d'entrée.
+    cave.outer.add(new THREE.Mesh(new THREE.SphereGeometry(cave.r + 1.0, 8, 8, Math.PI / 2 - 0.43, 0.86, 0, 0.95), cave.outer.material));
+    farm.cave = cave;
+    const gateZ = cave.z + cave.r + 0.5; // le portail
+    [-1.5, 1.5].forEach((dx) => { decor.push(box(0.32, 3.0, 0.32, "#8a5a3c", { x: cave.x + dx, y: 1.5, z: gateZ })); obstacles.push([cave.x + dx - 0.2, cave.x + dx + 0.2, gateZ - 0.2, gateZ + 0.2]); });
+    decor.push(box(3.6, 0.34, 0.4, "#8a5a3c", { x: cave.x, y: 3.05, z: gateZ }), cyl(0.03, 0.4, "#22252e", { x: cave.x + 1.0, y: 2.7, z: gateZ }, 6), orb(0.16, "#ffd98a", { x: cave.x + 1.0, y: 2.45, z: gateZ }));
+    [-0.4, 0.4].forEach((dx) => decor.push(box(0.07, 0.06, cave.r + 2.5, "#6b6f7a", { x: cave.x + dx, y: 0.1, z: cave.z + 1.6 }))); // rails
+    for (let k = 0; k < 7; k++) decor.push(box(1.2, 0.05, 0.16, "#8a5a3c", { x: cave.x, y: 0.07, z: cave.z - 1.6 + k * 1.1 }));
+    decor.push(box(1.0, 0.55, 0.75, "#6b6f7a", { x: cave.x, y: 0.55, z: cave.z - 0.6 }), box(0.86, 0.14, 0.6, "#3b3b3b", { x: cave.x, y: 0.8, z: cave.z - 0.6 }),
+      orb(0.2, "#ffd60a", { x: cave.x - 0.15, y: 0.93, z: cave.z - 0.6 }), orb(0.16, BRAND, { x: cave.x + 0.2, y: 0.92, z: cave.z - 0.5 }));
+    [-0.42, 0.42].forEach((dx) => [-0.85, -0.35].forEach((dz) => decor.push(cyl(0.14, 0.08, "#22252e", { x: cave.x + dx, y: 0.2, z: cave.z + dz, rz: Math.PI / 2 }, 10))));
+    obstacles.push([cave.x - 0.6, cave.x + 0.6, cave.z - 1.1, cave.z - 0.1]);
+    [[-3.0, -1.2, BRAND], [-1.6, -3.3, "#ffd60a"], [3.0, -0.9, "#ff5d8f"], [1.9, -3.2, "#17c3b2"]].forEach((at) => { // les filons
+      const gem = (dx, dz, h2) => part(new THREE.OctahedronGeometry(0.26), at[2], { x: dx, y: h2, z: dz, sy: 1.5, ry: rnd() * 3 });
+      addNode("minerai", cave.x + at[0], cave.z + at[1], [orb(0.7, rock[0], { y: 0.34, sy: 0.7 }), orb(0.45, rock[1], { x: 0.4, y: 0.25, z: 0.3, sy: 0.7 }), gem(-0.15, 0, 0.78), gem(0.25, 0.2, 0.6), gem(0.05, -0.3, 0.62)]);
+    });
+    [-3.2, 3.2].forEach((dx) => decor.push(box(0.22, 3.6, 0.22, "#8a5a3c", { x: farm.x - 11.8 + dx, y: 1.8, z: farm.z + 9 }))); // portique d'entrée
     group.add(limb(decor));
-    board(6.2, 1.0, "SUPPOSITOFARM", "#8a5a3c", "#fff8e7", farm.x - 11.8, 3.1, farm.z + 9.06, 0);
-    board(6.2, 1.0, "SUPPOSITOFARM", "#8a5a3c", "#fff8e7", farm.x - 11.8, 3.1, farm.z + 8.94, Math.PI);
+    board(6.2, 1.0, "KINGFARM", "#8a5a3c", "#fff8e7", farm.x - 11.8, 3.2, farm.z + 9.13, 0);
+    board(6.2, 1.0, "KINGFARM", "#8a5a3c", "#fff8e7", farm.x - 11.8, 3.2, farm.z + 8.87, Math.PI);
+    board(2.4, 0.5, "MINE", "#fff8e7", "#8a5a3c", cave.x, 3.05, gateZ + 0.21, 0);
     // Les habitants et leurs quêtes : chacun attend près de chez lui.
     const spots = {
       chat: [X0 + 103.5, R + 6.1, Math.PI], fleurs: [X0 + 13, R - 26, 0], cloche: [fete.x - 5.5, fete.z - 9.4, Math.PI],
@@ -3400,7 +3483,9 @@ export function createParking3D(container, options) {
     } else if (e.code === "KeyE" || e.code === "Enter") {
       if (down && !e.repeat) { if (walk.panel) closeResa(); else interact(); }
     } else if (e.code === "KeyF") {
-      if (down && !e.repeat) bark();
+      if (down && !e.repeat) { bark(); sound([[980 / dog.def.scale, 0.07, 0], [760 / dog.def.scale, 0.06, 0.09]], 0.13, "triangle", true); }
+    } else if (e.code === "KeyH") {
+      if (down && !e.repeat && walk.drive) sfx("klaxon");
     } else if (e.code === "KeyC") {
       if (down && !e.repeat) { if (walk.panel) closeResa(); else openCarnet(); }
     } else if (/^Digit[1-4]$/.test(e.code)) {
@@ -3620,6 +3705,7 @@ export function createParking3D(container, options) {
     if (!walk.on || walk.drive) return;
     say(EMOTES[i]);
     if (++progress.hellos >= 10) win("sociable");
+    sfx("coucou");
     net.emote = i;
     net.emoteFor = 3.5;
   }
@@ -3722,6 +3808,7 @@ export function createParking3D(container, options) {
     carnet.add(id);
     saveProgress();
     refreshCarnet();
+    sfx("ding");
     if (carnet.size >= STAMPS.length) {
       toast("Carnet complet, bravo ! Pour venir pour de vrai, la borne de réservation est sur le parvis du parking.", 8);
       launchFireworks(7);
@@ -3740,6 +3827,7 @@ export function createParking3D(container, options) {
     progress.wins.add(id);
     saveProgress();
     refreshCarnet();
+    sfx("succes");
     if (!quiet) { toast("Succès : " + def[1] + " !", 5); launchFireworks(2); }
     if (id !== "legende" && progress.wins.size >= WINS.length - 1) win("legende");
   }
@@ -3861,22 +3949,60 @@ export function createParking3D(container, options) {
     stamp("boisson");
   }
   // Sons synthétisés (aucun fichier) : notes [fréquence, volume, départ], durée de l'écho.
-  let audio = null;
-  function sound(notes, ring, shape) {
+  let audio = null, master = null;
+  const audioMix = { vol: 0.6, music: true }; // réglages du son, gardés sur l'appareil
+  try {
+    const kept = JSON.parse(window.localStorage.getItem("access.plan3d.son") || "{}") || {};
+    if (Number.isFinite(kept.vol)) audioMix.vol = clamp(kept.vol, 0, 1);
+    if (typeof kept.music === "boolean") audioMix.music = kept.music;
+  } catch (err) { /* réglages par défaut */ }
+  // Petite musique de promenade : une ritournelle pentatonique et sa basse, jouées note à note.
+  const TUNE = [659, 0, 784, 659, 587, 0, 523, 587, 659, 784, 880, 0, 784, 659, 587, 0, 523, 0, 587, 659, 784, 0, 659, 587, 523, 587, 659, 0, 587, 523, 440, 0];
+  const BASS = [262, 196, 220, 196, 262, 196, 175, 196];
+  const music = { t: 0, i: 0 };
+  function stepMusic(dt) {
+    if (!walk.on || !audioMix.music || audioMix.vol <= 0 || walk.game) return;
+    music.t -= dt;
+    if (music.t > 0) return;
+    music.t += 0.36;
+    const note = TUNE[music.i % TUNE.length];
+    if (note) sound([[note, 0.028, 0], [note * 2, 0.008, 0]], 0.5, null, true);
+    if (music.i % 4 === 0) sound([[BASS[(music.i / 4) % BASS.length], 0.035, 0]], 1.3, null, true);
+    music.i++;
+  }
+  // La « voix » d'un habitant : quelques notes rapides, d'une hauteur propre à chacun.
+  function babble(seed) {
+    const base = 300 + (hash(seed) % 9) * 45;
+    sound(Array.from({ length: 8 }, (_, i) => [base * (1 + ((i * 7 + hash(seed)) % 5) * 0.07), 0.05, i * 0.075]), 0.07, "triangle", true);
+  }
+  const SFX = { // petits sons synthétisés : notes [fréquence, volume, départ], durée, forme d'onde
+    saut: [[[330, 0.07, 0], [520, 0.06, 0.07]], 0.16],
+    pop: [[[620, 0.05, 0], [830, 0.04, 0.05]], 0.1],
+    ding: [[[880, 0.08, 0], [1320, 0.06, 0.09]], 0.35],
+    succes: [[[523, 0.09, 0], [659, 0.09, 0.12], [784, 0.09, 0.24], [1047, 0.1, 0.36]], 0.5],
+    coucou: [[[700, 0.06, 0], [930, 0.06, 0.1]], 0.2],
+    porte: [[[140, 0.14, 0], [95, 0.1, 0.06]], 0.16, "triangle"],
+    klaxon: [[[392, 0.07, 0], [494, 0.07, 0]], 0.4, "square"],
+    pas: [[[90, 0.035, 0]], 0.05, "triangle"],
+  };
+  function sfx(name) { const it = SFX[name]; if (it) sound(it[0], it[1], it[2], true); }
+  function sound(notes, ring, shape, steady) {
+    if (audioMix.vol <= 0) return;
     try {
       const Ctx = window.AudioContext || window.webkitAudioContext;
       if (!Ctx) return;
-      audio = audio || new Ctx();
+      if (!audio) { audio = new Ctx(); master = audio.createGain(); master.connect(audio.destination); }
+      master.gain.value = audioMix.vol;
       const t0 = audio.currentTime;
       notes.forEach((n) => {
         const osc = audio.createOscillator(), gain = audio.createGain(), at = t0 + (n[2] || 0);
         osc.type = shape || "sine";
         osc.frequency.setValueAtTime(n[0], at);
-        if (shape) osc.frequency.exponentialRampToValueAtTime(n[0] * 0.55, at + ring); // peau de tambour
+        if (shape && !steady) osc.frequency.exponentialRampToValueAtTime(n[0] * 0.55, at + ring); // peau de tambour
         gain.gain.setValueAtTime(0.0001, t0);
         gain.gain.setValueAtTime(n[1], at);
         gain.gain.exponentialRampToValueAtTime(0.0008, at + ring);
-        osc.connect(gain).connect(audio.destination);
+        osc.connect(gain).connect(master);
         osc.start(at);
         osc.stop(at + ring + 0.1);
       });
@@ -3957,6 +4083,7 @@ export function createParking3D(container, options) {
   function showPanel(label, side, nodes) {
     if (walk.game) { walk.game.stop(); walk.game = null; }
     panel.classList.remove("talk");
+    sfx("pop");
     panel.replaceChildren();
     nodes.forEach((n) => panel.appendChild(n));
     panel.setAttribute("aria-label", label);
@@ -4089,6 +4216,7 @@ export function createParking3D(container, options) {
       d.board.forEach((v, i) => {
         const cell = button(v === 1 ? "✕" : v === 2 ? "○" : "", () => duelSend({ action: "move", duel: d.id, move: i }), "p3d-cell");
         cell.disabled = Boolean(v) || !d.turn;
+        if (v) cell.classList.add("mark");
         cell.setAttribute("aria-label", "Case " + (i + 1) + (v ? (v === 1 ? " : croix" : " : rond") : " : libre"));
         grid.appendChild(cell);
       });
@@ -4104,7 +4232,25 @@ export function createParking3D(container, options) {
       const text = d.result === "win" ? "Gagné, bravo !" : d.result === "lose" ? "Perdu… belle partie quand même." : "Égalité !";
       const detail = d.game === "pfc" ? "Vous : " + HANDS[d.mine] + " · " + d.other + " : " + HANDS[d.theirs] + "."
         : d.game === "piece" ? "La pièce tombe sur " + SIDES[d.coin].toLowerCase() + ". Vous aviez " + SIDES[d.mine].toLowerCase() + "." : "";
-      nodes.push(elem("p", "p3d-luck", text), elem("p", null, detail + " Sans rancune : à la fin, l'amour gagne toujours."), panelClose("Fermer"));
+      const stage = elem("div", "p3d-stage");
+      if (d.game === "piece") {
+        stage.appendChild(elem("div", "p3d-coin", SIDES[d.coin]));
+        sfx("ding");
+      } else if (d.game === "pfc") {
+        const hand = (cls, pick) => { const h = elem("span", "p3d-hand " + cls); h.append(elem("i", null, "✊"), elem("i", null, ["✊", "✋", "✌"][pick])); return h; };
+        stage.append(hand("left", d.mine), elem("b", null, "VS"), hand("right", d.theirs));
+        sfx("pas");
+      }
+      const verdict = elem("p", "p3d-luck p3d-reveal" + (d.game === "pfc" ? " fast" : ""), text);
+      const more = elem("p", "p3d-reveal" + (d.game === "pfc" ? " fast" : ""), detail + " Sans rancune : à la fin, l'amour gagne toujours.");
+      if (d.game === "morpion") { // la grille finale, avec la ligne gagnante en jaune
+        verdict.className = "p3d-luck"; more.className = "";
+        const line = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]].find((l) => d.board[l[0]] && l.every((c) => d.board[c] === d.board[l[0]])) || [];
+        const grid = elem("div", "p3d-grid3");
+        d.board.forEach((v, i) => { const cell = button(v === 1 ? "✕" : v === 2 ? "○" : "", () => {}, "p3d-cell" + (line.includes(i) ? " won" : "")); cell.disabled = true; grid.appendChild(cell); });
+        nodes.push(grid);
+      } else nodes.push(stage);
+      nodes.push(verdict, more, panelClose("Fermer"));
       if (walk.duelDone !== d.id) {
         walk.duelDone = d.id;
         win("duel", true);
@@ -4116,10 +4262,10 @@ export function createParking3D(container, options) {
     showPanel(name, false, nodes);
   }
 
-  /* --- La Suppositofarm : plantes à ramasser, arbres à abattre à coups de poing,
+  /* --- La Kingfarm : plantes à ramasser, arbres à abattre à coups de poing,
      minerais à extraire dans la grotte. Tout repousse au bout d'un moment. */
   const FARM = {
-    plante: { hp: 1, back: 25, verb: "Ramasser la carotte", got: "Carotte ramassée", win: ["jardinier", 10] },
+    plante: { hp: 1, back: 25, verb: "Cueillir la citrouille", got: "Citrouille cueillie", win: ["jardinier", 10] },
     bois: { hp: 3, back: 40, verb: "Donner un coup de poing à l'arbre", got: "Arbre abattu : du bois", win: ["bucheron", 5] },
     minerai: { hp: 2, back: 45, verb: "Miner le filon", got: "Minerai extrait", win: ["mineur", 8] },
   };
@@ -4153,6 +4299,9 @@ export function createParking3D(container, options) {
       if (d < 2.0 && (!best || d < best.d)) best = { d, node };
     });
     walk.farmNear = best;
+    const cv = lot.farm.cave, inside = walk.on && Math.hypot(walk.x - cv.x, walk.z - cv.z) < cv.r + 0.3;
+    cv.outer.visible = !inside;
+    cv.inner.visible = inside;
   }
   const qs = (id) => progress.quests[id] || 0; // 0 : à proposer, 1 : en cours, 2 : à rendre, 3 : terminée
   function refreshQuests() {
@@ -4183,6 +4332,7 @@ export function createParking3D(container, options) {
     const q = QUESTS.find((it) => it.id === id), v = qs(id);
     const f = lot.quest.folk.find((it) => it.id === id);
     walk.rot = Math.atan2(f.x - walk.x, f.z - walk.z);
+    babble(id);
     const button = (label, fn) => { const b = elem("button", null, label); b.type = "button"; b.addEventListener("click", fn); return b; };
     const line = v === 0 ? q.ask : v === 1 ? "Alors, ça avance ? " + q.todo : v === 2 ? q.done : "Encore merci pour tout à l'heure !";
     const nodes = [elem("span", "p3d-who", q.who), elem("p", "p3d-say", line)];
@@ -4230,6 +4380,17 @@ export function createParking3D(container, options) {
       if (qz.blooms.every((bl) => !bl.mesh.visible)) questEvent("fleurs");
       else toast("Fleur dorée cueillie.", 2.5);
     });
+  }
+  // Réglages : volume par paliers, musique oui ou non. Gardés sur l'appareil.
+  function openSettings() {
+    const save = () => { store("access.plan3d.son", { vol: audioMix.vol, music: audioMix.music }); if (master) master.gain.value = audioMix.vol; openSettings(); sfx("pop"); };
+    const row = elem("div", "p3d-row center");
+    row.append(button("−", () => { audioMix.vol = Math.max(0, Math.round((audioMix.vol - 0.2) * 10) / 10); save(); }, "p3d-chip"),
+      elem("b", null, audioMix.vol <= 0 ? "Son coupé" : "Volume " + Math.round(audioMix.vol * 100) + " %"),
+      button("+", () => { audioMix.vol = Math.min(1, Math.round((audioMix.vol + 0.2) * 10) / 10); save(); }, "p3d-chip"));
+    showPanel("Réglages du son", false, [panelTitle("⚙", "Réglages du son", "#5b4636"), elem("h4", null, "Volume"), row]
+      .concat(choices("Musique de promenade", [[true, "Avec"], [false, "Sans"]], audioMix.music, (v) => { audioMix.music = v; save(); }))
+      .concat([panelClose()]));
   }
   function openBalloons() {
     walk.zoom = { dist: 5.2, pitch: 0.12, y: 1.6 };
@@ -4442,6 +4603,7 @@ export function createParking3D(container, options) {
     actBtn.textContent = "Frein";
     speedoUnit.textContent = "km/h · " + rv.def.name;
     speedo.classList.add("on");
+    sfx("porte");
     bark();
     stamp("volant");
   }
@@ -4636,6 +4798,7 @@ export function createParking3D(container, options) {
     if (!driving) {
       if (k.Space && walk.on && !walk.panel && !walk.ride && walk.y === 0) {
         if (look.balloon !== "none") win("ballon");
+        sfx("saut");
         walk.vy = look.balloon !== "none" ? 6.6 : 5.8;
         if (d.y === 0) d.vy = 4.4;
         if (++progress.jumps >= 25) win("kangourou");
@@ -4658,6 +4821,7 @@ export function createParking3D(container, options) {
         walk.x = next[0]; walk.z = next[1];
       }
       walk.still = 0;
+      if (walk.y === 0 && Math.floor(walk.phase / Math.PI) !== Math.floor((walk.phase - walk.speed * dt * 2.4) / Math.PI)) sfx("pas"); // un pas
       progress.walked += walk.speed * dt;
       if (progress.walked >= 2000) win("marche");
     } else {
@@ -4823,8 +4987,8 @@ export function createParking3D(container, options) {
         hereCount.textContent = "le village du parking";
         if (inFarm) {
           hereDot.style.setProperty("--c", "#40a02b");
-          hereName.textContent = "Suppositofarm";
-          hereCount.textContent = "carottes " + bag.plante + " · bois " + bag.bois + " · minerai " + bag.minerai;
+          hereName.textContent = "Kingfarm";
+          hereCount.textContent = "citrouilles " + bag.plante + " · bois " + bag.bois + " · minerai " + bag.minerai;
         }
       }
       if (zone) {
@@ -5055,6 +5219,8 @@ export function createParking3D(container, options) {
       fish.position.set(city.pond.x + Math.cos(a) * city.pond.rx * u.r, 0.25, city.pond.z + Math.sin(a) * city.pond.rz * u.r);
       fish.rotation.y = -a;
     });
+    stepMusic(dt);
+    BEND.value = lerp(BEND.value, walk.on && !reduceMotion ? BEND_MAX : 0, 1 - Math.exp(-dt * 2.5));
     stepFireworks(dt);
     stepNet(dt);
     stepLive(now);
@@ -5082,7 +5248,8 @@ export function createParking3D(container, options) {
 
   function updateTags(w, h) {
     lot.tags.forEach((t) => {
-      proj.copy(t.pos).project(camera);
+      const bx = t.pos.x - camera.position.x, bz = t.pos.z - camera.position.z; // même courbure que le décor
+      proj.set(t.pos.x, t.pos.y - BEND.value * (bx * bx + bz * bz), t.pos.z).project(camera);
       const visible = !t.hidden && proj.z < 1 && proj.x > -1.15 && proj.x < 1.15 && proj.y > -1.15 && proj.y < 1.15;
       t.node.style.opacity = visible ? "1" : "0";
       if (visible) {
@@ -5130,6 +5297,7 @@ export function createParking3D(container, options) {
   const nightBtn = toolButton("Nuit", "Passer du jour à la nuit", () => api.setTheme(nightGoal > 0.5 ? "latte" : "mocha"), nightGoal > 0.5);
   const walkBtn = toolButton("Promenade", "Se promener dans le parking avec un personnage (ZQSD)", () => setWalk(!walk.on), false);
   toolButton("?", "À propos de ce monde en 3D", () => openWelcome());
+  toolButton("⚙", "Réglages du son : volume et musique", () => openSettings());
   toolButton("Plein écran", "Afficher le plan en plein écran", () => {
     if (document.fullscreenElement) document.exitFullscreen();
     else if (container.requestFullscreen) container.requestFullscreen().catch(() => {});

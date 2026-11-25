@@ -20,7 +20,7 @@
 | | |
 |---|---|
 | **Rôle** | Décide si un véhicule peut entrer/sortir du parking et coordonne les échanges avec Vehicles, Booking, Parking, Pricing, Payment (aucune donnée métier des autres services). |
-| **Version actuelle** | `4.21.0` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
+| **Version actuelle** | `4.22.0` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
 | **Dernière mise à jour** | 24 novembre 2026 (plaques de tous pays ; Parking 1.5.0 : catégories et occupation ; borne client ; Vehicles par plaque) |
 | **URL du service déployé** | https://access-api-a1u7.onrender.com |
 | **Documentation Swagger/OpenAPI** | https://access-api-a1u7.onrender.com/docs (ReDoc : `/redoc`, spec brute : `/openapi.json`) |
@@ -73,7 +73,7 @@
 | **Observabilité** | ✅ Correlation ID propagé à tous les services et événements, logs par décision, `/metrics` Prometheus (techniques + métier + intégration), config Prometheus fournie, `/health` avec version et commit | [section 9](#métriques-prometheus) |
 | **CI/CD et déploiement** | ✅ GitHub Actions (lint → tests → bandit → pip-audit → gitleaks), déploiement Render après CI verte, smoke test de l'instance déployée (version vérifiée), CHANGELOG, Dependabot | [section 9](#intégration-continue-cicd), [section 14](#14-déploiement-sur-render) |
 | **Sécurité** | ✅ Clé API (comparaison en temps constant) sur toutes les routes sauf `/health`, clé borne limitée au passage d'un véhicule, refus de démarrer en production avec une clé faible, validation stricte, erreurs sans stack trace, en-têtes de sécurité, CORS restreint, rate limiting, secrets hors Git, plaque jamais stockée/publiée/renvoyée/loggée (test dédié) | [section 10](#10-sécurité) |
-| **Version** | `4.21.0` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
+| **Version** | `4.22.0` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
 | **Dernière mise à jour** | 24 novembre 2026 | |
 
 ### Suivi des jalons
@@ -983,9 +983,13 @@ Renseignez votre `X-API-Key` dans le champ prévu (stockée uniquement dans le
   **Défis amicaux** : près d'un autre promeneur, la touche E ouvre une
   roulette : morpion, pierre-feuille-ciseaux ou pile ou face. L'autre
   accepte ou non ; le serveur arbitre la partie.
-  **Suppositofarm**, au sud des champs : des carottes à ramasser, des
-  arbres à abattre à coups de poing, une mini-grotte où extraire des
-  minerais. Tout repousse au bout d'un moment.
+  **Kingfarm**, au sud des champs : un potager de citrouilles à cueillir,
+  un verger à abattre à coups de poing, une grotte de pierre (portail en
+  bois, rails, wagonnet) où extraire des minerais : sa voûte s'efface
+  quand on y entre. En promenade, le monde est **courbé** comme une petite
+  planète (effet de dessin : le plan vu de haut reste à plat). **Sons** :
+  gestes, voix des habitants, musique de promenade, tous synthétisés par le
+  navigateur ; la roue ⚙ règle le volume et coupe la musique. Tout repousse au bout d'un moment.
   Les animaux et le décor suivent le style doux des personnages : maisons
   aux murs crème à poutres de bois, toits à deux pans en tuiles arrondies
   avec pignons et faîtière, portes arrondies, haies, boîtes aux lettres,

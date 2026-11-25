@@ -226,7 +226,7 @@ def test_plan_3d_visage_peint_quetes_coupes_et_vehicules(client):
 
 
 def test_plan_3d_defis_ferme_et_decor_doux(client):
-    """Défis entre promeneurs, Suppositofarm, animaux et maisons dans le même style."""
+    """Défis entre promeneurs, Kingfarm, animaux et maisons dans le même style."""
 
     source = client.get("/static/parking3d.js").text
     for name in (
@@ -238,7 +238,7 @@ def test_plan_3d_defis_ferme_et_decor_doux(client):
     ):
         assert name in source
     for word in (
-        "SUPPOSITOFARM",
+        "KINGFARM",
         "Pierre feuille ciseaux",
         "Je prends pile",
         "p3d-grid3",
@@ -257,8 +257,18 @@ def test_plan_3d_decor_de_village(client):
         "const gable" in source
         and "SphereGeometry(1, 30, 12, 0, Math.PI * 2, 0, Math.PI / 2)" not in source
     )
-    assert "clôture en bois" in source and "// pommes" in source
+    assert "lôture en bois" in source and "// pommes" in source
+    # Monde courbé : un effet de dessin seulement, coupé hors promenade et pour le ciel.
+    assert "const BEND" in source and "noBend" in source and "isMeshDepthMaterial" in source
     assert "function tileTexture" in source and "roofSlab" in source  # pans de toit en tuiles
+    for word in (
+        "KINGFARM",
+        "function openSettings",
+        "function stepMusic",
+        "function babble",
+        "cave.outer",
+    ):
+        assert word in source
 
 
 def test_mini_jeux_servis_sans_ressource_externe(client):
