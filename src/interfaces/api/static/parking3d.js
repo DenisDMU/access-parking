@@ -51,7 +51,7 @@ const TAIL = "#ff2638";
 
 const SKY = {
   day: {
-    top: "#3f9df0", hor: "#cfe9ff", grass: "#7fc463", sun: "#fff2dc", sunI: 3.0,
+    top: "#3f9df0", hor: "#cfe9ff", grass: "#84d86f", sun: "#fff2dc", sunI: 3.0,
     hemiSky: "#d6ecff", hemiGround: "#6f8f5c", hemiI: 0.9, exposure: 1.0,
     cloud: "#ffffff", cloudO: 0.95, asphalt: "#555a69", road: "#474b58",
   },
@@ -661,7 +661,7 @@ function drawLogo(g, x, y, size) {
   for (let xx = 44; xx < 190; xx += 17) { g.beginPath(); g.moveTo(xx, 190); g.lineTo(xx + 11, 190); g.lineTo(xx + 16, 168); g.lineTo(xx + 5, 168); g.closePath(); g.fill(); }
   g.restore();
 }
-const ROOF_TILES = ["#c8553d", "#2f4a7a", "#b5482f", "#3d5a80", "#a8452f", "#8a3b2e"];
+const ROOF_TILES = ["#e2574c", "#4f86e0", "#e98b3a", "#5fb86a", "#c9546b", "#e2574c"];
 const FACADES = ["#ffffff", "#ffe9c9", "#dcebff", "#ffe1e7", "#e2f3da", "#fff3c4"];
 const FLOWERS = ["#04a5e5", "#40a02b", "#df8e1d", "#7287fd", "#fe640b", "#f6a5c0", "#ffd60a", "#f4f5f7"];
 const BLOSSOM = ["#ffb7c5", "#ff9eb5", "#ffc9d6", "#f8a5c2", "#ffd3de"];
@@ -1318,19 +1318,18 @@ export function createParking3D(container, options) {
         const r = (x, y, rw, rh, c) => { ctx.fillStyle = c; ctx.fillRect(x * w, y * w, rw * w, rh * w); };
         if (glow) {
           r(0, 0, 1, 1, "#000000");
-          r(0.16, 0.2, 0.24, 0.44, "#ffcf7a"); r(0.6, 0.2, 0.24, 0.44, "#ffcf7a");
+          r(0.16, 0.23, 0.24, 0.38, "#ffcf7a"); r(0.6, 0.23, 0.24, 0.38, "#ffcf7a");
           return;
         }
-        r(0, 0, 1, 1, "#f7f2e8"); // enduit (teinté par maison)
-        r(0, 0.88, 1, 0.12, "#b9b2a4"); // soubassement
-        r(0, 0, 1, 0.045, "#ffffff"); // corniche
-        [0.16, 0.6].forEach((x) => { // fenêtres à volets bleus, jardinière fleurie
-          r(x - 0.02, 0.18, 0.28, 0.48, "#ffffff");
-          r(x, 0.2, 0.24, 0.44, "#a9cdee");
-          r(x + 0.113, 0.2, 0.014, 0.44, "#ffffff"); r(x, 0.41, 0.24, 0.014, "#ffffff");
-          r(x - 0.085, 0.18, 0.06, 0.48, BRAND); r(x + 0.265, 0.18, 0.06, 0.48, BRAND);
-          r(x - 0.02, 0.665, 0.28, 0.05, "#7a5a3c");
-          for (let k = 0; k < 5; k++) r(x - 0.005 + k * 0.055, 0.64, 0.035, 0.035, k % 2 ? "#ff7aa8" : "#ffd60a");
+        r(0, 0, 1, 1, "#fff6e3"); // crépi crème (teinté par maison)
+        r(0, 0.9, 1, 0.1, "#c9a27a"); // soubassement
+        r(0, 0, 1, 0.07, "#b98a5e"); r(0, 0, 0.05, 1, "#b98a5e"); r(0.95, 0, 0.05, 1, "#b98a5e"); // poutres de bois
+        [0.16, 0.6].forEach((x) => { // fenêtres à croisillons, cadre de bois, jardinière fleurie
+          r(x - 0.03, 0.2, 0.3, 0.44, "#a8743f");
+          r(x, 0.23, 0.24, 0.38, "#bfe3ff");
+          r(x + 0.112, 0.23, 0.016, 0.38, "#a8743f"); r(x, 0.41, 0.24, 0.016, "#a8743f");
+          r(x - 0.03, 0.64, 0.3, 0.05, "#8a5a3c");
+          for (let k = 0; k < 5; k++) r(x - 0.012 + k * 0.057, 0.61, 0.036, 0.04, k % 2 ? "#ff7aa8" : "#ffd60a");
         });
       };
       return new THREE.MeshStandardMaterial({
@@ -1348,7 +1347,7 @@ export function createParking3D(container, options) {
       }),
       depthWrite: false, toneMapped: false,
     }),
-    trunk: new THREE.MeshStandardMaterial({ color: 0x6b4a32, roughness: 0.9 }),
+    trunk: new THREE.MeshStandardMaterial({ color: 0xb9824f, roughness: 0.9 }),
     totem: new THREE.MeshStandardMaterial({ color: 0x174fc0, roughness: 0.6 }),
   };
   M.pool = new THREE.MeshBasicMaterial({
@@ -2013,10 +2012,11 @@ export function createParking3D(container, options) {
         y += 2.9;
         if (f < floors - 1) { bases.push({ x: hx, y: y + 0.08, z: hz, sx: w + 0.35, sy: 0.16, sz: d + 0.35 }); y += 0.16; }
       }
-      const sx = w * 0.66 + 0.25, sz = d * 0.66 + 0.25, top = o.steep ? 4.8 : 3.9; // dôme bien bombé, qui déborde un peu des murs
-      roofLow.push({ x: hx, y: y + 0.08, z: hz, sx, sy: 0.16, sz, color: roofColor });
-      roofTop.push({ x: hx, y: y + 0.16 + top / 2, z: hz, sx: sx * 0.97, sy: top, sz: sz * 0.97, color: roofColor });
-      if (!o.steep) props.push(box(0.6, 1.5, 0.6, "#b9b2a4", { x: hx + w * 0.24, y: y + top * 0.86, z: hz }));
+      // Toit à deux pans, épais, qui déborde des murs ; une planche de rive claire dessous.
+      const sx = w + 1.3, sz = d + 1.7, top = o.steep ? 4.0 : 2.8;
+      roofLow.push({ x: hx, y: y + 0.11, z: hz, sx, sy: 0.22, sz, color: "#fdf6e3" });
+      roofTop.push({ x: hx, y: y + 0.22 + top / 2, z: hz, sx, sy: top, sz, color: roofColor });
+      if (!o.steep) props.push(box(0.6, 1.5, 0.6, "#c9a27a", { x: hx + w * 0.26, y: y + top * 0.62, z: hz + d * 0.2 }));
       cityObstacles.push([hx - w / 2 - 0.35, hx + w / 2 + 0.35, hz - d / 2 - 0.35, hz + d / 2 + 0.35]);
     };
     // Borne lumineuse, comme celles du parking : elle s'allume la nuit.
@@ -2063,8 +2063,14 @@ export function createParking3D(container, options) {
         props.push(box(sw / 6, 0.07, 1.35, k % 2 ? "#fdf6e3" : color, { x: hx + (k - 2.5) * (sw / 6), y: 2.3, z: fzFace + out * 0.66, rx: out * 0.28 }));
       }
       props.push(box(sw, 0.26, 0.06, color, { x: hx, y: 2.0, z: fzFace + out * 1.3 }));
-      props.push(box(1.25, 1.95, 0.08, "#3b2a20", { x: hx, y: 1.42, z: fzFace + out * 0.05 }));
-      props.push(box(0.95, 1.2, 0.09, "#a9cdee", { x: hx, y: 1.6, z: fzFace + out * 0.06 }));
+      props.push(box(1.25, 1.75, 0.08, "#b9824f", { x: hx, y: 1.32, z: fzFace + out * 0.05 })); // porte en bois, arrondie en haut
+      props.push(cyl(0.625, 0.08, "#b9824f", { x: hx, y: 2.19, z: fzFace + out * 0.05, rx: Math.PI / 2 }, 20));
+      props.push(part(new THREE.TorusGeometry(0.2, 0.06, 6, 14), "#5fb86a", { x: hx, y: 2.25, z: fzFace + out * 0.12 })); // couronne
+      props.push(ball(0.05, "#e2574c", { x: hx + 0.14, y: 2.11, z: fzFace + out * 0.16 }));
+      [-1, 1].forEach((sx) => { // haies rondes de chaque côté
+        for (let k = 0; k < 3; k++) cityLeaves.push({ x: hx + sx * (w / 2 - 0.5 - k * 0.95), y: 0.55, z: fzFace + out * 0.75, sx: 0.62, sy: 0.6, sz: 0.55, color: k % 2 ? "#6fd36a" : "#4fb957" });
+      });
+      props.push(box(0.5, 0.5, 0.09, "#bfe3ff", { x: hx, y: 1.72, z: fzFace + out * 0.06 })); // petite vitre
       [-1, 1].forEach((sx) => lampions.push({ x: hx + sx * (sw / 2 + 0.55), y: 2.35, z: fzFace + out * 0.45, sx: 0.2, sy: 0.26, sz: 0.2 }));
       const name = SHOPS[i], kind = SHOP_PANELS[name];
       cityPoints.push({
@@ -2162,7 +2168,7 @@ export function createParking3D(container, options) {
     cityObstacles.push([bay.x + 2.05, bay.x + 2.35, bay.z - 3.55, bay.z - 3.25]);
 
     // 2. Le belvédère sur sa colline : ruelle, escalier sous cinq arches (une par zone), pavillon et cloche
-    props.push(box(5, 0.04, 44.5, "#a8a397", { x: laneN, y: 0.02, z: R + 4.5 + 22.25 }));
+    props.push(box(5, 0.04, 44.5, "#dcb98a", { x: laneN, y: 0.02, z: R + 4.5 + 22.25 }));
     const hillGeo = new THREE.CylinderGeometry(hill.rt, hill.r, hill.h, 44, 1);
     const hillMesh = new THREE.Mesh(hillGeo, M.hill);
     hillMesh.position.set(hill.x, hill.h / 2, hill.z);
@@ -2213,7 +2219,7 @@ export function createParking3D(container, options) {
 
     // 2 bis. La place de la fête : kiosque à musique et sa grosse caisse, stands, guirlandes
     const fete = { x: X0 + 24, z: R + 36 };
-    props.push(box(3, 0.04, 21, "#a8a397", { x: feteLane, y: 0.02, z: R + 15 }));
+    props.push(box(3, 0.04, 21, "#dcb98a", { x: feteLane, y: 0.02, z: R + 15 }));
     props.push(box(31, 0.04, 23, gravel, { x: fete.x, y: 0.025, z: fete.z }));
     props.push(box(3.9, 1.3, 3.9, BRAND, { x: fete.x, y: 0.65, z: fete.z })); // le kiosque et sa jupe bleue et blanche
     props.push(box(3.96, 0.32, 3.96, "#fdf6e3", { x: fete.x, y: 0.95, z: fete.z }));
@@ -2306,8 +2312,8 @@ export function createParking3D(container, options) {
     }
 
     // 4. Au sud : champs de fleurs aux couleurs des zones, épouvantail en gilet jaune, fermes, petit bois de bouleaux
-    props.push(box(5, 0.04, 52, "#a8a397", { x: laneS, y: 0.02, z: R - 4.5 - 26 }));
-    props.push(box(46, 0.04, 4, "#a8a397", { x: laneS + 21, y: 0.02, z: R - 48 }));
+    props.push(box(5, 0.04, 52, "#dcb98a", { x: laneS, y: 0.02, z: R - 4.5 - 26 }));
+    props.push(box(46, 0.04, 4, "#dcb98a", { x: laneS + 21, y: 0.02, z: R - 48 }));
     const paddies = [], rice = [];
     props.push(box(4 * 24.5 + 1.5, 0.22, 2 * 18.5 + 1.5, "#8a7355", { x: X0 + 61.75, y: 0.11, z: R - 43.25 })); // diguettes
     for (let i = 0; i < 4; i++) for (let j = 0; j < 2; j++) {
@@ -2347,11 +2353,14 @@ export function createParking3D(container, options) {
       g.computeVertexNormals();
       return g;
     };
-    // Toits ronds, comme des chapeaux posés sur les maisons : un bord, puis un dôme.
-    const dome = new THREE.SphereGeometry(1, 30, 12, 0, Math.PI * 2, 0, Math.PI / 2);
-    dome.translate(0, -0.5, 0);
-    instanced(group, new THREE.CylinderGeometry(1, 1, 1, 32), M.roofTile, roofLow, "both");
-    instanced(group, dome, M.roofTile, roofTop, "cast");
+    // Toits à deux pans : un prisme dont le faîte suit la longueur de la maison.
+    const corners = [[-0.5, -0.5, -0.5], [0.5, -0.5, -0.5], [0.5, -0.5, 0.5], [-0.5, -0.5, 0.5], [-0.5, 0.5, 0], [0.5, 0.5, 0]];
+    const faces = [[3, 2, 5], [3, 5, 4], [1, 0, 4], [1, 4, 5], [0, 3, 4], [2, 1, 5], [0, 1, 2], [0, 2, 3]];
+    const gable = new THREE.BufferGeometry();
+    gable.setAttribute("position", new THREE.Float32BufferAttribute(faces.flat().flatMap((i) => corners[i]), 3));
+    gable.computeVertexNormals();
+    instanced(group, new THREE.BoxGeometry(1, 1, 1), M.roofTile, roofLow, "both");
+    instanced(group, gable, M.roofTile, roofTop, "cast");
     void frustum;
     const tx = X0 - 12;
     arch(tx, 0, R, 12.4, 8.2, true, true, BRAND);
@@ -2484,7 +2493,7 @@ export function createParking3D(container, options) {
       if (inCity(x, z)) continue;
       ring(x, z);
     }
-    instanced(group, new THREE.CylinderGeometry(0.16, 0.24, 1.8, 7), M.trunk,
+    instanced(group, new THREE.CylinderGeometry(0.24, 0.36, 1.8, 10), M.trunk,
       trees.map((t) => ({ x: t.x, y: t.y0 + 0.9 * t.s, z: t.z, sy: t.s })), "cast");
     const greens = ["#4fb957", "#5cc95a", "#6fd36a", "#49b05a", "#7ed36f", "#58c26b"];
     const lighter = (color) => "#" + new THREE.Color(color).lerp(new THREE.Color("#ffffff"), 0.22).getHexString();
@@ -2503,6 +2512,10 @@ export function createParking3D(container, options) {
       leaves.push({ x: t.x, y: t.y0 + 2.6 * t.s, z: t.z, sx: 1.7 * t.s, sy: 1.9 * t.s, sz: 1.7 * t.s, ry: rnd() * 6, color });
       leaves.push({ x: t.x + 0.3, y: t.y0 + 3.9 * t.s, z: t.z - 0.2, sx: 1.15 * t.s, sy: 1.3 * t.s, sz: 1.15 * t.s, ry: rnd() * 6, color });
       leaves.push({ x: t.x - 0.55 * t.s, y: t.y0 + 3.5 * t.s, z: t.z + 0.6 * t.s, sx: 0.8 * t.s, sy: 0.85 * t.s, sz: 0.8 * t.s, color: lighter(color) }); // reflet
+      leaves.push({ x: t.x + 0.75 * t.s, y: t.y0 + 2.9 * t.s, z: t.z + 0.55 * t.s, sx: 0.95 * t.s, sy: 1.0 * t.s, sz: 0.95 * t.s, color });
+      if (rnd() < 0.3) [[0.9, 2.6, 1.0], [-0.9, 3.0, 0.9], [0.2, 2.2, 1.45]].forEach((at) => { // pommes
+        leaves.push({ x: t.x + at[0] * t.s, y: t.y0 + at[1] * t.s, z: t.z + at[2] * t.s, sx: 0.2, sy: 0.2, sz: 0.2, color: "#e2372f" });
+      });
     });
     cityLeaves.forEach((l) => leaves.push(l));
     // Fleurs et buissons ronds, semés dans le village et autour du parking.
@@ -2832,6 +2845,19 @@ export function createParking3D(container, options) {
       const gem = () => part(new THREE.OctahedronGeometry(0.2), at[2], { x: (rnd() - 0.5) * 0.6, y: 0.5 + rnd() * 0.2, z: (rnd() - 0.5) * 0.6, ry: rnd() * 3 });
       addNode("minerai", cave.x + at[0], cave.z + at[1], [orb(0.6, "#8d8798", { y: 0.3, sy: 0.7 }), gem(), gem(), gem()]);
     });
+    const fx0 = farm.x - 16.6, fx1 = farm.x - 6.2, fz0 = farm.z - 2.6, fz1 = farm.z + 3.6; // clôture en bois, ouverte au nord
+    for (let x = fx0; x <= fx1 + 0.01; x += 1.3) {
+      decor.push(cyl(0.09, 1.0, "#b9824f", { x, y: 0.5, z: fz0 }, 8));
+      if (Math.abs(x - (fx0 + fx1) / 2) > 1.2) decor.push(cyl(0.09, 1.0, "#b9824f", { x, y: 0.5, z: fz1 }, 8));
+    }
+    for (let z = fz0 + 1.24; z < fz1; z += 1.24) [fx0, fx1].forEach((x) => decor.push(cyl(0.09, 1.0, "#b9824f", { x, y: 0.5, z }, 8)));
+    [0.45, 0.8].forEach((y) => {
+      decor.push(box(fx1 - fx0, 0.07, 0.06, "#c9955f", { x: (fx0 + fx1) / 2, y, z: fz0 }));
+      [fx0, fx1].forEach((x) => decor.push(box(0.06, 0.07, fz1 - fz0, "#c9955f", { x, y, z: (fz0 + fz1) / 2 })));
+      [-1, 1].forEach((sx) => decor.push(box((fx1 - fx0) / 2 - 1.2, 0.07, 0.06, "#c9955f", { x: (fx0 + fx1) / 2 + sx * ((fx1 - fx0) / 4 + 0.6), y, z: fz1 })));
+    });
+    obstacles.push([fx0 - 0.1, fx1 + 0.1, fz0 - 0.1, fz0 + 0.1], [fx0 - 0.1, fx0 + 0.1, fz0, fz1], [fx1 - 0.1, fx1 + 0.1, fz0, fz1],
+      [fx0, (fx0 + fx1) / 2 - 1.2, fz1 - 0.1, fz1 + 0.1], [(fx0 + fx1) / 2 + 1.2, fx1, fz1 - 0.1, fz1 + 0.1]);
     group.add(limb(decor));
     board(6.2, 1.0, "SUPPOSITOFARM", "#8a5a3c", "#fff8e7", farm.x - 11.8, 3.1, farm.z + 9.06, 0);
     board(6.2, 1.0, "SUPPOSITOFARM", "#8a5a3c", "#fff8e7", farm.x - 11.8, 3.1, farm.z + 8.94, Math.PI);

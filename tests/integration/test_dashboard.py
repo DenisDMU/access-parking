@@ -249,6 +249,17 @@ def test_plan_3d_defis_ferme_et_decor_doux(client):
     assert 'net.url + "/defi"' in source and 'Math.random() < 0.5 ? "win"' not in source
 
 
+def test_plan_3d_decor_de_village(client):
+    """Toits à deux pans, chemins de terre, clôture : le décor suit les personnages."""
+
+    source = client.get("/static/parking3d.js").text
+    assert (
+        "const gable" in source
+        and "SphereGeometry(1, 30, 12, 0, Math.PI * 2, 0, Math.PI / 2)" not in source
+    )
+    assert "clôture en bois" in source and "// pommes" in source
+
+
 def test_mini_jeux_servis_sans_ressource_externe(client):
     from src.infrastructure.promenade_room import GAMES
 

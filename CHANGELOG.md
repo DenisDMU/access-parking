@@ -20,7 +20,9 @@ sémantique (majeure = contrat d'API cassé).
 
 ### Modifié
 - Animaux dans le style des personnages (grosse tête, grands yeux, joues).
-- Maisons coiffées de toits ronds ; sol en prairie dessinée.
+- Décor de village : murs crème à poutres de bois, toits à deux pans qui
+  débordent, chemins de terre, clôture en bois à la ferme, arbres touffus
+  à pommes, prairie dessinée.
 
 ## [4.19.0] — 2026-11-25 — Style doux, quêtes, onze mini-jeux
 
