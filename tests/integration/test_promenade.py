@@ -131,3 +131,13 @@ def test_salon_plein(client, monkeypatch):
     assert client.post(URL, json=state(A)).status_code == 200
     assert client.post(URL, json=state(B)).status_code == 503
     assert client.post(URL, json=state(A)).status_code == 200
+
+
+def test_regard_au_choix(client):
+    """Le style des yeux voyage avec la tenue ; un ancien client garde « ronds »."""
+
+    client.post(URL, json=state(A, look={**LOOK, "eyes": "manga"}))
+    client.post(URL, json=state(B))
+    seen = {p["look"]["eyes"] for p in client.get(URL).json()["players"]}
+    assert seen == {"manga", "ronds"}
+    assert client.post(URL, json=state(A, look={**LOOK, "eyes": "<3"})).status_code == 422

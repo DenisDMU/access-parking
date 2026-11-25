@@ -30,6 +30,7 @@ class PromenadeLook(BaseModel):
     bottom: str = Field(default="pants", pattern=WORD)
     extra: str = Field(default="none", pattern=WORD)
     balloon: str = Field(default="none", pattern=r"^(none|#[0-9a-f]{6})$")
+    eyes: str = Field(default="ronds", pattern=WORD)
 
 
 class PromenadeStateIn(BaseModel):

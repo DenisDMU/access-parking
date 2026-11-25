@@ -44,6 +44,11 @@ GAMES: dict[str, int] = {
     "barbe": 100,
     "tambour": 40,
     "plein": 100,
+    "paires": 100,
+    "ballons": 60,
+    "passage": 30,
+    "olives": 60,
+    "feu": 100,
     "creneau": 100,
 }
 BOARD_SIZE = 5
