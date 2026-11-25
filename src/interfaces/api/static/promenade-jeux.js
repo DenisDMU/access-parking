@@ -25,6 +25,23 @@ function blob(g, x, y, rx, ry, color) {
   g.fill();
 }
 
+// Décor doux, façon livre d'images : ciel en dégradé, nuages, ombres portées.
+function backdrop(g, top, bottom, t) {
+  const sky = g.createLinearGradient(0, 38, 0, H);
+  sky.addColorStop(0, top); sky.addColorStop(1, bottom);
+  g.fillStyle = sky; g.fillRect(0, 38, W, H - 38);
+  if (t == null) return;
+  for (let i = 0; i < 3; i++) {
+    const x = ((t * (6 + i * 3) + i * 150) % (W + 120)) - 60, y = 58 + i * 16;
+    blob(g, x, y, 26, 9, "rgba(255,255,255,.75)"); blob(g, x + 16, y - 6, 16, 9, "rgba(255,255,255,.75)");
+  }
+}
+function soft(g, on) {
+  g.shadowColor = on ? "rgba(34,37,46,.28)" : "transparent";
+  g.shadowBlur = on ? 8 : 0;
+  g.shadowOffsetY = on ? 3 : 0;
+}
+
 export const GAMES = {
   /* Pêche aux canards : toucher les canards qui défilent ; le doré vaut 3. */
   canards: {
@@ -61,7 +78,12 @@ export const GAMES = {
         move(x, y) { hook.x = x; hook.y = y; },
         key(code, on) { if (on && code === "Space") game.catchAt(hook.x, hook.y); },
         draw(g, t) {
-          g.fillStyle = "#8fd3f4"; g.fillRect(0, 40, W, H - 40);
+          backdrop(g, "#9be0ff", "#4fb6ea");
+          [[46, 200, 0.3], [300, 66, -0.4], [226, 212, 0.8]].forEach((n) => { // nénuphars
+            g.save(); g.translate(n[0], n[1]); g.rotate(n[2]);
+            blob(g, 0, 0, 20, 10, "#5fbf62"); blob(g, 5, -2, 5, 3, "#ffb7d5");
+            g.restore();
+          });
           g.strokeStyle = "rgba(255,255,255,.55)"; g.lineWidth = 2;
           for (let l = 0; l < 3; l++) {
             g.beginPath();
@@ -70,8 +92,12 @@ export const GAMES = {
           }
           ducks.forEach((d) => {
             const y = d.y + Math.sin(t * 5 + d.bob) * 2, s = d.v > 0 ? 1 : -1, c = d.gold ? "#f2b01e" : "#ffd60a";
-            blob(g, d.x, y, 15, 10, c); blob(g, d.x + s * 11, y - 10, 8, 8, c);
-            blob(g, d.x + s * 20, y - 9, 5, 3, "#fe640b"); blob(g, d.x + s * 13, y - 12, 1.6, 1.6, INK);
+            blob(g, d.x, y + 9, 15, 3.5, "rgba(20,70,110,.25)"); // reflet dans l'eau
+            soft(g, true); blob(g, d.x, y, 15, 10, c); blob(g, d.x + s * 11, y - 10, 8.5, 8.5, c); soft(g, false);
+            blob(g, d.x - s * 3, y + 1, 8, 5, d.gold ? "#d9980f" : "#f2c200"); // l'aile
+            blob(g, d.x + s * 20, y - 9, 5.5, 3, "#fe640b");
+            blob(g, d.x + s * 13, y - 12, 2.1, 2.1, INK); blob(g, d.x + s * 13.6, y - 12.7, 0.8, 0.8, "#fff");
+            blob(g, d.x + s * 9, y - 7, 2.4, 1.6, "rgba(255,120,140,.7)"); // la joue
             if (d.gold) text(g, "★", d.x, y + 4, 11, "#fff");
           });
           g.strokeStyle = INK; g.lineWidth = 2;
@@ -108,14 +134,20 @@ export const GAMES = {
         key(code, on) { if (on && code === "Space") game.hit(); },
         draw(g) {
           const lift = Math.sin((1 - flip / 0.8) * Math.PI) * (flip > 0 ? 62 : 0);
-          g.fillStyle = INK; g.fillRect(96, 150, 150, 9); g.fillRect(246, 152, 78, 6); // la poêle
+          backdrop(g, "#fff1d6", "#ffd9a8");
+          g.fillStyle = "#e9b98a"; g.fillRect(0, 168, W, H - 168); // le plan de travail
+          for (let i = 0; i < 3; i++) blob(g, 150 + i * 22, 118 - ((pos * 40 + i * 13) % 40), 4, 7, "rgba(255,255,255,.55)"); // vapeur
+          soft(g, true);
+          g.fillStyle = INK; g.beginPath(); g.roundRect(94, 148, 154, 13, 6); g.fill(); // la poêle
+          g.beginPath(); g.roundRect(244, 151, 84, 7, 3.5); g.fill();
+          soft(g, false);
           g.save(); g.translate(170, 146 - lift); g.scale(1, Math.cos((flip / 0.8) * Math.PI * 2) * 0.72 + 0.28);
           blob(g, 0, 0, 58, 13, "#e9b96e"); blob(g, -12, -2, 9, 3, "#c98f3f"); blob(g, 20, 3, 7, 2.5, "#c98f3f");
           g.restore();
-          g.fillStyle = "#d5d8de"; g.fillRect(40, 196, 280, 14);
-          g.fillStyle = "#40a02b"; g.fillRect(40 + 280 * 0.32, 196, 280 * 0.36, 14);
-          g.fillStyle = "#1c7c1c"; g.fillRect(40 + 280 * 0.46, 196, 280 * 0.08, 14);
-          g.fillStyle = INK; g.fillRect(38 + 280 * pos, 190, 4, 26);
+          g.fillStyle = "#fff"; g.beginPath(); g.roundRect(40, 196, 280, 14, 7); g.fill();
+          g.fillStyle = "#7ed07f"; g.beginPath(); g.roundRect(40 + 280 * 0.32, 196, 280 * 0.36, 14, 7); g.fill();
+          g.fillStyle = "#2f9e44"; g.beginPath(); g.roundRect(40 + 280 * 0.46, 196, 280 * 0.08, 14, 4); g.fill();
+          soft(g, true); blob(g, 40 + 280 * pos, 203, 8, 12, BLUE); soft(g, false);
           text(g, "Crêpe " + Math.min(5, round + 1) + "/5", W / 2, 62, 13, INK);
           if (last) text(g, last, W / 2, 84, 15, BLUE);
         },
@@ -149,6 +181,9 @@ export const GAMES = {
         move(mx) { x = clamp(mx, 24, W - 24); },
         down(mx) { x = clamp(mx, 24, W - 24); },
         draw(g) {
+          backdrop(g, "#bfe9ff", "#fff3cf", performance.now() / 1000);
+          for (let i = 0; i < 10; i++) { g.fillStyle = i % 2 ? "#fdf6e3" : "#d92b3a"; g.fillRect(i * 36, 38, 36, 12); blob(g, i * 36 + 18, 50, 18, 6, i % 2 ? "#fdf6e3" : "#d92b3a"); }
+          soft(g, true);
           items.forEach((it) => {
             g.save(); g.translate(it.x, it.y); g.rotate(it.r);
             g.fillStyle = it.bad ? "#40a02b" : "#f2c14e";
@@ -158,6 +193,8 @@ export const GAMES = {
           g.fillStyle = "#d92b3a"; g.beginPath();
           g.moveTo(x - 24, H - 44); g.lineTo(x + 24, H - 44); g.lineTo(x + 12, H - 6); g.lineTo(x - 12, H - 6); g.closePath(); g.fill();
           g.fillStyle = CREAM; g.fillRect(x - 18, H - 36, 36, 6);
+          soft(g, false);
+          blob(g, x, H - 2, 22, 3, "rgba(34,37,46,.2)");
         },
       };
       return game;
@@ -190,7 +227,10 @@ export const GAMES = {
           lastKey = code; game.add(0.25);
         },
         draw(g, t) {
-          blob(g, W / 2, 176, 78, 20, "#b9bec9"); blob(g, W / 2, 170, 66, 15, "#e9edf5");
+          backdrop(g, "#ffe3f1", "#d8ecff");
+          for (let i = 0; i < 8; i++) blob(g, 30 + i * 44, 52 + (i % 2) * 8, 7, 9, ["#1e66f5", "#ffd60a", "#d92b3a", "#40a02b"][i % 4]); // guirlande
+          soft(g, true); blob(g, W / 2, 176, 78, 20, "#b9bec9"); soft(g, false); blob(g, W / 2, 170, 66, 15, "#e9edf5");
+          for (let i = 0; i < 6; i++) { const a = spin * 9 + i; blob(g, W / 2 + Math.cos(a) * (20 + game.score * 0.55), 112 + Math.sin(a) * (16 + game.score * 0.4), 2, 2, "#fff"); }
           const r = 12 + game.score * 0.5;
           for (let i = 0; i < 9; i++) {
             const a = spin * 6.28 + i * 0.7;
@@ -241,11 +281,14 @@ export const GAMES = {
         draw(g) {
           for (let i = 0; i < 4; i++) {
             const p = pad(i);
-            g.globalAlpha = lit === i ? 1 : 0.42;
-            g.fillStyle = PADS[i]; g.beginPath(); g.roundRect(p.x, p.y, p.w, p.h, 12); g.fill();
+            const cx = p.x + p.w / 2, cy = p.y + p.h / 2, r = lit === i ? 33 : 29;
+            g.globalAlpha = lit === i ? 1 : 0.5;
+            soft(g, true); blob(g, cx, cy, r, r, PADS[i]); soft(g, false);
+            blob(g, cx, cy, r - 7, r - 7, "#fdf6e3"); // la peau du tambour
             g.globalAlpha = 1;
-            text(g, "←↑→↓"[i], p.x + p.w / 2, p.y + p.h / 2 + 8, 22, "#fff");
+            text(g, "←↑→↓"[i], cx, cy + 8, 22, PADS[i]);
           }
+          g.globalCompositeOperation = "destination-over"; backdrop(g, "#e6f0ff", "#fff3cf"); g.globalCompositeOperation = "source-over";
           text(g, phase === "show" ? "Écoutez…" : phase === "play" ? "À vous !" : "Raté !", W / 2, 70, 15, phase === "play" ? BLUE : INK);
         },
       };
@@ -272,13 +315,18 @@ export const GAMES = {
         up() { if (held) game.stop(); },
         key(code, on) { if (code !== "Space") return; if (on) held = true; else if (held) game.stop(); },
         draw(g) {
+          backdrop(g, "#cfeaff", "#eef7ff", performance.now() / 1000);
+          g.fillStyle = "#8d93a1"; g.fillRect(0, 206, W, H - 206); // le sol de la station
+          soft(g, true);
           g.fillStyle = "#f4f5f7"; g.beginPath(); g.roundRect(60, 56, 110, 160, 10); g.fill();
+          soft(g, false);
+          g.strokeStyle = INK; g.lineWidth = 5; g.beginPath(); g.moveTo(170, 150); g.quadraticCurveTo(204, 214, 196, 128); g.stroke(); // le tuyau
           g.fillStyle = BLUE; g.fillRect(60, 56, 110, 26);
           g.fillStyle = INK; g.fillRect(74, 94, 82, 40);
           text(g, liters.toFixed(2) + " L", 115, 121, 17, "#7CFC8A");
           text(g, "Objectif : " + target + ",00 L", 262, 96, 14, INK);
-          g.fillStyle = "#d5d8de"; g.fillRect(212, 112, 100, 14);
-          g.fillStyle = "#40a02b"; g.fillRect(212, 112, 100 * clamp(liters / target, 0, 1), 14);
+          g.fillStyle = "#fff"; g.beginPath(); g.roundRect(212, 112, 100, 14, 7); g.fill();
+          g.fillStyle = "#40a02b"; g.beginPath(); g.roundRect(212, 112, Math.max(8, 100 * clamp(liters / target, 0, 1)), 14, 7); g.fill();
           if (game.done) text(g, game.score >= 95 ? "Pile !" : game.score >= 60 ? "Presque" : "À côté…", 262, 160, 18, BLUE);
           else text(g, held ? "Ça coule…" : "Maintenez appuyé", 262, 160, 13, INK);
         },
@@ -321,8 +369,9 @@ export function startGame(id, mount, opts) {
     g.setTransform(ratio, 0, 0, ratio, 0, 0);
     g.clearRect(0, 0, W, H);
     game.draw(g, t);
-    g.fillStyle = "rgba(34,37,46,.9)"; g.fillRect(0, 0, W, 38);
-    text(g, "Score " + game.score, 12, 25, 15, "#fff", "left");
+    g.fillStyle = BLUE; g.fillRect(0, 0, W, 38);
+    g.fillStyle = "#ffd60a"; g.beginPath(); g.roundRect(8, 7, 96, 24, 12); g.fill();
+    text(g, "★ " + game.score, 56, 24, 15, INK);
     if (def.time) {
       g.fillStyle = "rgba(255,255,255,.25)"; g.fillRect(W - 132, 15, 120, 8);
       g.fillStyle = "#ffd60a"; g.fillRect(W - 132, 15, 120 * clamp(left / def.time, 0, 1), 8);
@@ -330,7 +379,8 @@ export function startGame(id, mount, opts) {
     if (game.done) {
       over = true;
       g.fillStyle = "rgba(253,246,227,.82)"; g.fillRect(0, 38, W, H - 38);
-      text(g, "Terminé : " + game.score + " / " + def.max, W / 2, H / 2 + 14, 22, BLUE);
+      soft(g, true); g.fillStyle = "#fff"; g.beginPath(); g.roundRect(W / 2 - 120, H / 2 - 22, 240, 60, 18); g.fill(); soft(g, false);
+      text(g, "Terminé : " + game.score + " / " + def.max, W / 2, H / 2 + 16, 22, BLUE);
       opts.onEnd(clamp(Math.round(game.score), 0, def.max));
       return;
     }

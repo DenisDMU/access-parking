@@ -59,6 +59,30 @@ def test_un_spectateur_voit_les_promeneurs_sans_en_devenir_un(client):
     assert client.post(URL, json=state(B)).json()["online"] == 2  # le spectateur ne compte pas
 
 
+def test_tenue_ballon_et_passager(client):
+    """Champs ajoutés en 4.18 : facultatifs, bornés, et rendus aux autres."""
+
+    first = client.post(URL, json=state(A)).json()
+    look = {
+        **LOOK,
+        "outfit": "salopette",
+        "bottom": "short",
+        "extra": "lunettes",
+        "balloon": "#ffd60a",
+    }
+    body = client.post(URL, json=state(B, look=look, ride=first["you"]["id"])).json()
+    assert body["players"][0]["look"]["outfit"] == "tshirt"  # valeur par défaut d'un ancien client
+    seen = client.post(URL, json=state(A)).json()["players"][0]
+    assert seen["ride"] == first["you"]["id"] and seen["look"]["balloon"] == "#ffd60a"
+    assert seen["look"]["outfit"] == "salopette" and seen["look"]["extra"] == "lunettes"
+    for bad in (
+        {"look": {**LOOK, "balloon": "rouge"}},
+        {"ride": "pas-un-id"},
+        {"look": {**LOOK, "outfit": "<b>"}},
+    ):
+        assert client.post(URL, json={**state(A), **bad}).status_code == 422
+
+
 def test_le_jeton_ne_sort_jamais(client):
     client.post(URL, json=state(A))
     body = client.post(URL, json=state(B)).text

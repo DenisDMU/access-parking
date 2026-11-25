@@ -25,6 +25,11 @@ class PromenadeLook(BaseModel):
     cut: str = Field(pattern=WORD)
     pet: str = Field(pattern=WORD)
     pack: bool
+    # Ajoutés en 4.18 ; facultatifs pour les pages encore ouvertes sur l'ancienne version.
+    outfit: str = Field(default="tshirt", pattern=WORD)
+    bottom: str = Field(default="pants", pattern=WORD)
+    extra: str = Field(default="none", pattern=WORD)
+    balloon: str = Field(default="none", pattern=r"^(none|#[0-9a-f]{6})$")
 
 
 class PromenadeStateIn(BaseModel):
@@ -39,6 +44,9 @@ class PromenadeStateIn(BaseModel):
     look: PromenadeLook
     drive: str | None = Field(default=None, pattern=WORD, description="Véhicule conduit")
     emote: int | None = Field(default=None, ge=0, le=7, description="Salut choisi dans une liste")
+    ride: str | None = Field(
+        default=None, pattern=r"^[0-9a-f]{10}$", description="Promeneur dont on est le passager"
+    )
     stars: int = Field(default=0, ge=0, le=99, description="Nombre de succès obtenus")
 
 
@@ -53,6 +61,7 @@ class PromenadePlayerOut(BaseModel):
     look: PromenadeLook
     drive: str | None = None
     emote: int | None = None
+    ride: str | None = None
     stars: int = 0
 
 
