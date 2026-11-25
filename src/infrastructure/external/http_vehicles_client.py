@@ -99,6 +99,15 @@ DISCOVERY_MIN_INTERVAL_S = 60.0
 _CREATED = (200, 201)
 
 _PATH_PARAM = re.compile(r"\{[^}]+\}")
+# Route acceptée depuis le Swagger de Vehicles : un simple chemin (« /api/… »),
+# jamais un hôte, un « @ », une requête ou « .. » (revue de sécurité du 25/11 :
+# « @autre.hote/x » aurait envoyé la plaque à un autre serveur).
+_SAFE_PATH = re.compile(r"^/(?!/)[A-Za-z0-9_./{}-]+$")
+
+
+def _safe_path(path: object) -> bool:
+    return isinstance(path, str) and bool(_SAFE_PATH.match(path)) and ".." not in path
+
 
 # Routes découvertes dans le Swagger de Vehicles, par URL de base : partagées
 # par toutes les instances du client (une par requête HTTP d'Access).
@@ -357,6 +366,8 @@ def discover_routes(openapi: dict) -> tuple[str, str] | None:
 
     identify = lookup = None
     for path, operations in (openapi.get("paths") or {}).items():
+        if not _safe_path(path) or not isinstance(operations, dict):
+            continue
         post = operations.get("post")
         if identify is None and post is not None:
             if "licensePlate" in properties(content_schema(post.get("requestBody"))):

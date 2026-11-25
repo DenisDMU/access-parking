@@ -130,6 +130,11 @@ class Settings:
     # Occupation publique pour le plan 3D de la borne : débit par adresse, et
     # durée pendant laquelle une réponse de Parking est resservie telle quelle
     # (Parking est sur l'offre gratuite de Render : jamais sollicité par visiteur).
+    # Passages traités en même temps par la borne publique (au-delà : 503,
+    # « réessayez »). Chaque passage peut attendre 45 s un service de l'équipe
+    # endormi : sans plafond, quelques visiteurs suffiraient à occuper tous
+    # les threads d'Access (40), /health compris.
+    borne_max_concurrent: int = int(os.getenv("BORNE_MAX_CONCURRENT", "8"))
     rate_limit_borne_parking: str = os.getenv("RATE_LIMIT_BORNE_PARKING", "30/minute")
     borne_parking_cache_s: float = float(os.getenv("BORNE_PARKING_CACHE_S", "10"))
     # Code saisi par l'agent sur la borne pour valider un PMR (carte mobilité

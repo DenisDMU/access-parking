@@ -31,12 +31,18 @@ garde sa clé.
 from __future__ import annotations
 
 import hmac
+import threading
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
-from src.application.use_cases.confirm_disability_by_agent import ConfirmDisabilityByAgent
+from src.application.use_cases.confirm_disability_by_agent import (
+    ConfirmDisabilityByAgent,
+    NoPendingDisabilityCheckError,
+)
 from src.application.use_cases.get_parking_overview import GetParkingOverview
 from src.application.use_cases.list_present_vehicles import ListPresentVehicles
 from src.application.use_cases.process_entry_request import ProcessEntryRequest
@@ -62,6 +68,28 @@ from src.interfaces.api.vehicle_types import declared_vehicle_type
 router = APIRouter(prefix="/borne", tags=["Borne publique"])
 
 BORNE_OFF = "Borne publique désactivée : configurez la borne avec sa clé"
+BORNE_BUSY = "Borne très sollicitée, réessayez dans un instant"
+NO_PENDING_PMR = (
+    "Aucune entrée en attente de vérification PMR pour ce véhicule : "
+    "refaites l'entrée à la borne en choisissant « Mobilité réduite »"
+)
+
+# Passages traités en même temps par la borne publique (`BORNE_MAX_CONCURRENT`).
+_slots = threading.BoundedSemaphore(max(1, get_settings().borne_max_concurrent))
+
+
+@contextmanager
+def _borne_slot() -> Iterator[None]:
+    """Une place parmi les passages simultanés, sans attendre ; 503 sinon."""
+
+    if not _slots.acquire(blocking=False):
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=BORNE_BUSY)
+    try:
+        yield
+    finally:
+        _slots.release()
+
+
 WRONG_AGENT_CODE = "Code agent incorrect"
 
 
@@ -118,6 +146,11 @@ def borne_passage(
     exit_use_case: ProcessExitRequest = Depends(deps.get_process_exit_request_use_case),
 ) -> BornePassageOut:
     _require_public_borne()
+    with _borne_slot():
+        return _passage(body, entry_use_case, exit_use_case)
+
+
+def _passage(body, entry_use_case, exit_use_case) -> BornePassageOut:
     now = datetime.now(UTC)
     if body.type == RequestType.ENTRY:
         decision = entry_use_case.execute(
@@ -157,10 +190,16 @@ def borne_passage(
         "réponse identique à `POST /borne/passages`. Si Vehicles refuse "
         "d'enregistrer le justificatif, l'entrée PMR est quand même autorisée "
         "pour ce passage (carte vérifiée par l'agent). 403 si le code est faux "
-        "ou la borne publique désactivée."
+        "ou la borne publique désactivée ; 409 si ce véhicule n'a pas été mis "
+        "en attente de vérification PMR à l'entrée dans les 5 dernières minutes."
     ),
     responses={
         403: {"model": ErrorOut, "description": "Code agent incorrect, ou borne désactivée"},
+        409: {
+            "model": ErrorOut,
+            "description": "Aucune entrée de ce véhicule en attente de vérification PMR (5 min)",
+        },
+        503: {"model": ErrorOut, "description": "Borne très sollicitée, réessayez"},
         422: {"model": ErrorOut, "description": "Plaque invalide"},
         429: {"description": "Trop de tentatives depuis cette adresse"},
     },
@@ -175,9 +214,15 @@ def borne_pmr_validation(
     expected = get_settings().agent_code
     if not expected or not hmac.compare_digest(body.agent_code.encode(), expected.encode()):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=WRONG_AGENT_CODE)
-    decision = use_case.execute(
-        plate=body.license_plate, date=datetime.now(UTC), source=DetectionSource.TERMINAL
-    )
+    with _borne_slot():
+        try:
+            decision = use_case.execute(
+                plate=body.license_plate, date=datetime.now(UTC), source=DetectionSource.TERMINAL
+            )
+        except NoPendingDisabilityCheckError:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail=NO_PENDING_PMR
+            ) from None
     return _entry_out(decision)
 
 

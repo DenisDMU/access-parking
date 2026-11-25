@@ -4,6 +4,21 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.13.1] — 2026-11-25 — Revue de sécurité
+
+### Corrigé
+- Borne publique : au plus 8 passages traités en même temps
+  (`BORNE_MAX_CONCURRENT`) ; au-delà, 503 et « réessayez ». Un service
+  endormi faisait attendre chaque passage jusqu'à 45 s : quelques visiteurs
+  pouvaient occuper tous les threads d'Access.
+- Validation PMR par l'agent : acceptée seulement pour un véhicule mis en
+  attente de vérification PMR à l'entrée dans les 5 dernières minutes
+  (409 sinon). Le code agent ne permet plus de faire enregistrer n'importe
+  quelle plaque comme PMR chez Vehicles. Exemple Swagger neutre (`0000`).
+- Découverte des routes Vehicles : seuls des chemins simples (`/api/…`)
+  sont acceptés depuis son Swagger, jamais un autre hôte.
+- Test anti-fuite de plaque étendu à toute la borne publique.
+
 ## [4.13.0] — 2026-11-24 — Réservations dans le plan 3D
 
 ### Ajouté
