@@ -4,6 +4,14 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [Non publié]
+
+### Ajouté
+- `tp/splunk` : TP « Installer Splunk en local avec Docker » (Dockerfile,
+  scripts `demarrer.sh` et `arreter.sh`, notice). Le mot de passe est saisi
+  au lancement, jamais dans l'image ; l'interface n'écoute que sur
+  `127.0.0.1:8000`. Sans effet sur le service Access.
+
 ## [4.17.0] — 2026-11-25 — Promenade multijoueur, mini-jeux et succès
 
 ### Ajouté
