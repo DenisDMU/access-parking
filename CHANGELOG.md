@@ -4,6 +4,24 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.20.0] — 2026-11-25 — Défis entre promeneurs, Suppositofarm
+
+### Ajouté
+- Défis amicaux entre deux promeneurs : près d'un autre joueur, E ouvre une
+  roulette (morpion, pierre-feuille-ciseaux, pile ou face). Route publique
+  `POST /borne/promenade/defi` ; le serveur valide les coups, lance la
+  pièce et cache le choix de l'autre jusqu'à la fin. Champ `duels` dans la
+  réponse de `POST /borne/promenade`.
+- La Suppositofarm, au sud des champs : carottes à ramasser, arbres à
+  abattre à coups de poing (nouveau geste du personnage), mini-grotte à
+  minerais ; les ressources repoussent.
+- Six succès (défis, récoltes) et un tampon de plus : quarante-sept succès,
+  quinze tampons.
+
+### Modifié
+- Animaux dans le style des personnages (grosse tête, grands yeux, joues).
+- Maisons coiffées de toits ronds ; sol en prairie dessinée.
+
 ## [4.19.0] — 2026-11-25 — Style doux, quêtes, onze mini-jeux
 
 ### Ajouté

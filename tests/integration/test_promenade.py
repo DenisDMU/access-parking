@@ -141,3 +141,38 @@ def test_regard_au_choix(client):
     seen = {p["look"]["eyes"] for p in client.get(URL).json()["players"]}
     assert seen == {"manga", "ronds"}
     assert client.post(URL, json=state(A, look={**LOOK, "eyes": "<3"})).status_code == 422
+
+
+def test_defi_amical_de_bout_en_bout(client):
+    """Invitation, réponse, coups : tout passe par le serveur, sans texte libre."""
+
+    a = client.post(URL, json=state(A)).json()["you"]["id"]
+    b = client.post(URL, json=state(B)).json()["you"]["id"]
+    invite = client.post(
+        f"{URL}/defi", json={"token": A, "action": "invite", "target": b, "game": "pfc"}
+    )
+    duel = invite.json()["duels"][0]
+    assert invite.status_code == 200 and duel["status"] == "invite"
+    seen = client.post(URL, json=state(B)).json()["duels"][
+        0
+    ]  # l'invité l'apprend au prochain échange
+    assert seen["id"] == duel["id"] and seen["role"] == "b"
+    client.post(f"{URL}/defi", json={"token": B, "action": "accept", "duel": duel["id"]})
+    client.post(f"{URL}/defi", json={"token": A, "action": "move", "duel": duel["id"], "move": 2})
+    done = client.post(
+        f"{URL}/defi", json={"token": B, "action": "move", "duel": duel["id"], "move": 0}
+    )
+    assert done.json()["duels"][0]["result"] == "win"  # la pierre casse les ciseaux
+    assert A not in done.text and B not in done.text
+    again = client.post(
+        f"{URL}/defi", json={"token": A, "action": "move", "duel": duel["id"], "move": 1}
+    )
+    assert again.status_code == 409 and again.json()["detail"]
+    for bad in (
+        {"action": "invite", "target": a, "game": "echecs"},
+        {"action": "invite", "target": "moi", "game": "pfc"},
+        {"action": "move", "duel": duel["id"], "move": 42},
+        {"action": "parler", "duel": duel["id"]},
+        {"action": "invite", "target": a, "game": "pfc", "message": "coucou"},
+    ):
+        assert client.post(f"{URL}/defi", json={"token": B, **bad}).status_code == 422

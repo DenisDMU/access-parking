@@ -20,7 +20,7 @@
 | | |
 |---|---|
 | **Rôle** | Décide si un véhicule peut entrer/sortir du parking et coordonne les échanges avec Vehicles, Booking, Parking, Pricing, Payment (aucune donnée métier des autres services). |
-| **Version actuelle** | `4.19.0` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
+| **Version actuelle** | `4.20.0` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
 | **Dernière mise à jour** | 24 novembre 2026 (plaques de tous pays ; Parking 1.5.0 : catégories et occupation ; borne client ; Vehicles par plaque) |
 | **URL du service déployé** | https://access-api-a1u7.onrender.com |
 | **Documentation Swagger/OpenAPI** | https://access-api-a1u7.onrender.com/docs (ReDoc : `/redoc`, spec brute : `/openapi.json`) |
@@ -69,11 +69,11 @@
 | **API** | ✅ REST documentée (`/docs`), entrées/sorties validées, erreurs normalisées, `/health` | [section 11](#11-endpoints) |
 | **Intégration** | ✅ Les 5 services réels (Vehicles, Booking, Parking, Pricing, Payment, en REST) ; événements publiés sur RabbitMQ (bus d'équipe) | [section 5](#5-brancher-un-vrai-microservice-à-la-place-dun-mock), [section 6](#6-publication-dévénements--webhook-ou-rabbitmq) |
 | **UI** | ✅ Borne client `/borne` (entrée/sortie, clavier à l'écran, ticket, clair/sombre, mobile) et dashboard servi par Access : borne d'entrée/sortie, état du parking (présences, occupation vue par Parking, décisions, santé), journal d'événements, recherche | [section 12](#12-borne-et-journal-de-bord-dashboard) |
-| **Qualité** | ✅ 449 tests (unitaires + intégration), entrées invalides et cas limites couverts, `ruff` (lint + format), script de vérification reproductible | [section 9](#9-tests-et-qualité) |
+| **Qualité** | ✅ 455 tests (unitaires + intégration), entrées invalides et cas limites couverts, `ruff` (lint + format), script de vérification reproductible | [section 9](#9-tests-et-qualité) |
 | **Observabilité** | ✅ Correlation ID propagé à tous les services et événements, logs par décision, `/metrics` Prometheus (techniques + métier + intégration), config Prometheus fournie, `/health` avec version et commit | [section 9](#métriques-prometheus) |
 | **CI/CD et déploiement** | ✅ GitHub Actions (lint → tests → bandit → pip-audit → gitleaks), déploiement Render après CI verte, smoke test de l'instance déployée (version vérifiée), CHANGELOG, Dependabot | [section 9](#intégration-continue-cicd), [section 14](#14-déploiement-sur-render) |
 | **Sécurité** | ✅ Clé API (comparaison en temps constant) sur toutes les routes sauf `/health`, clé borne limitée au passage d'un véhicule, refus de démarrer en production avec une clé faible, validation stricte, erreurs sans stack trace, en-têtes de sécurité, CORS restreint, rate limiting, secrets hors Git, plaque jamais stockée/publiée/renvoyée/loggée (test dédié) | [section 10](#10-sécurité) |
-| **Version** | `4.19.0` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
+| **Version** | `4.20.0` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
 | **Dernière mise à jour** | 24 novembre 2026 | |
 
 ### Suivi des jalons
@@ -503,7 +503,7 @@ ACCESS_TEST_DATABASE_URL=<url Postgres> pytest tests/integration   # idem contre
 pytest -v            # détail de chaque cas
 ```
 
-Couverture (449 tests) :
+Couverture (455 tests) :
 
 - **Unitaires** — matrice complète de la règle de compatibilité
   véhicule/place, règle de présence, règle d'accessibilité ; chaque use case
@@ -546,7 +546,7 @@ précédente, `needs:` dans le workflow) et doivent **tous** passer — si une
 | Job | Outil | Ce qu'il vérifie |
 |---|---|---|
 | Lint | `ruff` | Erreurs, imports, bugs probables, règles de sécurité, **formatage homogène** (config : `ruff.toml`) |
-| Tests | `pytest` | Les 449 tests unitaires + intégration, sans aucun secret |
+| Tests | `pytest` | Les 455 tests unitaires + intégration, sans aucun secret |
 | Sécurité du code | `bandit` | Analyse statique (SAST) : injections, appels dangereux, secrets en dur… |
 | Dépendances | `pip-audit` | Vulnérabilités connues (CVE) dans `requirements.txt` |
 | Secrets | `gitleaks` | Aucun secret (clé API, URL CloudAMQP…) dans tout l'historique git |
@@ -820,6 +820,7 @@ Préfixe `/api/v1` (sauf `/health` et `/metrics`).
 | POST | `/borne/promenade` | Non (borne publique) | Promenade multijoueur du plan 3D : le navigateur envoie la position et la tenue de son personnage (jeton aléatoire, nombres bornés, couleurs `#rrggbb`, mots courts ; aucun texte libre) et reçoit les autres promeneurs, le **pseudo attribué** par Access, `online` et `nextMs` (délai avant le prochain envoi, plus long quand il y a du monde). Rien en base ; un promeneur silencieux disparaît en 12 s ; 60 promeneurs au plus (`PROMENADE_CAPACITY`, sinon 503) ; `RATE_LIMIT_PROMENADE` par adresse ; 403 si `BORNE_PUBLIC=false` ou `PROMENADE_MULTI=false` |
 | GET | `/borne/promenade` | Non (borne publique) | Les promeneurs du moment, pour qui regarde le plan sans se promener (vue d'ensemble, dashboard) |
 | GET, POST | `/borne/promenade/scores` | Non (borne publique) | Meilleurs scores des mini-jeux (5 par jeu, pseudo et score), et déclaration d'un score par le navigateur : jeu connu et score plafonné par jeu, sinon 422. En mémoire : remis à zéro au redémarrage du service |
+| POST | `/borne/promenade/defi` | Non (borne publique) | Défi amical entre deux promeneurs : `invite` (cible, jeu : `morpion`, `pfc`, `piece`), `accept`, `decline`, `move`. Le serveur arbitre (coups validés, pièce lancée par lui, choix de l'autre caché jusqu'à la fin de la manche) ; 409 avec un message si l'action est refusée. Les défis en cours reviennent dans la réponse de `POST /borne/promenade` (`duels`). Aucun texte libre ; un défi sans nouvelle est oublié en 90 s |
 | POST | `/access/presences/{vehicleId}/release` | Oui (exploitation) | Libère un véhicule présent, désigné par son identifiant pseudonymisé : place rendue à Parking, présence « sorti », demande de sortie tracée (« Sortie forcée par l'exploitation »), événement `VEHICLE_EXITED` avec `forced: true`, rien de facturé ; réponse `vehicleId`, `requestId`, `placeId`, `placeFreed` ; 404 si le véhicule n'est pas présent |
 | POST | `/borne/pmr-validation` | Code agent (`agentCode`) | Validation PMR par un agent après « confirmation requise » : `{"licensePlate", "country", "agentCode"}` ; justificatif enregistré chez Vehicles (`PUT`), puis entrée rejouée ; réponse identique à `/borne/passages` (entrée PMR autorisée même si Vehicles refuse l'enregistrement) ; 403 code faux |
 | POST | `/borne/passages` | Non (borne publique) | Passage d'un véhicule depuis la borne : `{"licensePlate", "type", "vehicleType"}` (`vehicleType` facultatif, entrée seulement : `STANDARD`, `ELECTRIC`, `XL`, `HANDICAPPED`, `TWO_WHEELS`) ; date imposée par le serveur, 10/min par adresse, réponse sans identifiants ; 403 si `BORNE_PUBLIC=false` |
@@ -973,12 +974,20 @@ Renseignez votre `X-API-Key` dans le champ prévu (stockée uniquement dans le
   frites et barbe à papa aux stands de la fête, grosse caisse au kiosque,
   « plein pile » à la pompe. Records gardés sur l'appareil, meilleurs
   scores partagés entre promeneurs.
-  **Carnet** (touche C), en trois onglets : quatorze **tampons** à
-  découvrir, quarante et un **succès** (au volant, aux mini-jeux, en
+  **Carnet** (touche C), en trois onglets : quinze **tampons** à
+  découvrir, quarante-sept **succès** (au volant, aux mini-jeux, en
   rencontrant d'autres promeneurs, en revenant un autre jour) avec un rang
   qui monte, et les scores. Un **ticket d'or** est caché chaque jour à un
   endroit différent. Une **photo souvenir** (touche P) s'enregistre depuis
   la page.
+  **Défis amicaux** : près d'un autre promeneur, la touche E ouvre une
+  roulette : morpion, pierre-feuille-ciseaux ou pile ou face. L'autre
+  accepte ou non ; le serveur arbitre la partie.
+  **Suppositofarm**, au sud des champs : des carottes à ramasser, des
+  arbres à abattre à coups de poing, une mini-grotte où extraire des
+  minerais. Tout repousse au bout d'un moment.
+  Les animaux, les maisons (toits ronds) et le sol (prairie dessinée) sont
+  dans le même style doux que les personnages.
   **Accueil** : à la première visite sur un appareil, une fenêtre explique
   ce monde en 3D (voir le parking en direct, mais aussi s'amuser) ; le
   bouton « ? » la rouvre. **Ballons KingPar** offerts à la fête : le

@@ -141,11 +141,11 @@ def test_plan_3d_multijoueur_sans_cle_ni_texte_libre(client):
     """Le plan ne parle qu'à la route que la page lui donne, sans clé ni cookie."""
 
     source = client.get("/static/parking3d.js").text
-    # Quatre appels, tous vers la route du multijoueur : ma position, le
-    # regard d'un spectateur, un score, les meilleurs scores.
-    assert source.count("fetch(") == 4
-    assert source.count("fetch(net.url") == 4
-    assert source.count('credentials: "omit"') == 4
+    # Cinq appels, tous vers la route du multijoueur : ma position, le regard
+    # d'un spectateur, un score, les meilleurs scores, un défi amical.
+    assert source.count("fetch(") == 5
+    assert source.count("fetch(net.url") == 5
+    assert source.count('credentials: "omit"') == 5
     for word in ("X-API-Key", "XMLHttpRequest", "sendBeacon", "WebSocket", "document.cookie"):
         assert word not in source
     # Pseudo attribué par le serveur, saluts choisis dans une liste : aucune saisie.
@@ -223,6 +223,30 @@ def test_plan_3d_visage_peint_quetes_coupes_et_vehicules(client):
         assert word in source
     # Six habitants, six quêtes ; rien de saisi par le visiteur.
     assert source.count('{ id: "') >= 6 and "Mamie Gisèle" in source
+
+
+def test_plan_3d_defis_ferme_et_decor_doux(client):
+    """Défis entre promeneurs, Suppositofarm, animaux et maisons dans le même style."""
+
+    source = client.get("/static/parking3d.js").text
+    for name in (
+        "function openWheel",
+        "function setDuels",
+        "function duelSend",
+        "function hitNode",
+        "function stepFarm",
+    ):
+        assert name in source
+    for word in (
+        "SUPPOSITOFARM",
+        "Pierre feuille ciseaux",
+        "Je prends pile",
+        "p3d-grid3",
+        "function grassTexture",
+    ):
+        assert word in source
+    # Les défis passent par le serveur, qui arbitre ; rien n'est décidé dans la page.
+    assert 'net.url + "/defi"' in source and 'Math.random() < 0.5 ? "win"' not in source
 
 
 def test_mini_jeux_servis_sans_ressource_externe(client):

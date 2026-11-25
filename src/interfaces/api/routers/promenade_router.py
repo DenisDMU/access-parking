@@ -23,6 +23,7 @@ from fastapi import APIRouter, HTTPException, Request, status
 from src.infrastructure.config import get_settings
 from src.infrastructure.promenade_room import (
     GAMES,
+    DuelError,
     PromenadeRoom,
     RoomFullError,
     poll_interval_ms,
@@ -30,6 +31,8 @@ from src.infrastructure.promenade_room import (
 from src.interfaces.api.rate_limit import client_ip, limiter
 from src.interfaces.api.schemas.error_schemas import ErrorOut
 from src.interfaces.api.schemas.promenade_schemas import (
+    PromenadeDuelIn,
+    PromenadeDuelsOut,
     PromenadeScoreIn,
     PromenadeScoresOut,
     PromenadeStateIn,
@@ -89,6 +92,7 @@ def promenade_state(request: Request, body: PromenadeStateIn) -> PromenadeStateO
     return PromenadeStateOut(
         you={"id": me["id"], "pseudo": me["pseudo"]},
         players=others,
+        duels=_room.duels_for(body.token),
         online=online,
         nextMs=poll_interval_ms(online),
     )
@@ -110,6 +114,29 @@ def promenade_watch(request: Request) -> PromenadeWatchOut:
     _require_multi()
     players = _room.players()
     return PromenadeWatchOut(players=players, online=len(players))
+
+
+@router.post(
+    "/defi",
+    response_model=PromenadeDuelsOut,
+    summary="Promenade : défi amical entre deux promeneurs (sans clé)",
+    description=(
+        "Inviter un autre promeneur (`invite`), répondre (`accept`, `decline`) "
+        "ou jouer un coup (`move`) au morpion, à pierre-feuille-ciseaux ou à "
+        "pile ou face. Le serveur arbitre : il valide chaque coup, lance la "
+        "pièce et ne montre le choix de l'autre qu'une fois la manche finie. "
+        "Aucun texte libre ; un défi sans nouvelle est oublié."
+    ),
+    responses={**_RESPONSES, 409: {"model": ErrorOut, "description": "Action refusée"}},
+)
+@limiter.limit(lambda: get_settings().rate_limit_promenade, key_func=client_ip)
+def promenade_duel(request: Request, body: PromenadeDuelIn) -> PromenadeDuelsOut:
+    _require_multi()
+    try:
+        duels = _room.duel(body.token, body.action, body.target, body.duel, body.game, body.move)
+    except DuelError as err:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(err)) from None
+    return PromenadeDuelsOut(duels=duels)
 
 
 @router.get(
