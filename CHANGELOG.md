@@ -4,13 +4,35 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
-## [Non publié]
+## [4.18.0] — 2026-11-25 — KingPar : la marque, les personnages, le covoiturage
 
 ### Ajouté
+- La marque du parking s'appelle **KingPar**. Logo (une couronne en trace
+  de pneu) : `static/kingpar-logo.svg`, dessiné aussi dans Figma. Il est sur
+  la Tour KingPar, le panneau des places libres, les ballons et l'accueil ;
+  la boutique, la station et les lettres de la colline portent le nom.
+- Fenêtre d'accueil à la première visite (et bouton « ? ») : ce monde en 3D
+  montre le parking en direct, et on y vient aussi pour s'amuser.
+- Boutique KingPar : huit tenues (T-shirt, pull, chemise, veste, sweat à
+  capuche, salopette, robe, maillot), pantalon, short ou jupe, lunettes,
+  écharpe, bonnet, béret, et une couronne à mériter (neuf succès).
+- Ballons KingPar à la fête : tenus à la main, ils font sauter plus haut et
+  retomber doucement.
+- Monter dans la voiture d'un autre promeneur (champ `ride`), cœurs quand
+  deux promeneurs se saluent, six succès de plus (trente au total).
 - `tp/splunk` : TP « Installer Splunk en local avec Docker » (Dockerfile,
   scripts `demarrer.sh` et `arreter.sh`, notice). Le mot de passe est saisi
   au lancement, jamais dans l'image ; l'interface n'écoute que sur
-  `127.0.0.1:8000`. Sans effet sur le service Access.
+  `127.0.0.1:8000`. Sans effet sur le service Access. Pas-à-pas :
+  `SPLUNK.md`.
+
+### Modifié
+- Personnages refaits dans un style doux (grosse tête, grands yeux, joues
+  roses, sourire) ; la tête bouge à l'arrêt. Mini-jeux redessinés (ciels en
+  dégradé, ombres, canards et tambours plus soignés). Interface : panneaux,
+  invites et messages plus lisibles et animés.
+- `POST /borne/promenade` accepte `look.outfit`, `look.bottom`,
+  `look.extra`, `look.balloon` et `ride`, tous facultatifs et bornés.
 
 ## [4.17.0] — 2026-11-25 — Promenade multijoueur, mini-jeux et succès
 

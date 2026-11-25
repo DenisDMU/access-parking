@@ -117,7 +117,7 @@ def test_plan_3d_village_boutiques_et_carnet(client):
 
     source = client.get("/static/parking3d.js").text
     assert 'const CITY_NAME = "Bonneplace"' in source
-    for shop in ("BOUTIQUE ACCESS", "COIFFURE LE CRÉNEAU", "ANIMALERIE DU COPILOTE"):
+    for shop in ("BOUTIQUE KINGPAR", "COIFFURE LE CRÉNEAU", "ANIMALERIE DU COPILOTE"):
         assert shop in source
     for name in ("function openShop", "function buildPet", "function stamp", "function photo"):
         assert name in source
@@ -125,7 +125,12 @@ def test_plan_3d_village_boutiques_et_carnet(client):
         assert pet in source
     # Tenue, compagnon et carnet restent sur l'appareil : deux clés, une seule
     # écriture, et le module n'envoie rien (ni tenue, ni photo souvenir).
-    for key in ("access.plan3d.look", "access.plan3d.carnet", "access.plan3d.joueur"):
+    for key in (
+        "access.plan3d.look",
+        "access.plan3d.carnet",
+        "access.plan3d.joueur",
+        "access.plan3d.accueil",
+    ):
         assert key in source
     assert source.count("localStorage.setItem") == 1
     # Le carnet est un jeu : il ne promet aucun avantage tarifaire.
@@ -163,9 +168,35 @@ def test_plan_3d_succes_station_et_surprises(client):
         "function stepLive",
     ):
         assert name in source
-    assert "STATION ACCESS" in source and "PLACES LIBRES" in source
+    assert "STATION KINGPAR" in source and "PLACES LIBRES" in source
     for pet in ("cochon:", "panda:", "mouton:", "tortue:", "canard:"):
         assert pet in source
+
+
+def test_plan_3d_marque_kingpar_accueil_tenues_et_covoiturage(client):
+    """KingPar : logo, popup d'accueil, tenues variées, ballons, covoiturage."""
+
+    source = client.get("/static/parking3d.js").text
+    for name in (
+        "function drawLogo",
+        "function openWelcome",
+        "function openBalloons",
+        "function rideWith",
+    ):
+        assert name in source
+    assert "Bienvenue chez KingPar" in source and "l'amour gagne toujours" in source
+    for word in (
+        "const OUTFITS",
+        "const BOTTOMS",
+        "const EXTRAS",
+        "const BALLOONS",
+        '"salopette"',
+        '"couronne"',
+    ):
+        assert word in source
+    logo = client.get("/static/kingpar-logo.svg")
+    assert logo.status_code == 200 and "svg" in logo.headers["content-type"]
+    assert "KingPar" in logo.text and "<script" not in logo.text
 
 
 def test_mini_jeux_servis_sans_ressource_externe(client):
