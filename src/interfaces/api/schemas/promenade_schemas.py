@@ -35,6 +35,25 @@ class PromenadeLook(BaseModel):
     eyes: str = Field(default="ronds", pattern=WORD)
 
 
+class PromenadeTune(BaseModel):
+    """Réglage de tuning du véhicule conduit : des couleurs et des mots, rien d'autre."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    paint: str = Field(pattern=COLOR)
+    finish: str = Field(default="brillant", pattern=WORD)
+    rims: str = Field(default="serie", pattern=WORD)
+    rimc: str = Field(default="#b9bec9", pattern=COLOR)
+    tyres: str = Field(default="route", pattern=WORD)
+    sticker: str = Field(default="none", pattern=WORD)
+    stripes: str = Field(default="none", pattern=WORD)
+    stripec: str = Field(default="#f4f5f7", pattern=COLOR)
+    tint: str = Field(default="serie", pattern=WORD)
+    addon: str = Field(default="none", pattern=WORD)
+    neon: str = Field(default="none", pattern=WORD)
+    horn: str = Field(default="tut", pattern=WORD)
+
+
 class PromenadeStateIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -46,6 +65,8 @@ class PromenadeStateIn(BaseModel):
     speed: float = Field(ge=0, le=80, allow_inf_nan=False)
     look: PromenadeLook
     drive: str | None = Field(default=None, pattern=WORD, description="Véhicule conduit")
+    # Ajouté en 4.25 ; absent des pages encore ouvertes sur l'ancienne version.
+    tune: PromenadeTune | None = Field(default=None, description="Tuning du véhicule conduit")
     emote: int | None = Field(default=None, ge=0, le=7, description="Salut choisi dans une liste")
     ride: str | None = Field(
         default=None, pattern=r"^[0-9a-f]{10}$", description="Promeneur dont on est le passager"
@@ -63,6 +84,7 @@ class PromenadePlayerOut(BaseModel):
     speed: float
     look: PromenadeLook
     drive: str | None = None
+    tune: PromenadeTune | None = None
     emote: int | None = None
     ride: str | None = None
     stars: int = 0

@@ -4,6 +4,32 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.25.0] — 2026-11-25 — KingPar Tuning
+
+### Ajouté
+- **KingPar Tuning**, un atelier en face de la station : bâtiment, podium
+  tournant, mâts de projecteurs, piles de pneus, pots de peinture et Jo, le
+  mécano. On y entre au volant (touche E sur l'aire) ou à pied (le
+  véhicule choisi est sorti sur le podium).
+- Personnalisation des six véhicules, tout offert : quatorze peintures,
+  quatre finitions, quatre modèles de jantes en huit couleurs, quatre types
+  de pneus (dont tout-terrain, garde au sol relevée), huit autocollants
+  dessinés par la page (portières et capot), bandes de course, vitres
+  teintées, aileron, galerie de toit, fanion KingPar, néon sous la caisse,
+  quatre klaxons. Boutons « Surprise ! » et « Remettre d'origine ».
+- Le réglage de chaque véhicule est gardé sur l'appareil
+  (`access.plan3d.garage`) et relu avec prudence. En multijoueur, le tuning
+  du véhicule conduit voyage avec la position (`tune`, couleurs `#rrggbb`
+  et mots courts, tout autre champ refusé) : les autres promeneurs voient
+  la voiture telle qu'elle a été préparée.
+- Un tampon (seize en tout) et quatre succès, dont un secret
+  (cinquante-sept en tout, six secrets).
+
+### Modifié
+- La voiture d'un autre promeneur prend la peinture de son tuning ; sans
+  tuning (page restée sur l'ancienne version), elle garde la couleur de son
+  haut, comme avant.
+
 ## [4.24.0] — 2026-11-25 — Sons enregistrés
 
 ### Ajouté

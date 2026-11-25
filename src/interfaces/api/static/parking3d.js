@@ -14,7 +14,7 @@
    et des identifiants pseudonymisés. */
 
 import * as THREE from "./vendor/three-0.160.0.module.min.js";
-import { GAMES as MINI, startGame } from "./promenade-jeux.js?v=4.24.0";
+import { GAMES as MINI, startGame } from "./promenade-jeux.js?v=4.25.0";
 
 // --- Catégories de Parking → zones du plan -----------------------------------
 
@@ -177,9 +177,10 @@ function merge(parts, withColor) {
 
 // --- Modèles de véhicules (nez vers +z, posés sur y = 0) ----------------------
 
-function wheels(detail, r, w, halfTrack, zs) {
+function wheels(detail, r, w, halfTrack, zs, spots) {
   zs.forEach((z) =>
     [-1, 1].forEach((sx) => {
+      if (spots) spots.push({ x: sx * (halfTrack + 0.07), y: r, z, r, w, sx });
       // La roue dépasse un peu de la carrosserie, dans un passage de roue sombre.
       const x = sx * (halfTrack + 0.07);
       const t = { x, y: r, z, rz: Math.PI / 2 };
@@ -198,7 +199,8 @@ function car(spec) {
   paint.push(prof(spec.body, W, "#ffffff"));
   detail.push(prof(spec.glass, W - 0.24, GLASS, 0.05));
   paint.push(prof(spec.roof, W - 0.3, "#ffffff", 0.04));
-  wheels(detail, spec.r, 0.25, W / 2 - 0.11, spec.axles);
+  const spots = [];
+  wheels(detail, spec.r, 0.25, W / 2 - 0.11, spec.axles, spots);
   detail.push(box(W + 0.02, 0.13, front - back - 0.9, TRIM, { y: spec.body[0][1] + 0.05, z: (front + back) / 2 }));
   [-1, 1].forEach((sx) => {
     if (!spec.lightBar) {
@@ -216,7 +218,17 @@ function car(spec) {
   detail.push(box(0.5, 0.12, 0.04, BLANK, { y: spec.ly - 0.22, z: front + 0.02 }));
   detail.push(box(0.5, 0.12, 0.04, BLANK, { y: spec.ly - 0.12, z: back - 0.02 }));
   if (spec.extra) spec.extra(paint, detail, lights);
-  return { paint, detail, lights };
+  /* Points d'ancrage du tuning : capot, toit, coffre (segments [z, y] à la surface),
+     portière (y, z, taille de l'autocollant), aileron et fanion à l'arrière. */
+  const up = (seg) => seg && seg.map((pt) => [pt[0], pt[1] + 0.066]);
+  const hoodTop = spec.hood ? spec.hood[1][1] : spec.body[0][1] + 0.55;
+  const fit = {
+    W, len: front - back, side: W / 2 + 0.02, hood: up(spec.hood), trunk: up(spec.trunk),
+    roof: [[spec.roof[1][0], spec.roof[1][1] + 0.038], [spec.roof[2][0], spec.roof[2][1] + 0.038]],
+    door: [(spec.body[0][1] + hoodTop) / 2 + 0.08, (spec.axles[0] + spec.axles[1]) / 2 - 0.12, (hoodTop - spec.body[0][1]) * 0.66],
+    wing: spec.wing, mast: spec.wing ? [W / 2 - 0.16, spec.wing[1], spec.wing[0] + 0.12] : null,
+  };
+  return { paint, detail, lights, spots, fit };
 }
 
 function slantedGlass(detail, W, s0, y0, s1, y1) {
@@ -267,8 +279,14 @@ function van(camper) {
   detail.push(box(W + 0.03, 0.2, 0.3, TRIM, { y: 0.55, z: back + 0.15 }));
   detail.push(box(0.5, 0.12, 0.04, BLANK, { y: 0.62, z: front + 0.02 }));
   detail.push(box(0.5, 0.12, 0.04, BLANK, { y: 0.75, z: back - 0.02 }));
-  wheels(detail, 0.4, 0.28, W / 2 - 0.12, camper ? [2.1, -2.0] : [2.0, -1.9]);
-  return { paint, detail, lights };
+  const spots = [];
+  wheels(detail, 0.4, 0.28, W / 2 - 0.12, camper ? [2.1, -2.0] : [2.0, -1.9], spots);
+  const fit = {
+    W, len: front - back, side: W / 2 + 0.012, hood: null, trunk: null, wing: null,
+    roof: [[camper ? 2.85 : 2.0, H + 0.075], [back + 0.25, H + 0.075]],
+    door: camper ? [2.12, -1.02, 0.86] : [1.75, -0.6, 0.9], mast: [W / 2 - 0.18, H + 0.07, back + 0.4],
+  };
+  return { paint, detail, lights, spots, fit };
 }
 
 function moto() {
@@ -289,7 +307,9 @@ function moto() {
   detail.push(cyl(0.055, 0.7, "#aeb3bf", { x: 0.18, y: 0.42, z: -0.5, rx: Math.PI / 2 }, 10));
   lights.push(box(0.16, 0.1, 0.05, HEAD, { y: 0.97, z: 0.79 }));
   lights.push(box(0.14, 0.06, 0.05, TAIL, { y: 0.93, z: -0.93 }));
-  return { paint, detail, lights };
+  const spots = [0.72, -0.72].map((z) => ({ x: 0, y: 0.31, z, r: 0.31, w: 0.13, sx: 0 }));
+  const fit = { W: 0.5, len: 2.1, side: 0.186, hood: null, trunk: null, roof: null, wing: null, door: [0.89, 0.14, 0.17], mast: [0, 0.98, -0.86] };
+  return { paint, detail, lights, spots, fit };
 }
 
 function scooter() {
@@ -308,7 +328,9 @@ function scooter() {
   detail.push(box(0.38, 0.3, 0.36, TRIM, { y: 0.95, z: -0.88 }));
   lights.push(box(0.16, 0.1, 0.05, HEAD, { y: 0.78, z: 0.6 }));
   lights.push(box(0.2, 0.06, 0.05, TAIL, { y: 0.6, z: -0.8 }));
-  return { paint, detail, lights };
+  const spots = [0.62, -0.62].map((z) => ({ x: 0, y: 0.22, z, r: 0.22, w: 0.13, sx: 0 }));
+  const fit = { W: 0.5, len: 1.9, side: 0.2, hood: null, trunk: null, roof: null, wing: null, door: [0.52, -0.42, 0.28], mast: [0, 1.1, -0.98] };
+  return { paint, detail, lights, spots, fit };
 }
 
 const MODELS = {
@@ -316,6 +338,7 @@ const MODELS = {
     label: "Citadine", traffic: true,
     build: () => car({
       W: 1.75, r: 0.31, axles: [1.22, -1.22], ly: 0.66, my: 0.98, mz: 0.9,
+      hood: [[1.85, 0.8], [0.95, 0.92]], wing: [-1.4, 1.5],
       body: [[-1.9, 0.32], [1.95, 0.32], [2.0, 0.6], [1.85, 0.8], [0.95, 0.92], [-1.85, 0.95], [-1.95, 0.6]],
       glass: [[1.0, 0.88], [0.45, 1.4], [-1.45, 1.4], [-1.85, 0.9]],
       roof: [[0.48, 1.37], [0.4, 1.46], [-1.42, 1.46], [-1.5, 1.37]],
@@ -325,6 +348,7 @@ const MODELS = {
     label: "Berline", traffic: true,
     build: () => car({
       W: 1.8, r: 0.33, axles: [1.38, -1.38], ly: 0.66, my: 0.96, mz: 0.85,
+      hood: [[2.1, 0.78], [0.9, 0.9]], trunk: [[-1.5, 0.92], [-2.2, 0.86]], wing: [-2.0, 0.96],
       body: [[-2.2, 0.32], [2.2, 0.32], [2.25, 0.6], [2.1, 0.78], [0.9, 0.9], [-1.5, 0.92], [-2.2, 0.86], [-2.25, 0.58]],
       glass: [[0.95, 0.86], [0.3, 1.36], [-0.95, 1.36], [-1.6, 0.88]],
       roof: [[0.33, 1.33], [0.24, 1.42], [-0.9, 1.42], [-1.0, 1.33]],
@@ -334,6 +358,7 @@ const MODELS = {
     label: "SUV", traffic: true,
     build: () => car({
       W: 1.92, r: 0.39, axles: [1.45, -1.45], ly: 0.84, my: 1.2, mz: 0.95,
+      hood: [[2.2, 1.0], [1.0, 1.1]], wing: [-1.8, 1.77],
       body: [[-2.3, 0.42], [2.3, 0.42], [2.35, 0.75], [2.2, 1.0], [1.0, 1.1], [-2.25, 1.12], [-2.35, 0.75]],
       glass: [[1.05, 1.05], [0.55, 1.66], [-1.85, 1.66], [-2.2, 1.08]],
       roof: [[0.58, 1.63], [0.5, 1.73], [-1.82, 1.73], [-1.9, 1.63]],
@@ -346,6 +371,7 @@ const MODELS = {
     label: "Électrique", traffic: true,
     build: () => car({
       W: 1.85, r: 0.34, axles: [1.42, -1.42], ly: 0.64, my: 0.94, mz: 1.05, lightBar: true,
+      hood: [[2.1, 0.74], [1.2, 0.86]], trunk: [[-1.7, 0.95], [-2.25, 0.9]], wing: [-2.05, 0.98],
       body: [[-2.25, 0.3], [2.25, 0.3], [2.3, 0.55], [2.1, 0.74], [1.2, 0.86], [-1.7, 0.95], [-2.25, 0.9], [-2.3, 0.55]],
       glass: [[1.25, 0.82], [0.2, 1.38], [-0.7, 1.4], [-1.9, 0.92]],
       roof: [[0.24, 1.35], [0.1, 1.44], [-0.68, 1.45], [-0.85, 1.36]],
@@ -380,6 +406,57 @@ const RENTALS = [
 ];
 const RENTAL_Z = -5.4;
 const BIKES = ["scooter", "moto"]; // on s'assoit dessus, à la vue de tous
+/* KingPar Tuning : l'atelier où l'on personnalise son véhicule. Tout est offert,
+   comme dans les boutiques ; les réglages restent sur l'appareil, un par véhicule. */
+const TUNE_KEY = "access.plan3d.garage";
+const CAR_PAINTS = ["#d92b3a", "#fe640b", "#f2b01e", "#ffd60a", "#40a02b", "#17c3b2", "#1e66f5", "#27408b", "#8839ef", "#ff5d8f", "#f6a5c0", "#f4f5f7", "#8b909c", "#22252e"];
+const FINISHES = [["brillant", "Brillante"], ["mat", "Mate"], ["metal", "Métallisée"], ["nacre", "Nacrée"]];
+const RIMS = [["serie", "De série"], ["etoile", "Étoile"], ["rayons", "À rayons"], ["plein", "Pleines"]];
+const RIM_COLORS = [HUB, "#22252e", "#f4f5f7", "#d4af37", "#1e66f5", "#d92b3a", "#ff5d8f", "#40a02b"];
+const TYRES = [["route", "Route"], ["blanc", "Flancs blancs"], ["sport", "Sport, liseré rouge"], ["cross", "Tout-terrain"]];
+const STICKERS = [["none", "Aucun"], ["kingpar", "Couronne KingPar"], ["numero", "Numéro 7"], ["flammes", "Flamme"], ["eclair", "Éclair"], ["coeur", "Cœur"], ["patte", "Patte de Ticket"], ["etoile", "Étoile"], ["damier", "Damier"]];
+const STRIPES = [["none", "Aucune"], ["double", "Double bande"], ["simple", "Bande centrale"]];
+const STRIPE_COLORS = ["#f4f5f7", "#22252e", "#ffd60a", "#d92b3a", "#1e66f5", "#ff5d8f"];
+const TINTS = { serie: ["De série", GLASS], clair: ["Claires", "#7f9bb3"], bleu: ["Bleutées", "#1d4f9c"], rose: ["Rosées", "#b0527a"], or: ["Dorées", "#a8842c"], noir: ["Noires", "#07080a"] };
+const ADDONS = [["none", "Aucun"], ["aileron", "Aileron"], ["galerie", "Galerie et bagages"], ["fanion", "Fanion KingPar"]];
+const NEONS = { none: ["Éteint", null], bleu: ["Bleu", "#3b82ff"], rose: ["Rose", "#ff4fa3"], vert: ["Vert", "#3ddc6a"], or: ["Or", "#ffc21a"], violet: ["Violet", "#a25bff"], blanc: ["Blanc", "#ffffff"] };
+const HORNS = [["tut", "Tut tut"], ["pouet", "Pouêt"], ["melodie", "Mélodie"], ["coin", "Coin coin"]];
+const TUNE_DEFAULT = { finish: "brillant", rims: "serie", rimc: HUB, tyres: "route", sticker: "none", stripes: "none", stripec: STRIPE_COLORS[0], tint: "serie", addon: "none", neon: "none", horn: "tut" };
+// Ce qui se monte sur chaque véhicule : ni bandes ni vitres sur un deux-roues, pas d'aileron sur le camping-car.
+const tuneFits = (model, field, value) => {
+  const bike = BIKES.includes(model);
+  if (field === "stripes" || field === "tint") return !bike || value === TUNE_DEFAULT[field];
+  if (field === "addon") return value === "none" || value === "fanion" || (!bike && (value !== "aileron" || model !== "camper"));
+  return true;
+};
+/* Un réglage de tuning, relu avec prudence : il vient du stockage du navigateur ou
+   d'un autre promeneur. Seules les valeurs connues sont reprises. */
+function cleanTune(raw, model, color) {
+  const t = Object.assign({ paint: color }, TUNE_DEFAULT);
+  if (!raw || typeof raw !== "object") return t;
+  const hex = (v) => typeof v === "string" && /^#[0-9a-f]{6}$/.test(v);
+  const word = (list, v) => list.some((it) => it[0] === v);
+  if (hex(raw.paint)) t.paint = raw.paint;
+  if (hex(raw.rimc)) t.rimc = raw.rimc;
+  if (hex(raw.stripec)) t.stripec = raw.stripec;
+  if (word(FINISHES, raw.finish)) t.finish = raw.finish;
+  if (word(RIMS, raw.rims)) t.rims = raw.rims;
+  if (word(TYRES, raw.tyres)) t.tyres = raw.tyres;
+  if (word(STICKERS, raw.sticker)) t.sticker = raw.sticker;
+  if (word(STRIPES, raw.stripes) && tuneFits(model, "stripes", raw.stripes)) t.stripes = raw.stripes;
+  if (Object.prototype.hasOwnProperty.call(TINTS, raw.tint) && tuneFits(model, "tint", raw.tint)) t.tint = raw.tint;
+  if (word(ADDONS, raw.addon) && tuneFits(model, "addon", raw.addon)) t.addon = raw.addon;
+  if (Object.prototype.hasOwnProperty.call(NEONS, raw.neon)) t.neon = raw.neon;
+  if (word(HORNS, raw.horn)) t.horn = raw.horn;
+  return t;
+}
+function loadGarage() {
+  let raw = {};
+  try { raw = JSON.parse(window.localStorage.getItem(TUNE_KEY) || "{}") || {}; } catch (err) { /* stockage indisponible : véhicules d'origine */ }
+  const garage = {};
+  RENTALS.forEach((def) => { garage[def.model] = cleanTune(raw[def.model], def.model, def.color); });
+  return garage;
+}
 // La ville, à l'est du parking, le long de la route (mètres).
 const CITY_GAP = 70, CITY_PITCH = 48, CITY_COLS = 4, CITY_AVENUE = 44;
 // Le village du parking : « la bonne place », comme celle qu'on y trouve.
@@ -449,7 +526,7 @@ const STAMPS = [
   ["parking", "Visiter une allée du parking", "Entrez par le portique et marchez entre les places."],
   ["resa", "Consulter la borne de réservation", "Sur le parvis, à gauche de l'entrée."],
   ["agent", "Saluer l'agent du parking", "Il fait sa ronde en gilet jaune."],
-  ["volant", "Prendre le volant", "Trois véhicules attendent en libre-service."],
+  ["volant", "Prendre le volant", "Six véhicules attendent en libre-service."],
   ["arche", "Passer sous la grande arche", "Suivez la route vers l'est."],
   ["mascotte", "Saluer " + MASCOT + ", la mascotte", "Sa statue dorée garde l'entrée du village."],
   ["boisson", "Prendre une boisson", "Un distributeur, dans la rue du village."],
@@ -461,6 +538,7 @@ const STAMPS = [
   ["chance", "Tirer un ticket chance", "Au belvédère : une prédiction sur ticket."],
   ["station", "S'arrêter à la Station KingPar", "Sur la route du village : jouez au plein pile."],
   ["ferme", "Visiter la Kingfarm", "Au sud du village : potager, verger et mine à minerais."],
+  ["tuning", "Passer au KingPar Tuning", "En face de la station : personnalisez un véhicule, tout est offert."],
 ];
 // Tenue, coiffure, compagnon et carnet : gardés sur l'appareil, rien n'est envoyé.
 const LOOK_KEY = "access.plan3d.look";
@@ -490,7 +568,7 @@ function loadLook() {
 /* Progression : tampons, succès, records et compteurs. Relue avec prudence :
    seuls les identifiants connus et les nombres bornés sont repris. */
 function loadProgress() {
-  const p = { stamps: new Set(), wins: new Set(), best: {}, km: 0, jumps: 0, pets: [], cuts: [], played: [], fits: [], cars: [], day: "", gold: 0, goldDay: "", walked: 0, hellos: 0, quests: {}, qn: 0, qcut: "", duelWins: 0, bag: { plante: 0, bois: 0, minerai: 0 } };
+  const p = { stamps: new Set(), wins: new Set(), best: {}, km: 0, jumps: 0, pets: [], cuts: [], played: [], fits: [], cars: [], tuned: [], day: "", gold: 0, goldDay: "", walked: 0, hellos: 0, quests: {}, qn: 0, qcut: "", duelWins: 0, bag: { plante: 0, bois: 0, minerai: 0 } };
   try {
     const raw = JSON.parse(window.localStorage.getItem(CARNET_KEY) || "{}");
     const src = Array.isArray(raw) ? { stamps: raw } : raw || {};
@@ -509,7 +587,7 @@ function loadProgress() {
     Object.keys(p.bag).forEach((k) => { const v = src.bag && src.bag[k]; if (Number.isFinite(v)) p.bag[k] = clamp(Math.round(v), 0, 1e6); });
     if (typeof src.qcut === "string" && /^[a-z]{1,12}$/.test(src.qcut)) p.qcut = src.qcut;
     if (Number.isFinite(src.hellos)) p.hellos = clamp(Math.round(src.hellos), 0, 1e6);
-    ["pets", "cuts", "played", "fits", "cars"].forEach((k) => {
+    ["pets", "cuts", "played", "fits", "cars", "tuned"].forEach((k) => {
       if (Array.isArray(src[k])) p[k] = src[k].filter((v) => typeof v === "string" && /^[a-z]{1,12}$/.test(v)).slice(0, 24);
     });
     if (typeof src.day === "string" && /^\d{4}-\d{2}-\d{2}$/.test(src.day)) p.day = src.day;
@@ -589,7 +667,11 @@ const WINS = [
   ["serviable", "Serviable", "Terminer trois quêtes."],
   ["heros", "Héros de Bonneplace", "Terminer toutes les quêtes."],
   ["course", "Canard de bain", "80 points à la course de canards du spa."],
-  ["chef", "Chef d'orchestre", "Klaxonner cinq fois.", true], // les cinq suivants sont secrets : « ??? » tant qu'on ne les a pas
+  ["tuning", "Premier coup de clé", "Personnaliser un véhicule au KingPar Tuning."],
+  ["carrossier", "Carrossier", "Personnaliser trois véhicules différents."],
+  ["nuancier", "Nuancier", "Essayer six peintures dans la même visite à l'atelier."],
+  ["chef", "Chef d'orchestre", "Klaxonner cinq fois.", true], // les six suivants sont secrets : « ??? » tant qu'on ne les a pas
+  ["showcar", "Bête de concours", "Monter jantes, autocollant, néon et accessoire sur le même véhicule.", true],
   ["minuit", "Cloche de minuit", "Sonner la cloche du belvédère la nuit.", true],
   ["ange", "Saut de l'ange", "Sauter du haut de la passerelle.", true],
   ["montgolfiere", "Montgolfière", "Sauter au sommet du belvédère avec un ballon.", true],
@@ -688,6 +770,43 @@ function drawLogo(g, x, y, size) {
   g.fillStyle = "#ffffff";
   for (let xx = 44; xx < 190; xx += 17) { g.beginPath(); g.moveTo(xx, 190); g.lineTo(xx + 11, 190); g.lineTo(xx + 16, 168); g.lineTo(xx + 5, 168); g.closePath(); g.fill(); }
   g.restore();
+}
+// Autocollants du tuning : dessinés ici, jamais retournés (ils se lisent des deux côtés).
+function drawSticker(g, w, id) {
+  const u = w / 100;
+  g.clearRect(0, 0, w, w);
+  g.lineJoin = "round"; g.lineCap = "round";
+  const outline = (path, fill, edge) => { g.lineWidth = 7 * u; g.strokeStyle = edge || "#ffffff"; g.stroke(path); g.fillStyle = fill; g.fill(path); };
+  const scaled = (d) => { const m = new Path2D(); m.addPath(new Path2D(d), new DOMMatrix([u, 0, 0, u, 0, 0])); return m; };
+  if (id === "kingpar") drawLogo(g, w * 0.04, w * 0.04, w * 0.92);
+  else if (id === "numero") {
+    g.beginPath(); g.arc(50 * u, 50 * u, 44 * u, 0, Math.PI * 2);
+    g.fillStyle = "#ffffff"; g.fill(); g.lineWidth = 6 * u; g.strokeStyle = "#15161a"; g.stroke();
+    g.fillStyle = "#15161a"; g.font = "900 " + 62 * u + "px system-ui, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillText("7", 50 * u, 54 * u);
+  } else if (id === "flammes") {
+    outline(scaled("M50 6 C58 26 84 40 80 66 C78 84 64 94 50 94 C36 94 22 84 20 66 C17 44 36 38 38 22 C44 28 46 34 46 40 C50 30 52 18 50 6 Z"), "#fe640b", "#ffffff");
+    g.fillStyle = "#ffd60a"; g.fill(scaled("M50 44 C56 56 66 62 64 74 C62 84 56 88 50 88 C44 88 38 84 36 74 C35 64 44 58 50 44 Z"));
+  } else if (id === "eclair") outline(scaled("M58 6 L22 54 L44 54 L36 94 L78 42 L54 42 Z"), "#ffd60a", "#15161a");
+  else if (id === "coeur") {
+    outline(scaled("M50 88 C20 66 8 48 12 32 C16 14 38 10 50 28 C62 10 84 14 88 32 C92 48 80 66 50 88 Z"), "#ff4d6d", "#ffffff");
+    g.fillStyle = "rgba(255,255,255,.7)"; g.beginPath(); g.ellipse(32 * u, 32 * u, 8 * u, 5 * u, -0.6, 0, Math.PI * 2); g.fill();
+  } else if (id === "patte") {
+    g.fillStyle = "#ffffff";
+    [[50, 64, 27, 22], [22, 40, 12, 14], [40, 24, 12, 15], [60, 24, 12, 15], [78, 40, 12, 14]].forEach((e) => { g.beginPath(); g.ellipse(e[0] * u, e[1] * u, (e[2] + 4) * u, (e[3] + 4) * u, 0, 0, Math.PI * 2); g.fill(); });
+    g.fillStyle = "#6b4a35";
+    [[50, 64, 27, 22], [22, 40, 12, 14], [40, 24, 12, 15], [60, 24, 12, 15], [78, 40, 12, 14]].forEach((e) => { g.beginPath(); g.ellipse(e[0] * u, e[1] * u, e[2] * u, e[3] * u, 0, 0, Math.PI * 2); g.fill(); });
+  } else if (id === "etoile") {
+    const star = new Path2D();
+    for (let k = 0; k < 10; k++) { const a = (k / 10) * Math.PI * 2 - Math.PI / 2, r = (k % 2 ? 20 : 44) * u; star[k ? "lineTo" : "moveTo"](50 * u + Math.cos(a) * r, 52 * u + Math.sin(a) * r); }
+    star.closePath();
+    outline(star, "#ffd60a", "#ffffff");
+  } else if (id === "damier") {
+    g.save(); roundRect(g, 8 * u, 8 * u, 84 * u, 84 * u, 14 * u); g.clip();
+    for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) { g.fillStyle = (r + c) % 2 ? "#15161a" : "#ffffff"; g.fillRect((8 + c * 21) * u, (8 + r * 21) * u, 21 * u, 21 * u); }
+    g.restore();
+    g.lineWidth = 4 * u; g.strokeStyle = "#15161a"; roundRect(g, 8 * u, 8 * u, 84 * u, 84 * u, 14 * u); g.stroke();
+  }
 }
 const ROOF_TILES = ["#e2574c", "#4f86e0", "#e98b3a", "#5fb86a", "#c9546b", "#e2574c"];
 const FACADES = ["#ffffff", "#ffe9c9", "#dcebff", "#ffe1e7", "#e2f3da", "#fff3c4"];
@@ -1501,6 +1620,7 @@ export function createParking3D(container, options) {
     drive: null, look: 0, fov: 58, // véhicule conduit, dernière fois qu'on a tourné la caméra
     yaw: 0, pitch: 0.4, dist: 7.5, keys: {}, joy: null, near: null, zone: null, panel: false,
     say: 0, toast: 0, met: false, zoom: null,
+    tuning: null, podium: null, // véhicule en cours de tuning ; véhicule resté sur le podium
     ride: null, hearts: 0, // voiture d'un autre promeneur où l'on est monté ; délai entre deux pluies de cœurs
     punch: 0, duelSig: "", duelDone: "", // coup de poing en cours, dernier défi affiché, dernier défi terminé
     game: null, parked: false, fuel: 0, saveIn: 20, // mini-jeu en cours, créneau jugé, pompe utilisée, sauvegarde // bulle du promeneur, message du carnet, accueil déjà affiché
@@ -1716,7 +1836,7 @@ export function createParking3D(container, options) {
     store(CARNET_KEY, {
       stamps: Array.from(progress.stamps), wins: Array.from(progress.wins), best: progress.best,
       km: Math.round(progress.km * 1000) / 1000, jumps: progress.jumps,
-      pets: progress.pets, cuts: progress.cuts, played: progress.played, fits: progress.fits, cars: progress.cars, day: progress.day,
+      pets: progress.pets, cuts: progress.cuts, played: progress.played, fits: progress.fits, cars: progress.cars, tuned: progress.tuned, day: progress.day,
       walked: Math.round(progress.walked), hellos: progress.hellos,
       quests: progress.quests, qn: progress.qn, qcut: progress.qcut, duelWins: progress.duelWins, bag: progress.bag,
       gold: progress.gold, goldDay: progress.goldDay,
@@ -1800,21 +1920,155 @@ export function createParking3D(container, options) {
   const dog = buildPet(look.pet);
 
   // Véhicules en libre-service : un groupe par véhicule (hors flotte instanciée).
-  function buildCar(model, color) {
-    const built = MODELS[model].build();
+  // Autocollants : une texture par motif, partagée par tous les véhicules.
+  const stickerMats = {};
+  function stickerMat(id) {
+    if (!stickerMats[id]) {
+      stickerMats[id] = new THREE.MeshStandardMaterial({
+        map: canvasTexture(256, (g, w) => drawSticker(g, w, id)), transparent: true, alphaTest: 0.04, roughness: 0.55, metalness: 0.05,
+        envMapIntensity: 0.5, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+      });
+    }
+    return stickerMats[id];
+  }
+  /* Un véhicule à conduire. Avec un réglage de tuning (`tune`, voir `cleanTune`),
+     on repeint, on change jantes et pneus, on colle, on monte les accessoires :
+     les pièces s'ajoutent au modèle avant la fusion en trois maillages. */
+  function buildCar(model, color, tune) {
+    const built = MODELS[model].build(), fit = built.fit, t = tune || null;
     const root = new THREE.Group(), body = new THREE.Group();
     root.add(body);
     const paintMat = M.paint.clone();
-    paintMat.color.set(color);
+    paintMat.color.set(t ? t.paint : color);
+    const extras = [];
+    if (t && fit) {
+      const finish = { mat: [0.88, 0.04, 0.3], metal: [0.2, 0.78, 1.5], nacre: [0.26, 0.5, 1.3] }[t.finish];
+      if (finish) { paintMat.roughness = finish[0]; paintMat.metalness = finish[1]; paintMat.envMapIntensity = finish[2]; }
+      if (t.finish === "nacre") { paintMat.emissive.set(t.paint).offsetHSL(0.14, 0.1, 0); paintMat.emissiveIntensity = 0.22; }
+      const P = built.paint, D = built.detail, quarter = Math.PI / 2, dark = "#101114";
+      const recolor = (from, to) => D.forEach((pt) => { if (pt.color === from) pt.color = to; });
+      if (TINTS[t.tint] && t.tint !== "serie") recolor(GLASS, TINTS[t.tint][1]);
+      // Roues : pneu, flanc, puis jante, en couches de plus en plus saillantes.
+      const cross = t.tyres === "cross", custom = t.rims !== "serie";
+      recolor(HUB, custom ? dark : t.rimc);
+      built.spots.forEach((sp) => {
+        const r = sp.r, face = (sp.w / 2) * (cross ? 1.14 : 1);
+        if (cross) {
+          D.push(cyl(r * 1.1, sp.w * 1.14, TIRE, { x: sp.x, y: sp.y, z: sp.z, rz: quarter }, 20));
+          for (let k = 0; k < 12; k++) {
+            const a = (k / 12) * Math.PI * 2;
+            D.push(box(sp.w * 1.14 + 0.03, 0.07, 0.1, TIRE, { x: sp.x, y: sp.y + Math.cos(a) * r * 1.1, z: sp.z + Math.sin(a) * r * 1.1, rx: a }));
+          }
+        }
+        (sp.sx ? [sp.sx] : [-1, 1]).forEach((f) => {
+          const at = (out) => sp.x + f * (face + out);
+          const disc = (radius, thick, out, color) => D.push(cyl(radius, thick, color, { x: at(out), y: sp.y, z: sp.z, rz: quarter }, 20));
+          if (t.tyres === "blanc") { disc(r * 0.88, 0.012, 0, "#f4f5f7"); disc(r * 0.68, 0.02, 0, TIRE); }
+          if (t.tyres === "sport") { disc(r * 0.8, 0.012, 0, "#d92b3a"); disc(r * 0.72, 0.02, 0, TIRE); }
+          if (!custom) { if (cross) disc(r * 0.56, 0.05, 0.005, t.rimc); return; }
+          disc(r * 0.74, 0.04, 0, dark);
+          D.push(part(new THREE.TorusGeometry(r * 0.71, 0.024, 6, 22), t.rimc, { x: at(0.022), y: sp.y, z: sp.z, ry: quarter }));
+          if (t.rims === "plein") {
+            disc(r * 0.68, 0.056, 0, t.rimc);
+            for (let k = 0; k < 5; k++) {
+              const a = (k / 5) * Math.PI * 2;
+              D.push(cyl(r * 0.1, 0.064, dark, { x: at(0), y: sp.y + Math.cos(a) * r * 0.42, z: sp.z + Math.sin(a) * r * 0.42, rz: quarter }, 10));
+            }
+            disc(r * 0.14, 0.076, 0, dark);
+          } else {
+            const n = t.rims === "etoile" ? 5 : 10, wide = t.rims === "etoile" ? r * 0.2 : r * 0.07;
+            for (let k = 0; k < n; k++) {
+              const a = (k / n) * Math.PI * 2;
+              D.push(box(0.03, r * 0.66, wide, t.rimc, { x: at(0.03), y: sp.y + Math.cos(a) * r * 0.36, z: sp.z + Math.sin(a) * r * 0.36, rx: a }));
+            }
+            disc(r * 0.17, 0.1, 0, t.rimc);
+          }
+        });
+      });
+      if (cross) body.position.y = Math.max.apply(null, built.spots.map((sp) => sp.r)) * 0.1; // garde au sol relevée
+      // Bandes de course : capot, toit, coffre.
+      const lanes = t.stripes === "double" ? [-0.21, 0.21] : t.stripes === "simple" ? [0] : [];
+      lanes.forEach((x) => [fit.hood, fit.roof, fit.trunk].forEach((sg) => {
+        if (!sg) return;
+        const len = Math.hypot(sg[0][0] - sg[1][0], sg[0][1] - sg[1][1]);
+        D.push(box(t.stripes === "simple" ? 0.36 : 0.15, 0.014, len * 0.97, t.stripec, {
+          x, y: (sg[0][1] + sg[1][1]) / 2 + 0.004, z: (sg[0][0] + sg[1][0]) / 2, rx: Math.atan2(sg[1][1] - sg[0][1], sg[0][0] - sg[1][0]),
+        }));
+      }));
+      if (t.addon === "aileron" && fit.wing) {
+        const wz = fit.wing[0], wy = fit.wing[1];
+        P.push(box(fit.W * 0.94, 0.045, 0.34, "#ffffff", { y: wy + 0.25, z: wz, rx: -0.12 }));
+        [-1, 1].forEach((sx) => {
+          P.push(box(0.03, 0.16, 0.42, "#ffffff", { x: sx * fit.W * 0.47, y: wy + 0.26, z: wz }));
+          D.push(box(0.05, 0.28, 0.12, TRIM, { x: sx * fit.W * 0.28, y: wy + 0.1, z: wz }));
+        });
+      }
+      if (t.addon === "galerie" && fit.roof) {
+        const z0 = fit.roof[0][0], z1 = fit.roof[1][0], ry = fit.roof[0][1], long = Math.abs(z0 - z1);
+        const half = Math.min(fit.W / 2 - 0.3, 0.62), len = Math.min(1.9, long * 0.9), zc = (z0 + z1) / 2 + (long > 3 ? 1.2 : 0);
+        [-1, 1].forEach((sx) => {
+          D.push(box(0.04, 0.04, len, TRIM, { x: sx * half, y: ry + 0.1, z: zc }));
+          [-0.4, 0.4].forEach((k) => D.push(box(0.04, 0.1, 0.04, TRIM, { x: sx * half, y: ry + 0.05, z: zc + k * len })));
+        });
+        [-0.42, 0, 0.42].forEach((k) => D.push(box(half * 2, 0.035, 0.05, TRIM, { y: ry + 0.1, z: zc + k * len })));
+        D.push(box(half * 1.05, 0.24, len * 0.42, "#8a5a3c", { x: -half * 0.38, y: ry + 0.24, z: zc + len * 0.22 }));
+        [-0.1, 0.1].forEach((k) => D.push(box(half * 1.07, 0.25, 0.03, "#3b2a20", { x: -half * 0.38, y: ry + 0.24, z: zc + len * (0.22 + k) })));
+        D.push(box(half * 0.85, 0.18, len * 0.36, BRAND, { x: half * 0.42, y: ry + 0.21, z: zc - len * 0.24 }));
+        D.push(cyl(0.085, half * 1.5, "#f6a5c0", { y: ry + 0.2, z: zc - len * 0.02, rz: quarter }, 10));
+      }
+      if (t.addon === "fanion" && fit.mast) {
+        const m = fit.mast;
+        D.push(cyl(0.014, 0.95, "#d5d8de", { x: m[0], y: m[1] + 0.47, z: m[2] }, 6));
+        D.push(ball(0.03, "#ffd60a", { x: m[0], y: m[1] + 0.96, z: m[2] }));
+        D.push(box(0.012, 0.25, 0.36, BRAND, { x: m[0], y: m[1] + 0.8, z: m[2] - 0.19 }));
+        [-1, 1].forEach((sx) => {
+          const badge = new THREE.Mesh(new THREE.PlaneGeometry(0.21, 0.21), M.logo);
+          badge.position.set(m[0] + sx * 0.008, m[1] + 0.8, m[2] - 0.19);
+          badge.rotation.y = (sx * Math.PI) / 2;
+          extras.push(badge);
+        });
+      }
+      if (t.sticker !== "none") {
+        const mat = stickerMat(t.sticker), d = fit.door;
+        [-1, 1].forEach((sx) => {
+          const side = new THREE.Mesh(new THREE.PlaneGeometry(d[2], d[2]), mat);
+          side.position.set(sx * fit.side, d[0], d[1]);
+          side.rotation.y = (sx * Math.PI) / 2;
+          extras.push(side);
+        });
+        if (fit.hood) {
+          const h = fit.hood, size = Math.min(0.62, Math.hypot(h[0][0] - h[1][0], h[0][1] - h[1][1]) * 0.55);
+          const top = new THREE.Mesh(new THREE.PlaneGeometry(size, size), mat);
+          top.position.set(0, (h[0][1] + h[1][1]) / 2 + 0.014, (h[0][0] + h[1][0]) / 2);
+          top.rotation.x = -Math.PI / 2 + Math.atan2(h[1][1] - h[0][1], h[0][0] - h[1][0]);
+          extras.push(top);
+        }
+      }
+      const glow = NEONS[t.neon] ? NEONS[t.neon][1] : null;
+      if (glow) { // néon sous la caisse : deux tubes et leur halo au sol
+        const thin = fit.W < 1;
+        [-1, 1].forEach((sx) => built.lights.push(box(0.05, 0.04, fit.len * (thin ? 0.4 : 0.6), glow, { x: sx * (thin ? 0.13 : fit.W / 2 - 0.06), y: 0.24 })));
+        const halo = new THREE.Mesh(new THREE.PlaneGeometry(fit.W + 1.5, fit.len + 1.5), new THREE.MeshBasicMaterial({
+          map: dotTexture, color: glow, transparent: true, opacity: 0.78, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false,
+        }));
+        halo.rotation.x = -Math.PI / 2;
+        halo.position.y = 0.17;
+        halo.userData.own = []; // sa matière lui est propre : libérée avec le modèle
+        root.add(halo);
+      }
+    }
     [[built.paint, false, paintMat], [built.detail, true, M.detail], [built.lights, true, M.lights]].forEach((part, i) => {
       const mesh = new THREE.Mesh(merge(part[0], part[1]), part[2]);
       mesh.castShadow = i < 2;
       mesh.receiveShadow = i < 2;
+      if (i === 0) mesh.userData.own = []; // la peinture est une matière clonée, propre au véhicule
       body.add(mesh);
     });
-    return { root, body, paintMat };
+    extras.forEach((mesh) => body.add(mesh));
+    return { root, body, paintMat, tune: t };
   }
-  const rentals = RENTALS.map((def) => Object.assign(buildCar(def.model, def.color), { def, x: def.x, z: RENTAL_Z, rot: Math.PI, v: 0, steer: 0 }));
+  const garage = loadGarage(); // le tuning de chaque véhicule, gardé sur l'appareil
+  const rentals = RENTALS.map((def) => Object.assign(buildCar(def.model, def.color, garage[def.model]), { def, x: def.x, z: RENTAL_Z, rot: Math.PI, v: 0, steer: 0 }));
   // Phares du véhicule conduit, la nuit.
   const driveLight = new THREE.PointLight(0xfff2c2, 0, 34, 1.5);
 
@@ -1920,6 +2174,7 @@ export function createParking3D(container, options) {
     signMats.length = 0;
     net.others.forEach((o) => { disposeModel(o.group); if (o.car) o.car.paintMat.dispose(); }); // ils reviennent au prochain échange
     if (lot) lot.quest.folk.forEach((f) => disposeModel(f.model.root));
+    if (lot) disposeModel(lot.city.mech.root);
     net.others.clear();
 
     const L = computeLayout(zones);
@@ -2249,6 +2504,79 @@ export function createParking3D(container, options) {
     signBoards.push([2.6, 0.9, "LE CRÉNEAU PARFAIT", "#ffd60a", "#22252e", bay.x + 2.2, 2.6, bay.z - 3.32, 0]);
     cityObstacles.push([bay.x + 2.05, bay.x + 2.35, bay.z - 3.55, bay.z - 3.25]);
 
+    /* KingPar Tuning, en face de la station : l'atelier, son podium tournant où l'on
+       pose le véhicule, les piles de pneus, les pots de peinture et Jo, le mécano. */
+    const tg = { x: gs.x, z: R - 15.5 }, podium = { x: gs.x + 5, z: R - 13.5, mesh: null };
+    props.push(box(31, 0.05, 22, "#5a5f6b", { x: tg.x, y: 0.025, z: tg.z }));
+    props.push(box(31, 0.04, 1.2, "#5a5f6b", { x: tg.x, y: 0.02, z: R - 4.0 })); // bateau vers la route
+    const shopX = tg.x - 8, shopZ = R - 21.5, shopFront = shopZ + 3.5;
+    house(shopX, shopZ, 11, 7, 1, "#e2574c", { wall: "#fff3c4" });
+    props.push(box(4.6, 2.3, 0.14, "#2b2e37", { x: shopX - 2.2, y: 1.59, z: shopFront + 0.05 })); // rideau de l'atelier
+    for (let k = 0; k < 6; k++) props.push(box(4.4, 0.05, 0.16, "#8b909c", { x: shopX - 2.2, y: 0.7 + k * 0.36, z: shopFront + 0.06 }));
+    for (let k = 0; k < 8; k++) props.push(box(0.6, 0.2, 0.16, k % 2 ? "#22252e" : "#ffd60a", { x: shopX - 4.3 + k * 0.6, y: 2.84, z: shopFront + 0.06 }));
+    props.push(box(1.2, 2.1, 0.14, BRAND, { x: shopX + 2.6, y: 1.49, z: shopFront + 0.05 })); // porte
+    props.push(box(0.55, 0.55, 0.16, "#bfe3ff", { x: shopX + 2.6, y: 1.95, z: shopFront + 0.06 }));
+    props.push(ball(0.06, "#ffd60a", { x: shopX + 3.02, y: 1.45, z: shopFront + 0.16 }));
+    ["#d4af37", BRAND, "#ff5d8f"].forEach((color, k) => { // jantes en vitrine sur la façade
+      props.push(cyl(0.4, 0.1, "#15161a", { x: shopX + 4.5, y: 0.95 + k * 0.92, z: shopFront + 0.07, rx: Math.PI / 2 }, 18));
+      props.push(cyl(0.27, 0.14, color, { x: shopX + 4.5, y: 0.95 + k * 0.92, z: shopFront + 0.07, rx: Math.PI / 2 }, 14));
+    });
+    props.push(box(8.6, 0.86, 0.12, "#22252e", { x: shopX - 0.6, y: 3.95, z: shopFront + 0.5 })); // l'enseigne, posée sur le toit
+    [-3.6, 3.6].forEach((dx) => props.push(box(0.12, 0.7, 0.12, "#22252e", { x: shopX - 0.6 + dx, y: 3.45, z: shopFront + 0.44 })));
+    signBoards.push([8.2, 0.62, "KINGPAR TUNING", "#ffd60a", "#22252e", shopX - 0.6, 3.95, shopFront + 0.57, 0]);
+    // Le podium : un plateau qui tourne quand un véhicule y est réglé, des plots lumineux autour.
+    props.push(cyl(4.5, 0.05, "#3b4252", { x: podium.x, y: 0.04, z: podium.z }, 40));
+    for (let k = 0; k < 12; k++) {
+      const a = (k / 12) * Math.PI * 2, px = podium.x + Math.cos(a) * 4.25, pz = podium.z + Math.sin(a) * 4.25;
+      props.push(cyl(0.12, 0.08, "#22252e", { x: px, y: 0.09, z: pz }, 10));
+      lanternGlow.push({ x: px, y: 0.16, z: pz, sx: 0.16, sy: 0.07, sz: 0.16 });
+    }
+    lanternPools.push({ x: podium.x, y: 0.09, z: podium.z, sx: 15, sz: 15 });
+    [-1, 1].forEach((sx) => { // deux mâts de projecteurs derrière le podium, une guirlande entre eux
+      const mx = podium.x + sx * 5.6, mz = podium.z - 5.4;
+      props.push(cyl(0.13, 5.2, "#3b4252", { x: mx, y: 2.6, z: mz }, 10));
+      props.push(box(0.9, 0.34, 0.4, "#22252e", { x: mx - sx * 0.3, y: 5.15, z: mz + 0.2, rx: 0.5 }));
+      lanternGlow.push({ x: mx - sx * 0.3, y: 5.05, z: mz + 0.4, sx: 0.7, sy: 0.22, sz: 0.1 });
+      cityObstacles.push([mx - 0.2, mx + 0.2, mz - 0.2, mz + 0.2]);
+    });
+    for (let k = 1; k < 12; k++) {
+      const t = k / 12;
+      lampions.push({ x: podium.x - 5.6 + 11.2 * t, y: 4.7 - Math.sin(Math.PI * t) * 0.8, z: podium.z - 5.4, sx: 0.17, sy: 0.21, sz: 0.17 });
+    }
+    [[tg.x + 13.4, R - 21.6, 4], [tg.x + 12.5, R - 23.2, 3], [tg.x + 14.1, R - 23.6, 2], [shopX - 6.6, shopFront + 1.0, 3]].forEach((st) => { // piles de pneus
+      for (let k = 0; k < st[2]; k++) {
+        props.push(cyl(0.44, 0.25, "#15161a", { x: st[0], y: 0.18 + k * 0.26, z: st[1] }, 16));
+        props.push(cyl(0.24, 0.27, "#3b4252", { x: st[0], y: 0.18 + k * 0.26, z: st[1] }, 12));
+      }
+      cityObstacles.push([st[0] - 0.46, st[0] + 0.46, st[1] - 0.46, st[1] + 0.46]);
+    });
+    const cans = { x: tg.x + 0.4, z: R - 20.8 }; // pots de peinture, en pyramide
+    [[0, 0, 0], [0.42, 0, 0], [0.84, 0, 0], [1.26, 0, 0], [0.21, 0.4, 0], [0.63, 0.4, 0], [1.05, 0.4, 0], [0.42, 0.8, 0], [0.84, 0.8, 0], [0.63, 1.2, 0]].forEach((c, k) => {
+      props.push(cyl(0.19, 0.36, CAR_PAINTS[(k * 3) % CAR_PAINTS.length], { x: cans.x + c[0], y: 0.23 + c[1], z: cans.z }, 12));
+      props.push(cyl(0.2, 0.04, "#d5d8de", { x: cans.x + c[0], y: 0.42 + c[1], z: cans.z }, 12));
+    });
+    cityObstacles.push([cans.x - 0.25, cans.x + 1.5, cans.z - 0.25, cans.z + 0.25]);
+    const cart = { x: podium.x - 6.3, z: podium.z - 2.4 }; // servante d'atelier
+    props.push(box(0.95, 0.85, 0.55, "#d92b3a", { x: cart.x, y: 0.6, z: cart.z }));
+    [0.38, 0.62, 0.86].forEach((y) => props.push(box(0.8, 0.03, 0.57, "#f4f5f7", { x: cart.x, y, z: cart.z })));
+    props.push(box(1.0, 0.05, 0.6, "#22252e", { x: cart.x, y: 1.05, z: cart.z }));
+    cityObstacles.push([cart.x - 0.5, cart.x + 0.5, cart.z - 0.3, cart.z + 0.3]);
+    const tuTotem = { x: tg.x - 14.6, z: R - 6.4 }; // totem au bord de la route
+    props.push(box(0.36, 6.2, 0.36, "#3b4252", { x: tuTotem.x, y: 3.1, z: tuTotem.z }));
+    props.push(box(0.5, 2.3, 3.5, "#22252e", { x: tuTotem.x, y: 5.0, z: tuTotem.z }));
+    cityObstacles.push([tuTotem.x - 0.3, tuTotem.x + 0.3, tuTotem.z - 0.3, tuTotem.z + 0.3]);
+    [-1, 1].forEach((sx) => {
+      signBoards.push([3.3, 1.0, "KINGPAR TUNING", "#ffd60a", "#22252e", tuTotem.x + sx * 0.26, 5.5, tuTotem.z, (sx * Math.PI) / 2]);
+      signBoards.push([3.3, 0.7, "PEINTURE · JANTES · NÉONS", "#22252e", "#ffffff", tuTotem.x + sx * 0.26, 4.5, tuTotem.z, (sx * Math.PI) / 2]);
+    });
+    const jo = { x: podium.x - 6.2, z: podium.z + 0.6 };
+    const mech = buildPerson({ top: "#f4f5f7", hem: "#c9ccd6", skin: "#dba97c", hair: "#3b2a20", pants: BRAND, shoes: "#22252e", cap: "#22252e", hat: "cap", cut: "short", outfit: "salopette", bottom: "pants", extra: "none", eyes: "malins", small: true });
+    mech.root.position.set(jo.x, 0, jo.z);
+    mech.root.rotation.y = Math.PI / 2;
+    group.add(mech.root);
+    cityObstacles.push([jo.x - 0.28, jo.x + 0.28, jo.z - 0.28, jo.z + 0.28]);
+    cityPoints.push({ x: jo.x + 0.2, z: jo.z + 1.3, label: "Personnaliser un véhicule (tout est offert)", action: () => openTuning(null) });
+
     // 2. Le belvédère sur sa colline : ruelle, escalier sous cinq arches (une par zone), pavillon et cloche
     props.push(box(5, 0.04, 44.5, "#dcb98a", { x: laneN, y: 0.02, z: R + 4.5 + 22.25 }));
     const hillGeo = new THREE.CylinderGeometry(hill.rt, hill.r, hill.h, 44, 1);
@@ -2475,6 +2803,16 @@ export function createParking3D(container, options) {
     propsMesh.castShadow = true;
     propsMesh.receiveShadow = true;
     group.add(propsMesh);
+    // Plateau tournant du KingPar Tuning : damier jaune et noir au bord, flèches au centre.
+    const plate = [cyl(3.9, 0.04, "#4a4f5c", { y: 0.02 }, 40)];
+    for (let k = 0; k < 16; k++) {
+      const a = (k / 16) * Math.PI * 2;
+      plate.push(box(0.72, 0.012, 1.0, k % 2 ? "#22252e" : "#ffd60a", { x: Math.sin(a) * 3.38, y: 0.045, z: Math.cos(a) * 3.38, ry: a }));
+    }
+    podium.mesh = new THREE.Mesh(merge(plate, true), M.props);
+    podium.mesh.position.set(podium.x, 0.062, podium.z);
+    podium.mesh.receiveShadow = true;
+    group.add(podium.mesh);
 
     // Guérite : vitrage (s'éclaire la nuit)
     const glass = new THREE.Mesh(new THREE.BoxGeometry(2.66, 0.95, 3.06), M.boothGlass);
@@ -2576,6 +2914,9 @@ export function createParking3D(container, options) {
       if (x > -42 && x < L.xMax + 6 && z > -10 && z < D + 6) continue;
       if (inCity(x, z)) continue;
       ring(x, z);
+    }
+    for (let i = trees.length - 1; i >= 0; i--) { // l'aire du KingPar Tuning reste dégagée
+      if (Math.abs(trees[i].x - tg.x) < 18 && trees[i].z < R - 3 && trees[i].z > R - 30) trees.splice(i, 1);
     }
     instanced(group, new THREE.CylinderGeometry(0.24, 0.36, 1.8, 10), M.trunk,
       trees.map((t) => ({ x: t.x, y: t.y0 + 0.9 * t.s, z: t.z, sy: t.s })), "cast");
@@ -2898,8 +3239,9 @@ export function createParking3D(container, options) {
     npc.x = LANE + 0.35; npc.z = L.aisles.length ? L.aisles[0] : 6; npc.path = null; npc.wait = 2;
     rentals.forEach((r) => group.add(r.root));
     tag("Véhicules à conduire", -19.5, 4.9, RENTAL_Z + 3.7, null, true).node.style.background = "#d92b3a";
+    tag("KingPar Tuning", podium.x, 6.2, podium.z, null, true).node.style.background = "#22252e";
     tag(CITY_NAME, (X0 + cityX1) / 2, 46, ROAD_Z, null, true);
-    const city = { x0: X0, x1: cityX1, z0: vz0, z1: vz1, pond, hill, petals, koi, fireworks, gate: tx, bay, pumps: { x: gs.x, z: gz } };
+    const city = { x0: X0, x1: cityX1, z0: vz0, z1: vz1, pond, hill, petals, koi, fireworks, gate: tx, bay, pumps: { x: gs.x, z: gz }, podium, mech };
     // La Kingfarm, au sud des champs : potager de citrouilles, verger à cogner, mine à ciel ouvert.
     const farm = { x: X0 + 104, z: R - 75, nodes: [] };
     const addNode = (kind, x, z, parts) => {
@@ -3498,7 +3840,7 @@ export function createParking3D(container, options) {
     } else if (e.code === "KeyF") {
       if (down && !e.repeat) { bark(); sound([[980 / dog.def.scale, 0.07, 0], [760 / dog.def.scale, 0.06, 0.09]], 0.13, "triangle", true); }
     } else if (e.code === "KeyH") {
-      if (down && !e.repeat && walk.drive) { sfx("klaxon"); walk.honks = (walk.honks || 0) + 1; if (walk.honks >= 5) win("chef"); }
+      if (down && !e.repeat && walk.drive) { honk(garage[walk.drive.def.model].horn); walk.honks = (walk.honks || 0) + 1; if (walk.honks >= 5) win("chef"); }
     } else if (e.code === "KeyC") {
       if (down && !e.repeat) { if (walk.panel) closeResa(); else openCarnet(); }
     } else if (/^Digit[1-4]$/.test(e.code)) {
@@ -3653,7 +3995,7 @@ export function createParking3D(container, options) {
         lot.group.add(o.group);
         net.others.set(p.id, o);
       }
-      const sig = JSON.stringify(p.look) + "|" + (p.drive || "");
+      const sig = JSON.stringify(p.look) + "|" + (p.drive || "") + "|" + (p.tune ? JSON.stringify(p.tune) : "");
       if (o.sig !== sig) { // tenue, compagnon ou véhicule changés : on refait le modèle
         o.sig = sig;
         disposeModel(o.group);
@@ -3666,7 +4008,7 @@ export function createParking3D(container, options) {
           outfit: lk.outfit, bottom: lk.bottom, extra: lk.extra, balloon: /^#[0-9a-f]{6}$/.test(lk.balloon || "") ? lk.balloon : null, eyes: lk.eyes, small: true,
         });
         o.pet = buildPet(lk.pet);
-        o.car = p.drive && MODELS[p.drive] ? buildCar(p.drive, lk.top) : null;
+        o.car = p.drive && MODELS[p.drive] ? buildCar(p.drive, lk.top, p.tune ? cleanTune(p.tune, p.drive, lk.top) : null) : null;
         o.group.add(o.person.root, o.pet.root);
         if (o.car) o.group.add(o.car.root);
       }
@@ -3692,6 +4034,7 @@ export function createParking3D(container, options) {
           },
           ride: walk.ride || null,
           drive: rv ? rv.def.model : null,
+          tune: rv ? garage[rv.def.model] : null,
           emote: net.emoteFor > 0 ? net.emote : null,
           stars: Math.min(99, progress.wins.size),
         }),
@@ -4003,6 +4346,9 @@ export function createParking3D(container, options) {
     coucou: [[[700, 0.06, 0], [930, 0.06, 0.1]], 0.2],
     porte: [[[140, 0.14, 0], [95, 0.1, 0.06]], 0.16, "triangle"],
     klaxon: [[[392, 0.07, 0], [494, 0.07, 0]], 0.4, "square"],
+    pouet: [[[233, 0.1, 0], [185, 0.09, 0.16]], 0.28, "sawtooth"],
+    melodie: [[[392, 0.06, 0], [494, 0.06, 0.13], [587, 0.06, 0.26], [784, 0.07, 0.39], [587, 0.06, 0.56], [784, 0.08, 0.69]], 0.2, "square"],
+    coin: [[[720, 0.08, 0], [540, 0.08, 0.08], [720, 0.08, 0.24], [540, 0.08, 0.32]], 0.1, "sawtooth"],
     pas: [[[90, 0.035, 0]], 0.05, "triangle"],
   };
   /* Sons enregistrés (packs Kenney, licence CC0, dans `sons/`). Si le navigateur
@@ -4210,6 +4556,88 @@ export function createParking3D(container, options) {
     }
     nodes.push(panelClose("C'est parfait"));
     showPanel(kind === "tenue" ? "Boutique KingPar" : kind === "coiffure" ? "Coiffure Le Créneau" : "Animalerie du Copilote", true, nodes);
+  }
+  /* --- KingPar Tuning : le véhicule monte sur le podium tournant et change sous nos
+     yeux. Tout est offert ; le réglage de chaque véhicule reste sur l'appareil. */
+  const HORN_SFX = { tut: "klaxon", pouet: "pouet", melodie: "melodie", coin: "coin" };
+  function honk(kind) {
+    const it = SFX[HORN_SFX[kind] || "klaxon"];
+    sound(it[0], it[1], it[2], true);
+  }
+  function retune(rv) {
+    const next = buildCar(rv.def.model, rv.def.color, garage[rv.def.model]), parent = rv.root.parent;
+    disposeModel(rv.root);
+    rv.root.removeFromParent();
+    Object.assign(rv, next);
+    rv.root.position.set(rv.x, 0, rv.z);
+    rv.root.rotation.y = rv.rot;
+    if (parent) parent.add(rv.root);
+    store(TUNE_KEY, garage);
+  }
+  function openTuning(rv) {
+    if (!lot) return;
+    const pod = lot.city.podium;
+    rv = rv || walk.tuning || walk.podium || rentals[1];
+    if (walk.podium && walk.podium !== rv && walk.podium !== walk.drive) { // l'ancien retourne à sa place
+      const old = walk.podium;
+      old.x = old.def.x; old.z = RENTAL_Z; old.rot = Math.PI;
+    }
+    if (walk.tuning !== rv) rv.rot = walk.drive === rv ? rv.rot : 2.4;
+    walk.podium = walk.tuning = rv;
+    rv.x = pod.x; rv.z = pod.z; rv.v = 0; rv.steer = 0;
+    if (walk.drive === rv) { walk.x = rv.x; walk.z = rv.z; }
+    if (!walk.zoom || !walk.zoom.at) walk.yaw = 2.75; // caméra côté route, l'atelier en fond
+    walk.zoom = { dist: rv.def.cam * 0.88, pitch: 0.2, y: rv.def.model === "camper" ? 1.5 : 0.85, at: pod };
+    stamp("tuning");
+    const model = rv.def.model, t = garage[model], driving = walk.drive === rv;
+    const fits = (field, list) => list.filter((it) => tuneFits(model, field, it[0]));
+    const pairs = (table) => Object.keys(table).map((k) => [k, table[k][0]]);
+    const set = (field) => (value) => {
+      t[field] = value;
+      retune(rv);
+      if (field === "horn") honk(value); else sfx("ding");
+      if (field === "paint") { walk.paints = walk.paints || new Set(); walk.paints.add(value); if (walk.paints.size >= 6) win("nuancier"); }
+      if (!progress.tuned.includes(model)) { progress.tuned.push(model); saveProgress(); }
+      win("tuning");
+      if (progress.tuned.length >= 3) win("carrossier");
+      if (t.rims !== "serie" && t.sticker !== "none" && t.neon !== "none" && t.addon !== "none") win("showcar");
+    };
+    let nodes = [panelTitle("K", "KingPar Tuning", "#22252e"),
+      elem("p", null, "Jo, le mécano : « " + (driving ? "Beau châssis ! On en fait quoi ?" : "Je vous sors lequel ?") + " » Tout est offert, et le véhicule garde son style.")];
+    if (!driving) nodes = nodes.concat(choices("Véhicule sur le podium", RENTALS.map((def) => [def.model, def.name]), model, (m) => openTuning(rentals.find((r) => r.def.model === m))));
+    nodes = nodes
+      .concat(choices("Peinture", CAR_PAINTS, t.paint, set("paint"), true))
+      .concat(choices("Finition", FINISHES, t.finish, set("finish")))
+      .concat(choices("Jantes", RIMS, t.rims, set("rims")))
+      .concat(choices("Couleur des jantes", RIM_COLORS, t.rimc, set("rimc"), true))
+      .concat(choices("Pneus", TYRES, t.tyres, set("tyres")))
+      .concat(choices("Autocollant", STICKERS, t.sticker, set("sticker")));
+    if (tuneFits(model, "stripes", "double")) {
+      nodes = nodes.concat(choices("Bandes de course", STRIPES, t.stripes, set("stripes")))
+        .concat(choices("Couleur des bandes", STRIPE_COLORS, t.stripec, set("stripec"), true))
+        .concat(choices("Vitres", pairs(TINTS), t.tint, set("tint")));
+    }
+    nodes = nodes
+      .concat(choices("Accessoire", fits("addon", ADDONS), t.addon, set("addon")))
+      .concat(choices("Néon sous la caisse", pairs(NEONS), t.neon, set("neon")))
+      .concat(choices("Klaxon (touche H)", HORNS, t.horn, set("horn")));
+    const pick = (list) => list[Math.floor(Math.random() * list.length)];
+    nodes.push(button("Surprise !", () => {
+      Object.assign(t, {
+        paint: pick(CAR_PAINTS), finish: pick(FINISHES)[0], rims: pick(RIMS)[0], rimc: pick(RIM_COLORS), tyres: pick(TYRES)[0], sticker: pick(STICKERS)[0],
+        stripes: pick(fits("stripes", STRIPES))[0], stripec: pick(STRIPE_COLORS), tint: pick(fits("tint", pairs(TINTS)))[0], addon: pick(fits("addon", ADDONS))[0], neon: pick(Object.keys(NEONS)),
+      });
+      set("finish")(t.finish);
+      openTuning(rv);
+    }));
+    nodes.push(button("Remettre d'origine", () => {
+      garage[model] = cleanTune(null, model, rv.def.color);
+      retune(rv);
+      openTuning(rv);
+    }));
+    if (driving) nodes.push(button("Descendre ici", () => { closeResa(); exitVehicle(); }));
+    nodes.push(panelClose("Ça roule !"));
+    showPanel("KingPar Tuning", true, nodes);
   }
   /* --- Défis amicaux entre promeneurs : morpion, pierre-feuille-ciseaux, pile ou face.
      Le serveur arbitre ; ici on montre la roulette, l'invitation et la partie. */
@@ -4671,6 +5099,7 @@ export function createParking3D(container, options) {
     speedo.classList.remove("on");
   }
   const leaveAction = { label: "Descendre du véhicule", action: exitVehicle };
+  const tuneAction = { label: "Personnaliser le véhicule (KingPar Tuning)", action: () => openTuning(walk.drive) };
   const pumpAction = { label: "Faire le plein pile (mini-jeu)", action: () => openGame("plein", "station") };
   const rentalActions = rentals.map((rv) => ({ rv, label: "Conduire " + rv.def.label, action: () => enterVehicle(rv) }));
   ["pointerdown", "pointerup", "pointercancel", "pointerleave"].forEach((type) => {
@@ -4733,7 +5162,7 @@ export function createParking3D(container, options) {
       d.x = rv.x + Math.sin(rv.rot) * 0.42; d.z = rv.z + Math.cos(rv.rot) * 0.42; d.rot = rv.rot; d.y = 0.3;
     }
     // La caméra se replace dans l'axe du véhicule, sauf si on vient de regarder ailleurs.
-    if (now - walk.look > 1.6) walk.yaw = angleTo(walk.yaw, rv.rot, 1 - Math.exp(-dt * 3.2));
+    if (now - walk.look > 1.6 && !walk.tuning) walk.yaw = angleTo(walk.yaw, rv.rot, 1 - Math.exp(-dt * 3.2));
     speedoValue.textContent = String(Math.round(Math.abs(rv.v) * 3.6));
     // Succès du volant, et la place d'entraînement : arrêté dedans, on est noté.
     progress.km += (Math.abs(rv.v) * dt) / 1000;
@@ -4793,6 +5222,7 @@ export function createParking3D(container, options) {
     if (walk.game) { walk.game.stop(); walk.game = null; }
     if (bareHead) { bareHead = false; swapModel(player, buildPerson(playerLook())); }
     walk.zoom = null;
+    walk.tuning = null;
     walk.panel = false;
   }
   prompt.addEventListener("click", () => { if (walk.panel) closeResa(); else interact(); });
@@ -4816,6 +5246,12 @@ export function createParking3D(container, options) {
       turn = (k.ArrowRight ? 1 : 0) - (k.ArrowLeft ? 1 : 0);
       run = Boolean(k.ShiftLeft || k.ShiftRight);
       if (walk.joy) { f -= walk.joy.y; sd += walk.joy.x; run = run || walk.joy.mag > 0.9; }
+    }
+    if (walk.tuning) { // sur le podium, le véhicule tourne pour se montrer sous tous les angles
+      const tv = walk.tuning, pod = lot.city.podium;
+      tv.x = pod.x; tv.z = pod.z; tv.v = 0;
+      tv.rot += dt * 0.5;
+      pod.mesh.rotation.y = tv.rot;
     }
     rentals.forEach((rv) => {
       if (rv !== walk.drive) rv.v = 0;
@@ -4974,10 +5410,19 @@ export function createParking3D(container, options) {
     if (!walk.on) return;
     const L = lot.L, rv = walk.drive;
     // Caméra dans le dos, un peu au-dessus ; plus loin et plus large en voiture.
-    const zoom = rv ? null : walk.zoom, pitch = zoom ? zoom.pitch : walk.pitch, aim = zoom ? zoom.y : 1.5;
-    const dist = zoom ? zoom.dist : rv ? rv.def.cam * (walk.dist / 7.5) : walk.dist;
-    const cp = Math.cos(pitch), px = walk.x - L.cx, pz = walk.z - L.cz;
-    const lift = rv ? 0 : walk.y * 0.6 + groundAt(walk.x, walk.z);
+    const zoom = rv && !(walk.zoom && walk.zoom.at) ? null : walk.zoom, wide = renderer.domElement.clientWidth > 720;
+    let pitch = zoom ? zoom.pitch : walk.pitch, aim = zoom ? zoom.y : 1.5;
+    let dist = zoom ? zoom.dist : rv ? rv.def.cam * (walk.dist / 7.5) : walk.dist;
+    if (zoom && !wide) { // sur téléphone, le panneau monte du bas : on cadre le sujet dans le haut de l'écran
+      if (zoom.at) dist *= 1.55;
+      aim -= dist * 0.27;
+      pitch += 0.25;
+    }
+    const focus = zoom && zoom.at ? zoom.at : walk; // le podium du tuning, ou le promeneur
+    // Le panneau occupe la droite de l'écran : on vise un peu à côté, le véhicule reste visible.
+    const aside = zoom && zoom.at && wide ? dist * 0.24 : 0;
+    const cp = Math.cos(pitch), px = focus.x - L.cx - Math.cos(walk.yaw) * aside, pz = focus.z - L.cz + Math.sin(walk.yaw) * aside;
+    const lift = rv || focus !== walk ? 0 : walk.y * 0.6 + groundAt(walk.x, walk.z);
     walkCam.set(px - Math.sin(walk.yaw) * dist * cp, aim + 0.1 + lift + dist * Math.sin(pitch), pz - Math.cos(walk.yaw) * dist * cp);
     camera.position.lerp(walkCam, 1 - Math.exp(-dt * 12));
     camera.lookAt(px, aim + lift, pz);
@@ -4989,8 +5434,9 @@ export function createParking3D(container, options) {
     let near = null, best = 2.6;
     if (walk.ride) near = stopRideAction;
     else if (rv) {
-      const pump = lot.city.pumps;
-      if (Math.abs(rv.v) < 2.5) near = walk.fuel <= 0 && Math.hypot(rv.x - pump.x, rv.z - pump.z) < 7.5 ? pumpAction : leaveAction;
+      const pump = lot.city.pumps, pod = lot.city.podium;
+      if (Math.abs(rv.v) < 2.5 && Math.hypot(rv.x - pod.x, rv.z - pod.z) < 8) near = tuneAction;
+      else if (Math.abs(rv.v) < 2.5) near = walk.fuel <= 0 && Math.hypot(rv.x - pump.x, rv.z - pump.z) < 7.5 ? pumpAction : leaveAction;
     } else {
       lot.points.forEach((pt) => {
         const dd = Math.hypot(pt.x - walk.x, pt.z - walk.z);
@@ -5406,6 +5852,15 @@ export function createParking3D(container, options) {
       if (at) { if (at.x != null) rv.x = at.x; if (at.z != null) rv.z = at.z; if (at.rot != null) rv.rot = at.rot; }
       enterVehicle(rv);
     },
+    /* Ouvre l'atelier de tuning sur un véhicule (index du libre-service), avec un
+       réglage éventuel : utile aux démonstrations et aux tests. */
+    tune(index, patch) {
+      const rv = rentals[index];
+      if (!rv || !lot) return;
+      setWalk(true);
+      if (patch) { garage[rv.def.model] = cleanTune(Object.assign({}, garage[rv.def.model], patch), rv.def.model, rv.def.color); retune(rv); }
+      openTuning(rv);
+    },
     /* Place la caméra : point visé (repère du parking, mètres), distance, angles. */
     view(v) {
       if (!lot) return;
@@ -5432,6 +5887,9 @@ export function createParking3D(container, options) {
           toast: walk.toast > 0 ? toastBox.textContent : null,
         },
         look: Object.assign({}, look),
+        tuning: walk.tuning ? walk.tuning.def.model : null,
+        garage: JSON.parse(JSON.stringify(garage)),
+        podium: lot ? { x: Math.round(lot.city.podium.x * 10) / 10, z: Math.round(lot.city.podium.z * 10) / 10 } : null,
         carnet: Array.from(carnet),
         wins: Array.from(progress.wins),
         quests: Object.assign({}, progress.quests),
