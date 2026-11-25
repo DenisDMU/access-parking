@@ -7,7 +7,7 @@ python-dotenv>=1.2.4
 httpx>=0.28.1          # appels HTTP sortants (webhooks, futurs vrais clients de services)
 slowapi>=0.1.10        # rate limiting basique
 pika>=1.4.4            # client RabbitMQ (alternative au fan-out webhook pour EventPublisherPort)
-certifi>=2026.10.23    # magasin de certificats CA pour les connexions RabbitMQ TLS (amqps://, ex. CloudAMQP)
+certifi>=2026.11.20    # magasin de certificats CA pour les connexions RabbitMQ TLS (amqps://, ex. CloudAMQP)
 prometheus-fastapi-instrumentator>=8.1.0  # compte les requêtes HTTP par route (http_requests_total)
 prometheus-client==0.26.0  # compteurs métier et route /metrics (version figée, suivie par Dependabot)
 pytest>=8.0
