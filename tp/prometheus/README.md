@@ -35,6 +35,7 @@ Puis ouvrir <http://localhost:9090/targets>. Avec Grafana :
 | `arreter.sh` | Arrête les conteneurs sans rien supprimer. |
 | `grafana/provisioning/` | Source de données Prometheus et chargement du tableau de bord, créés au démarrage de Grafana. |
 | `grafana/dashboards/parking-management.json` | Le tableau de bord « Parking Management — supervision ». |
+| `captures/` | Captures de la page des cibles, des trois graphiques et du tableau de bord (25 novembre 2026). |
 
 ## 1. Le Dockerfile
 

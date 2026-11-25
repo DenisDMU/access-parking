@@ -20,6 +20,8 @@ sémantique (majeure = contrat d'API cassé).
 - Guide `PROMETHEUS.md` : quoi lancer, les trois requêtes PromQL
   (disponibilité, requêtes par seconde, erreurs et opérations métier), la
   démonstration UP/DOWN, quoi montrer au rendu.
+- Captures pour le rendu dans `tp/prometheus/captures` : page des cibles,
+  les trois graphiques, les opérations métier, le tableau de bord Grafana.
 
 ### Modifié
 - `GET /metrics` se lit désormais **sans clé**, pour que le Prometheus de

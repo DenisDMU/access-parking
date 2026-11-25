@@ -54,7 +54,7 @@ ajouteront leur route `/metrics`) :
 | `vehicles` | Vehicles (Render) | DOWN | `/metrics` renvoie vers la page de connexion |
 | `pricing` | Pricing (Render) | DOWN | pas encore de route `/metrics` (404) |
 | `payment` | Payment (Render) | DOWN | pas encore de route `/metrics` (404) |
-| `booking` | Booking (Render) | DOWN | le service ne répondait pas du tout ce jour-là (503) |
+| `booking` | Booking (Render) | DOWN | le service ne répondait pas du tout ce jour-là (503 puis 429, y compris sur `/health`) |
 | `access-local` | Access lancé sur cet ordinateur | DOWN, puis UP | sert à la démonstration ci-dessous |
 | `prometheus` | Prometheus lui-même | **UP** | témoin |
 
@@ -78,7 +78,8 @@ curl -s https://access-api-a1u7.onrender.com/api/v1/borne/status
 - **Opération métier** : faire une entrée puis une sortie sur la borne
   (<https://access-api-a1u7.onrender.com/borne>). Chaque passage ajoute 1 à
   `parking_operations_total`, avec le résultat (autorisé, refusé,
-  confirmation demandée).
+  confirmation demandée). Un refus compte aussi : le 25 novembre, plusieurs
+  catégories du parking étaient pleines (« Aucune place disponible »).
 - **Lire les compteurs à la main :**
 
 ```bash
@@ -130,6 +131,19 @@ Pour aller plus loin :
 
 `rate(...[2m])` : un compteur ne fait que monter ; `rate` calcule de combien
 il monte **par seconde** en moyenne sur les deux dernières minutes.
+
+Captures prises le 25 novembre 2026, à garder pour le rendu
+([`tp/prometheus/captures`](tp/prometheus/captures)) — les heures affichées
+par Prometheus sont en UTC :
+
+| Capture | Ce qu'elle montre |
+|---|---|
+| [`0-cibles.png`](tp/prometheus/captures/0-cibles.png) | La page des cibles : Access et Parking UP, Booking DOWN avec son erreur |
+| [`1-disponibilite-up.png`](tp/prometheus/captures/1-disponibilite-up.png) | `up` : Access en ligne passe de 0 à 1 au déploiement de `/metrics` ; trois coupures de la cible locale |
+| [`2-requetes-par-seconde.png`](tp/prometheus/captures/2-requetes-par-seconde.png) | Requêtes par seconde d'Access en ligne et en local |
+| [`3-erreurs-http.png`](tp/prometheus/captures/3-erreurs-http.png) | Erreurs 4xx par seconde |
+| [`3bis-operations-metier.png`](tp/prometheus/captures/3bis-operations-metier.png) | Entrées et sorties, par résultat |
+| [`4-grafana.png`](tp/prometheus/captures/4-grafana.png) | Le tableau de bord Grafana du bonus |
 
 ## Démonstration : un service tombe, Prometheus le voit
 
