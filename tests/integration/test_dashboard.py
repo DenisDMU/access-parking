@@ -258,6 +258,7 @@ def test_plan_3d_decor_de_village(client):
         and "SphereGeometry(1, 30, 12, 0, Math.PI * 2, 0, Math.PI / 2)" not in source
     )
     assert "clôture en bois" in source and "// pommes" in source
+    assert "function tileTexture" in source and "roofSlab" in source  # pans de toit en tuiles
 
 
 def test_mini_jeux_servis_sans_ressource_externe(client):
