@@ -47,6 +47,7 @@ from src.application.use_cases.get_parking_overview import GetParkingOverview
 from src.application.use_cases.list_present_vehicles import ListPresentVehicles
 from src.application.use_cases.process_entry_request import ProcessEntryRequest
 from src.application.use_cases.process_exit_request import ProcessExitRequest
+from src.domain.ports.booking_service_port import BookingServicePort
 from src.domain.value_objects.enums import DetectionSource, RequestType
 from src.infrastructure.config import get_settings
 from src.infrastructure.external.place_categories import code_of_place
@@ -226,6 +227,27 @@ def borne_pmr_validation(
     return _entry_out(decision)
 
 
+# Places réservables lues chez Booking (borne de réservation du plan 3D),
+# resservies une minute : Booking raisonne à l'heure, et n'est jamais sollicité
+# par visiteur.
+RESERVABLE_CACHE_S = 60.0
+_reservable_cache: dict = {"at": None, "value": {}}
+
+
+def _reservable(names: list[str], booking: BookingServicePort) -> dict[str, int]:
+    now = time.monotonic()
+    if _reservable_cache["at"] is not None and now - _reservable_cache["at"] < RESERVABLE_CACHE_S:
+        return _reservable_cache["value"]
+    value: dict[str, int] = {}
+    for name in names:
+        free = booking.free_capacity(name)
+        if free is None:
+            break  # Booking ne répond pas : on n'insiste pas pour les autres types
+        value[name] = free
+    _reservable_cache.update(at=now, value=value)
+    return value
+
+
 # Dernière occupation lue chez Parking, resservie pendant quelques secondes.
 _parking_cache: dict = {"at": 0.0, "value": None}
 
@@ -234,6 +256,7 @@ def reset_parking_cache() -> None:
     """Oublie l'occupation gardée en mémoire (tests)."""
 
     _parking_cache.update(at=0.0, value=None)
+    _reservable_cache.update(at=None, value={})
 
 
 @router.get(
@@ -258,6 +281,7 @@ def borne_parking(
     request: Request,
     use_case: GetParkingOverview = Depends(deps.get_parking_overview_use_case),
     presences: ListPresentVehicles = Depends(deps.get_list_present_vehicles_use_case),
+    booking: BookingServicePort = Depends(deps.get_booking_port),
 ) -> BorneParkingOut:
     _require_public_borne()
     now = time.monotonic()
@@ -271,6 +295,7 @@ def borne_parking(
         name = code_of_place(vehicle.place_id, vehicle.place_type)
         if vehicle.is_reservation and name:
             reserved[name] = reserved.get(name, 0) + 1
+    reservable = _reservable([c.name for c in overview.categories if c.total_capacity], booking)
     result = BorneParkingOut(
         available=overview.available,
         categories=[
@@ -281,6 +306,7 @@ def borne_parking(
                 spotTaken=c.spot_taken or 0,
                 spotHeld=c.spot_held or 0,
                 reserved=reserved.get(c.name, 0),
+                reservable=reservable.get(c.name),
             )
             for c in overview.categories
             if c.total_capacity

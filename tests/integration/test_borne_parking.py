@@ -29,6 +29,7 @@ def test_occupation_publique_sans_cle(client):
         "spotTaken": 3,
         "spotHeld": 1,
         "reserved": 0,
+        "reservable": None,
     }
 
 
@@ -46,6 +47,7 @@ def test_des_compteurs_seulement(client):
             "spotTaken",
             "spotHeld",
             "reserved",
+            "reservable",
         }
     assert "vehicleId" not in client.get(URL).text and "AA-111-AA" not in client.get(URL).text
 
@@ -115,3 +117,25 @@ def test_vehicules_entres_avec_reservation_comptes_par_categorie(client):
     reserved = {c["name"]: c["reserved"] for c in body["categories"]}
     assert sum(reserved.values()) == 1
     assert "v_with_reservation" not in client.get(URL).text
+
+
+def test_places_reservables_lues_chez_booking_et_gardees_une_minute(client):
+    """La borne de réservation du plan 3D : ce que Booking peut encore vendre."""
+
+    from tests.unit.fakes import FakeBookingPort
+
+    booking = FakeBookingPort()
+    booking.free = {"STANDARD": 10, "XL": 2}
+    seen = []
+    original = booking.free_capacity
+    booking.free_capacity = lambda name, at=None: seen.append(name) or original(name)
+    app.dependency_overrides[deps.get_booking_port] = lambda: booking
+    body = client.get(URL).json()
+    reservable = {c["name"]: c["reservable"] for c in body["categories"]}
+    assert reservable["STANDARD"] == 10 and reservable["XL"] == 2
+    # Booking ne répond pas pour le 3e type : on n'insiste pas pour les suivants.
+    assert len(seen) == 3
+    assert reservable["ELECTRIC"] is None and reservable["TWO_WHEELS"] is None
+    borne_router._parking_cache.update(at=0.0, value=None)  # occupation relue, pas Booking
+    client.get(URL)
+    assert len(seen) == 3

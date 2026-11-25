@@ -102,3 +102,34 @@ def test_sans_instant_utilise_maintenant():
     before = datetime.now(UTC)
     _client(handler).get_reservation("v1")
     assert datetime.fromisoformat(seen["at"]) >= before - timedelta(seconds=1)
+
+
+# --- Places réservables (borne de réservation du plan 3D) ------------------------
+
+
+def test_free_capacity_interroge_l_heure_pleine_en_cours():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["path"] = request.url.path
+        seen["params"] = dict(request.url.params)
+        return httpx.Response(200, json={"available": True, "min_free_capacity": 7})
+
+    at = datetime(2026, 11, 25, 9, 42, 13, tzinfo=UTC)
+    assert _client(handler).free_capacity("XL", at) == 7
+    assert seen["path"] == "/availability"
+    assert seen["params"]["place_type"] == "XL"
+    assert seen["params"]["start_at"].startswith("2026-11-25T09:00:00")
+    assert seen["params"]["end_at"].startswith("2026-11-25T10:00:00")
+
+
+def test_free_capacity_none_si_booking_ne_repond_pas():
+    assert _client(lambda r: httpx.Response(500)).free_capacity("XL") is None
+    assert (
+        _client(lambda r: httpx.Response(200, json={"available": True})).free_capacity("XL") is None
+    )
+
+    def down(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectTimeout("trop long", request=request)
+
+    assert _client(down).free_capacity("XL") is None

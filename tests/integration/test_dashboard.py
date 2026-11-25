@@ -82,3 +82,15 @@ def test_three_js_fige_et_intact(client):
     assert response.status_code == 200
     assert "javascript" in response.headers["content-type"]
     assert hashlib.sha256(response.content).hexdigest() == THREE_SHA256
+
+
+def test_plan_3d_mode_promenade(client):
+    """Personnage à la troisième personne, chihuahua, borne de réservation."""
+
+    source = client.get("/static/parking3d.js").text
+    # Touches lues par leur position : ZQSD sur un clavier français, WASD ailleurs.
+    for code in ("KeyW", "KeyA", "KeyS", "KeyD", "ShiftLeft", "KeyE", "KeyF", "Escape"):
+        assert code in source
+    assert "Promenade" in source and "Borne de réservation" in source
+    assert "function collide" in source  # on ne traverse ni haies ni véhicules garés
+    assert "onUseBorne" in source  # la borne du décor lance le vrai parcours

@@ -17,3 +17,9 @@ class BookingServicePort(Protocol):
         se fait alors comme une entrée sans réservation).
         """
         ...
+
+    def free_capacity(self, place_type: str, at: datetime | None = None) -> int | None:
+        """Places de ce type (`STANDARD`, `XL`…) encore réservables pour
+        l'heure qui contient `at` (maintenant par défaut), ou `None` si
+        Booking ne répond pas. Lecture seule : ne réserve rien."""
+        ...

@@ -27,7 +27,7 @@ traitée comme une entrée sans réservation, jamais une erreur 500.
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import httpx
 
@@ -36,6 +36,8 @@ from src.infrastructure.external.outgoing_http import COLD_START_TIMEOUT_S, outg
 from src.infrastructure.external.place_categories import place_type_from_code
 
 logger = logging.getLogger(__name__)
+
+INFO_TIMEOUT_S = 5.0  # lectures d'affichage (places réservables), jamais bloquantes
 
 
 def _parse(value: str) -> datetime:
@@ -89,4 +91,31 @@ class HttpBookingClient:
             logger.warning(
                 "Booking indisponible, entrée traitée sans réservation (%s)", type(exc).__name__
             )
+            return None
+
+    def free_capacity(self, place_type: str, at: datetime | None = None) -> int | None:
+        """`GET /availability` sur l'heure pleine en cours : `min_free_capacity`.
+
+        Sert au plan 3D (borne de réservation) : une information, jamais une
+        décision. Délai court (`INFO_TIMEOUT_S`) : Booking endormi ne doit pas
+        retenir un thread d'Access 45 s pour un simple affichage.
+        """
+
+        start = (at or datetime.now(UTC)).astimezone(UTC).replace(minute=0, second=0, microsecond=0)
+        try:
+            with outgoing_client(
+                "booking", timeout=INFO_TIMEOUT_S, headers=self._headers, transport=self._transport
+            ) as client:
+                response = client.get(
+                    f"{self._base_url}/availability",
+                    params={
+                        "place_type": place_type,
+                        "start_at": start.isoformat(),
+                        "end_at": (start + timedelta(hours=1)).isoformat(),
+                    },
+                )
+            response.raise_for_status()
+            return max(0, int(response.json()["min_free_capacity"]))
+        except (httpx.HTTPError, AttributeError, KeyError, TypeError, ValueError) as exc:
+            logger.info("Booking : places réservables indisponibles (%s)", type(exc).__name__)
             return None
