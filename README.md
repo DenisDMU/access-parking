@@ -1409,6 +1409,6 @@ règle RGPD de non-circulation de la plaque brute, qu'Access transmet à Vehicle
 
 ## 17. TP Splunk (à côté du service)
 
-Le dossier [`tp/splunk`](tp/splunk/README.md) contient le TP « Installer Splunk
+À lire d'abord : [`SPLUNK.md`](SPLUNK.md), le pas-à-pas. Le dossier [`tp/splunk`](tp/splunk/README.md) contient le TP « Installer Splunk
 en local avec Docker » : Dockerfile, scripts de démarrage et d'arrêt, notice.
 Il ne fait pas partie du service Access et n'est pas déployé sur Render.
