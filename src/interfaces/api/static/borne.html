@@ -555,8 +555,6 @@
   // catégorie, sans clé, sans véhicule ni identifiant. Module chargé à la
   // première ouverture ; rendu arrêté dès qu'on quitte l'écran.
   var plan = null, planLoading = false, planTimer = null;
-  var darkScheme = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
-  function planTheme() { return darkScheme && darkScheme.matches ? "mocha" : "latte"; }
   function updateDock() {
     // Masqué pendant un passage en cours d'envoi, dans les réglages, ou borne fermée.
     var hidden = !publicAccess || current === "wait" || current === "config" || current === "off";
@@ -589,11 +587,16 @@
     direction = null;
     show("plan");
     planTimer = setInterval(function () { if (!document.hidden) refreshPlan(); }, 10000);
-    if (plan) { plan.setTheme(planTheme()); plan.setActive(true); refreshPlan(); return; }
+    if (plan) { plan.setActive(true); refreshPlan(); return; }
     if (planLoading) return;
     planLoading = true;
-    import("/static/parking3d.js?v=4.13.0").then(function (mod) {
-      plan = mod.createParking3D($("plan3d"), { title: "Le parking en direct", theme: planTheme() });
+    import("/static/parking3d.js?v=4.14.0").then(function (mod) {
+      // Toujours de jour à l'arrivée (le bouton « Nuit » reste disponible). En
+      // promenade, la borne d'entrée ou de sortie du décor lance le vrai parcours.
+      plan = mod.createParking3D($("plan3d"), {
+        title: "Le parking en direct", theme: "latte",
+        onUseBorne: function (dir) { startPlate(dir); },
+      });
       if (!plan) return;
       plan.setActive(current === "plan" && !document.hidden);
       refreshPlan();
@@ -610,9 +613,7 @@
   document.addEventListener("visibilitychange", function () {
     if (plan) plan.setActive(current === "plan" && !document.hidden);
   });
-  if (darkScheme && darkScheme.addEventListener) {
-    darkScheme.addEventListener("change", function () { if (plan) plan.setTheme(planTheme()); });
-  }
+
 
   // --- Horloge ----------------------------------------------------------------------
   function tick() {

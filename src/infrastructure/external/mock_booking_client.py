@@ -41,3 +41,6 @@ class MockBookingClient:
 
     def get_reservation(self, vehicle_id: str, at: datetime | None = None) -> Reservation | None:
         return _RESERVATIONS.get(vehicle_id)
+
+    def free_capacity(self, place_type: str, at: datetime | None = None) -> int | None:
+        return None  # Booking simulé : pas de capacité réservable à annoncer

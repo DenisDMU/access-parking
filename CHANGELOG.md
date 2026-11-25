@@ -4,6 +4,28 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.14.0] — 2026-11-25 — Promenade dans le plan 3D
+
+### Ajouté
+- Plan 3D : mode « Promenade ». On incarne un personnage vu de dos, suivi
+  de son chihuahua, et on parcourt le parking comme dans un jeu : ZQSD ou
+  flèches, Maj pour courir, souris pour regarder, E pour interagir, F pour
+  faire aboyer le chien, Échap pour quitter ; manette tactile sur écran
+  tactile. Les véhicules garés, les haies et le mobilier arrêtent le
+  personnage ; la zone traversée s'affiche avec son occupation.
+- Borne de réservation dans le décor, sur un parvis près de l'entrée :
+  places encore réservables chez Booking pour l'heure en cours et véhicules
+  entrés avec une réservation, zone par zone.
+- Borne publique : en promenade, la borne d'entrée ou de sortie du décor
+  lance le vrai parcours (touche E).
+- `GET /borne/parking` : champ `reservable` par catégorie (Booking,
+  `GET /availability` sur l'heure en cours ; gardé 60 s ; `null` si Booking
+  ne répond pas).
+
+### Modifié
+- Borne publique : le plan s'ouvre toujours de jour, quel que soit le thème
+  de l'appareil (le bouton « Nuit » reste disponible).
+
 ## [4.13.1] — 2026-11-25 — Revue de sécurité
 
 ### Corrigé

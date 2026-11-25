@@ -335,6 +335,21 @@ const MODELS = {
   scooter: { label: "Scooter", lean: 0.14, build: scooter },
 };
 
+// Emprise au sol de chaque modèle garé (demi-largeur, demi-longueur) : le
+// promeneur contourne les véhicules.
+const FOOT = {
+  hatch: [0.95, 2.0], sedan: [0.97, 2.25], suv: [1.03, 2.35], ev: [1.0, 2.3],
+  van: [1.12, 3.1], camper: [1.2, 3.35], moto: [0.36, 0.95], scooter: [0.36, 0.85],
+};
+const WALK_KEYS = {
+  KeyW: 1, KeyA: 1, KeyS: 1, KeyD: 1, ArrowUp: 1, ArrowDown: 1, ArrowLeft: 1, ArrowRight: 1,
+  ShiftLeft: 1, ShiftRight: 1,
+};
+const BARKS = ["Ouaf !", "Wif !", "Ouaf ouaf !", "Grrr… ouaf !", "Waf !"];
+// Borne de réservation et point d'arrivée du promeneur (repère du parking).
+const RESA_KIOSK = { x: -8.6, z: -3.4 };
+const SPAWN = { x: -8.6, z: -6.4 };
+
 // Hauteur du repère « R » au-dessus de chaque modèle.
 const RESA_HEIGHT = { hatch: 2.3, sedan: 2.3, suv: 2.6, ev: 2.3, van: 3.4, camper: 3.9, moto: 1.9, scooter: 1.9 };
 
@@ -497,6 +512,36 @@ const CSS = `
 .p3d-tip b { display: block; }
 .p3d-tip span { display: block; color: var(--subtext, #6c6f85); font-size: 12px; }
 .p3d-hint { right: 14px; bottom: 14px; padding: 7px 11px; font-size: 11.5px; color: var(--subtext, #6c6f85); }
+.p3d-prompt { all: unset; cursor: pointer; pointer-events: auto; position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%);
+  display: none; align-items: center; gap: 10px; padding: 10px 16px 10px 10px; border-radius: 999px; white-space: nowrap;
+  font: 700 15px/1 system-ui, -apple-system, "Segoe UI", sans-serif; color: #fff; background: rgba(24,24,37,.86);
+  border: 1px solid rgba(255,255,255,.28); box-shadow: 0 10px 28px rgba(0,0,0,.35); z-index: 4; }
+.p3d-prompt.on { display: inline-flex; }
+.p3d-prompt kbd { font: 800 13px/1 system-ui, sans-serif; padding: 6px 9px; border-radius: 8px; color: #11111b; background: #fff; }
+.p3d-here { left: 50%; top: 14px; transform: translateX(-50%); padding: 8px 14px; display: none; align-items: center; gap: 8px; font-weight: 700; white-space: nowrap; }
+.p3d-here.on { display: flex; }
+.p3d-here i { width: 10px; height: 10px; border-radius: 3px; background: var(--c, #888); }
+.p3d-here span { font-weight: 500; color: var(--subtext, #6c6f85); font-variant-numeric: tabular-nums; }
+.p3d-panel { left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(430px, calc(100% - 28px)); max-height: calc(100% - 28px);
+  overflow: auto; padding: 18px; display: none; z-index: 6; }
+.p3d-panel.on { display: block; }
+.p3d-panel h3 { margin: 0 0 4px; font-size: 19px; display: flex; align-items: center; gap: 9px; }
+.p3d-panel h3 i { font: 800 13px/22px system-ui, sans-serif; font-style: normal; width: 22px; height: 22px; border-radius: 7px; text-align: center; color: #fff; background: #1e66f5; }
+.p3d-panel p { margin: 6px 0 12px; color: var(--subtext, #6c6f85); font-size: 13px; }
+.p3d-panel table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.p3d-panel th { text-align: left; font-weight: 600; color: var(--subtext, #6c6f85); font-size: 12px; padding: 4px 6px; }
+.p3d-panel td { padding: 7px 6px; border-top: 1px solid var(--hairline, rgba(76,79,105,.12)); font-variant-numeric: tabular-nums; }
+.p3d-panel td:first-child { font-weight: 600; }
+.p3d-panel td i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 8px; background: var(--c); }
+.p3d-panel button { all: unset; cursor: pointer; display: block; margin: 14px 0 0 auto; padding: 9px 16px; border-radius: 11px;
+  font: 700 13.5px/1 system-ui, sans-serif; color: var(--on-accent, #fff); background: var(--blue, #1e66f5); }
+.p3d-joy { position: absolute; left: 0; top: 0; width: 120px; height: 120px; margin: -60px 0 0 -60px; border-radius: 50%; display: none;
+  background: rgba(255,255,255,.16); border: 2px solid rgba(255,255,255,.55); pointer-events: none; z-index: 3; }
+.p3d-joy.on { display: block; }
+.p3d-joy i { position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -26px 0 0 -26px; border-radius: 50%; background: rgba(255,255,255,.85); box-shadow: 0 4px 12px rgba(0,0,0,.3); }
+.p3d-tag.bubble { background: #fff; color: #11111b; border-color: rgba(17,17,27,.18); font-weight: 800; }
+.p3d.walking canvas { cursor: crosshair; }
+.p3d.walking .p3d-legend { opacity: .92; }
 .p3d-fail { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center;
   color: var(--text, #4c4f69); background: var(--mantle, #e6e9ef); font: 600 15px/1.4 system-ui, sans-serif; }
 @media (max-width: 640px) {
@@ -516,6 +561,10 @@ const CSS = `
   .p3d-note { grid-column: 1 / 3; }
   .p3d-zone span { font-size: 11px; }
   .p3d-tag { font-size: 11px; padding: 3px 8px 3px 6px; gap: 6px; }
+  .p3d-here { top: 56px; font-size: 12px; padding: 6px 10px; }
+  .p3d.walking .p3d-head { display: none; }
+  .p3d.walking .p3d-legend { display: none; }
+  .p3d-prompt { bottom: 84px; font-size: 14px; }
 }
 `;
 function injectStyle() {
@@ -535,11 +584,11 @@ function elem(tag, cls, text) {
 // --- Données ---------------------------------------------------------------------
 
 const DEMO_ZONES = [
-  { name: "HANDICAPPED", label: "PMR", cap: 6, taken: 2, held: 0, reserved: 1 },
-  { name: "ELECTRIC", label: "Électrique", cap: 10, taken: 5, held: 0, reserved: 1 },
-  { name: "TWO_WHEELS", label: "Deux-roues", cap: 12, taken: 6, held: 0, reserved: 0 },
-  { name: "STANDARD", label: "Standard", cap: 38, taken: 19, held: 0, reserved: 3 },
-  { name: "XL", label: "Grand gabarit", cap: 8, taken: 3, held: 0, reserved: 1 },
+  { name: "HANDICAPPED", label: "PMR", cap: 6, taken: 2, held: 0, reserved: 1, reservable: 1 },
+  { name: "ELECTRIC", label: "Électrique", cap: 10, taken: 5, held: 0, reserved: 1, reservable: 2 },
+  { name: "TWO_WHEELS", label: "Deux-roues", cap: 12, taken: 6, held: 0, reserved: 0, reservable: 0 },
+  { name: "STANDARD", label: "Standard", cap: 38, taken: 19, held: 0, reserved: 3, reservable: 6 },
+  { name: "XL", label: "Grand gabarit", cap: 8, taken: 3, held: 0, reserved: 1, reservable: 1 },
 ];
 
 function liveZones(overview) {
@@ -552,6 +601,8 @@ function liveZones(overview) {
       held: clamp(c.spotHeld || 0, 0, c.totalCapacity),
       // Véhicules entrés avec une réservation (route publique de la borne).
       reserved: c.reserved != null ? clamp(c.reserved, 0, c.totalCapacity) : null,
+      // Places encore réservables chez Booking pour l'heure en cours.
+      reservable: c.reservable != null ? c.reservable : null,
     }));
   if (!zones.length) return null;
   zones.sort((a, b) => {
@@ -620,7 +671,25 @@ export function createParking3D(container, options) {
   const tipMore = elem("span");
   tip.append(tipTitle, tipSub, tipMore);
   const hint = elem("div", "p3d-card p3d-hint", "Glisser : tourner · Molette : zoom · Clic droit ou Maj : déplacer");
-  container.append(labelLayer, head, tools, legend, hint, tip);
+  const HINT_ORBIT = hint.textContent;
+  const HINT_WALK = "ZQSD ou flèches : marcher · Maj : courir · Souris : regarder · E : interagir · F : faire aboyer · Échap : quitter";
+  const here = elem("div", "p3d-card p3d-here");
+  const hereDot = elem("i");
+  const hereName = elem("b");
+  const hereCount = elem("span");
+  here.append(hereDot, hereName, hereCount);
+  const prompt = elem("button", "p3d-prompt");
+  prompt.type = "button";
+  const promptKey = elem("kbd", null, "E");
+  const promptText = elem("span");
+  prompt.append(promptKey, promptText);
+  const panel = elem("div", "p3d-card p3d-panel");
+  panel.setAttribute("role", "dialog");
+  panel.setAttribute("aria-label", "Borne de réservation");
+  const joy = elem("div", "p3d-joy");
+  const joyKnob = elem("i");
+  joy.appendChild(joyKnob);
+  container.append(labelLayer, head, tools, legend, hint, here, prompt, joy, panel, tip);
 
   function toolButton(label, title, onClick, pressed) {
     const b = elem("button", null, label);
@@ -816,6 +885,73 @@ export function createParking3D(container, options) {
   const pops = [];
   const cam = { theta: -0.62, phi: 0.98, radius: 90, tx: 0, tz: 0, gTheta: -0.62, gPhi: 0.98, gRadius: 90, gx: 0, gz: 0, min: 14, max: 260, bx: 60, bz: 60 };
 
+  // --- Promenade : un personnage et son chihuahua, vus à la troisième personne --------
+  const walk = {
+    on: false, x: SPAWN.x, z: SPAWN.z, rot: 0, speed: 0, phase: 0, still: 0,
+    yaw: 0, pitch: 0.4, dist: 7.5, keys: {}, joy: null, near: null, zone: null, panel: false,
+    dog: { x: SPAWN.x + 0.9, z: SPAWN.z - 0.5, rot: 0, phase: 0, speed: 0, bark: 0, next: 5, tx: null, tz: null, roam: 0 },
+  };
+  function limb(parts) {
+    const mesh = new THREE.Mesh(merge(parts, true), M.props);
+    mesh.castShadow = true;
+    return mesh;
+  }
+  function pivot(parent, x, y, z, parts) {
+    const g = new THREE.Group();
+    g.position.set(x, y, z);
+    g.add(limb(parts));
+    parent.add(g);
+    return g;
+  }
+  const player = (() => {
+    const root = new THREE.Group(), body = new THREE.Group();
+    root.add(body);
+    body.add(limb([
+      box(0.48, 0.62, 0.28, "#1e9e8f", { y: 1.06 }), // sweat
+      box(0.5, 0.1, 0.3, "#157a6f", { y: 0.78 }),
+      box(0.3, 0.3, 0.3, "#f0c9a4", { y: 1.56 }), // tête
+      box(0.34, 0.12, 0.34, "#3b2a20", { y: 1.74 }), // cheveux
+      box(0.34, 0.22, 0.1, "#3b2a20", { y: 1.62, z: -0.13 }),
+      box(0.06, 0.05, 0.02, "#22252e", { x: -0.075, y: 1.58, z: 0.155 }),
+      box(0.06, 0.05, 0.02, "#22252e", { x: 0.075, y: 1.58, z: 0.155 }),
+      box(0.36, 0.44, 0.16, "#f2b01e", { y: 1.1, z: -0.21 }), // sac à dos
+    ]));
+    const leg = () => [box(0.19, 0.6, 0.22, "#27408b", { y: -0.3 }), box(0.2, 0.14, 0.3, "#f4f5f7", { y: -0.68, z: 0.04 })];
+    const arm = () => [box(0.14, 0.5, 0.16, "#1e9e8f", { y: -0.25 }), box(0.12, 0.12, 0.14, "#f0c9a4", { y: -0.56 })];
+    return {
+      root, body,
+      legL: pivot(body, -0.12, 0.76, 0, leg()), legR: pivot(body, 0.12, 0.76, 0, leg()),
+      armL: pivot(body, -0.31, 1.32, 0, arm()), armR: pivot(body, 0.31, 1.32, 0, arm()),
+    };
+  })();
+  const dog = (() => {
+    const root = new THREE.Group(), body = new THREE.Group();
+    root.add(body);
+    root.scale.setScalar(1.4);
+    const fur = "#d9a066", dark = "#b07a45";
+    body.add(limb([
+      box(0.17, 0.16, 0.36, fur, { y: 0.25 }),
+      box(0.19, 0.045, 0.06, "#e0283a", { y: 0.31, z: 0.16 }), // collier
+    ]));
+    const headG = pivot(body, 0, 0.34, 0.2, [
+      box(0.2, 0.18, 0.18, fur, { y: 0.06, z: 0.04 }),
+      box(0.1, 0.08, 0.1, "#f0d9b5", { y: 0.02, z: 0.17 }),
+      box(0.04, 0.035, 0.03, "#15161a", { y: 0.05, z: 0.225 }),
+      box(0.05, 0.06, 0.02, "#15161a", { x: -0.055, y: 0.1, z: 0.135 }), // gros yeux
+      box(0.05, 0.06, 0.02, "#15161a", { x: 0.055, y: 0.1, z: 0.135 }),
+      box(0.11, 0.22, 0.03, dark, { x: -0.13, y: 0.23, z: 0.02, rz: 0.45 }), // oreilles géantes
+      box(0.11, 0.22, 0.03, dark, { x: 0.13, y: 0.23, z: 0.02, rz: -0.45 }),
+    ]);
+    const paw = () => [box(0.045, 0.17, 0.045, fur, { y: -0.085 })];
+    const legs = [
+      pivot(body, -0.06, 0.17, 0.13, paw()), pivot(body, 0.06, 0.17, 0.13, paw()),
+      pivot(body, -0.06, 0.17, -0.13, paw()), pivot(body, 0.06, 0.17, -0.13, paw()),
+    ];
+    const tail = pivot(body, 0, 0.31, -0.18, [box(0.03, 0.17, 0.03, fur, { y: 0.085 })]);
+    tail.rotation.x = -0.6;
+    return { root, body, head: headG, legs, tail };
+  })();
+
   // --- Construction du parking -------------------------------------------------------
   function displayZones(zones) {
     const total = zones.reduce((s, z) => s + z.cap, 0);
@@ -906,6 +1042,7 @@ export function createParking3D(container, options) {
 
   function buildLot(zones) {
     if (lot) {
+      lot.group.remove(player.root, dog.root); // gardés d'un plan à l'autre
       disposeTree(lot.group);
       lot.textures.forEach((t) => t.dispose());
       signMats.forEach((m) => m.dispose());
@@ -989,6 +1126,16 @@ export function createParking3D(container, options) {
     });
     // Totem « P »
     props.push(cyl(0.12, 4.4, "#30343f", { x: -4.4, y: 2.2, z: -8.2 }, 10));
+    // Borne de réservation, sur son parvis, à gauche de la guérite
+    props.push(box(5.2, 0.14, 6.4, "#b7bcc6", { x: RESA_KIOSK.x, y: 0.07, z: RESA_KIOSK.z - 1.2 }));
+    props.push(box(0.9, 1.9, 0.46, "#2b2f8f", { x: RESA_KIOSK.x, y: 1.09, z: RESA_KIOSK.z }));
+    props.push(box(1.0, 0.12, 0.56, "#1e66f5", { x: RESA_KIOSK.x, y: 2.1, z: RESA_KIOSK.z }));
+    props.push(box(1.1, 0.14, 0.7, "#8d93a0", { x: RESA_KIOSK.x, y: 0.2, z: RESA_KIOSK.z }));
+    // Bancs du parvis
+    [-1.9, 1.9].forEach((dx) => {
+      props.push(box(0.5, 0.1, 1.5, "#8a5a3c", { x: RESA_KIOSK.x + dx, y: 0.55, z: RESA_KIOSK.z - 2.2 }));
+      [-0.6, 0.6].forEach((dz) => props.push(box(0.4, 0.42, 0.1, "#30343f", { x: RESA_KIOSK.x + dx, y: 0.34, z: RESA_KIOSK.z - 2.2 + dz })));
+    });
     // Bornes de recharge et panneaux PMR
     const ledItems = [], postItems = [], chargerGlow = [], pmrSigns = [];
     zones.forEach((zone) => {
@@ -1042,6 +1189,7 @@ export function createParking3D(container, options) {
     instanced(group, new THREE.BoxGeometry(1, 1, 1), M.screen, [
       { x: LANE / 2 - 0.37, y: 1.25, z: -3.6, sx: 0.03, sy: 0.4, sz: 0.24 },
       { x: LANE / 2 + 0.37, y: 1.25, z: 3.4, sx: 0.03, sy: 0.4, sz: 0.24 },
+      { x: RESA_KIOSK.x, y: 1.4, z: RESA_KIOSK.z - 0.24, sx: 0.62, sy: 0.52, sz: 0.03 },
     ].concat(chargerGlow));
     instanced(group, new THREE.PlaneGeometry(1, 1), pictoMats.HANDICAPPED, pmrSigns);
 
@@ -1256,6 +1404,45 @@ export function createParking3D(container, options) {
     });
     tag("Entrée", IN_X - 2.6, 6.6, -2.2, null, true);
     tag("Sortie", OUT_X + 2.6, 6.6, -2.2, null, true);
+    tag("Réservation", RESA_KIOSK.x, 3.9, RESA_KIOSK.z, "#1e66f5", true).node.style.background = "#1e66f5";
+    const dogTag = tag("Ouaf !", 0, 1, 0, null, true);
+    dogTag.node.classList.add("bubble");
+    dogTag.hidden = true;
+    const resaSign = new THREE.Sprite(M.resa);
+    resaSign.scale.set(1.5, 1.5, 1);
+    resaSign.position.set(RESA_KIOSK.x, 2.95, RESA_KIOSK.z);
+    group.add(resaSign);
+
+    // Promeneur : obstacles fixes (x0, x1, z0, z1), points d'interaction, emprise des zones
+    const obstacles = [
+      [-4.75, -2.05, -4.95, -1.85], // guérite
+      [RESA_KIOSK.x - 0.6, RESA_KIOSK.x + 0.6, RESA_KIOSK.z - 0.4, RESA_KIOSK.z + 0.4],
+      [RESA_KIOSK.x - 2.2, RESA_KIOSK.x - 1.6, RESA_KIOSK.z - 3.0, RESA_KIOSK.z - 1.4],
+      [RESA_KIOSK.x + 1.6, RESA_KIOSK.x + 2.2, RESA_KIOSK.z - 3.0, RESA_KIOSK.z - 1.4],
+      [LANE / 2 - 0.45, LANE / 2 + 0.45, -4.35, 3.15], // îlot, bornes et socles des barrières
+      [-1.1, -0.7, -2.4, -2.0], [LANE + 0.7, LANE + 1.1, -2.4, -2.0], // portique
+      [-4.55, -4.25, -8.35, -8.05], // totem
+      [L.xMax + 0.65, L.xMax + 1.55, -1, D + 1.6], // haies
+      [L.xMin - 1.6, L.xMax + 1.6, D + 0.65, D + 1.55],
+      [L.xMin - 1.55, L.xMin - 0.65, 6, D],
+      [LANE + 3, L.xMax + 1.55, -1.55, -0.65],
+    ];
+    trees.forEach((t) => obstacles.push([t.x - 0.28, t.x + 0.28, t.z - 0.28, t.z + 0.28]));
+    lampSpots.forEach((l, i) => { if (i % 2 === 0) obstacles.push([l.x - 0.15, l.x + 0.15, l.z + 2.05, l.z + 2.35]); });
+    const points = [{ x: RESA_KIOSK.x, z: RESA_KIOSK.z - 1.0, label: "Consulter la borne de réservation", action: openResa }];
+    if (opts.onUseBorne) {
+      points.push({ x: LANE / 2 - 0.9, z: -3.6, label: "Utiliser la borne d'entrée", action: () => opts.onUseBorne(1) });
+      points.push({ x: LANE / 2 + 0.9, z: 3.4, label: "Utiliser la borne de sortie", action: () => opts.onUseBorne(2) });
+    }
+    zones.forEach((zone) => {
+      let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+      zone.spots.forEach((sp) => {
+        x0 = Math.min(x0, sp.x - sp.w / 2); x1 = Math.max(x1, sp.x + sp.w / 2);
+        z0 = Math.min(z0, sp.z - sp.d / 2, sp.aisleZ); z1 = Math.max(z1, sp.z + sp.d / 2, sp.aisleZ);
+      });
+      zone.bounds = [x0, x1, z0, z1];
+    });
+    group.add(player.root, dog.root);
 
     // Ombres et caméra adaptées à la taille du parking
     const reach = Math.hypot(W, D + 24) / 2 + 12;
@@ -1281,7 +1468,10 @@ export function createParking3D(container, options) {
       resaSprites.push(sprite);
     }
 
-    lot = { L, group, zones, fleet, leds, rings, hover, gateIn, gateOut, textures, tags, resaSprites, seq: 0, pickDirty: true };
+    lot = {
+      L, group, zones, fleet, leds, rings, hover, gateIn, gateOut, textures, tags, resaSprites,
+      obstacles, points, dogTag, D, seq: 0, pickDirty: true,
+    };
     spawnTraffic();
   }
 
@@ -1449,7 +1639,7 @@ export function createParking3D(container, options) {
         const zone = lot.zones[i];
         zone.label = z.label; zone.cap = z.cap; zone.taken = z.taken; zone.held = z.held;
         zone.takenN = z.takenN; zone.heldN = z.heldN;
-        zone.reserved = z.reserved; zone.reservedN = z.reservedN;
+        zone.reserved = z.reserved; zone.reservedN = z.reservedN; zone.reservable = z.reservable;
       });
     }
     lot.zones.forEach((zone) => {
@@ -1566,6 +1756,20 @@ export function createParking3D(container, options) {
   canvas.addEventListener("contextmenu", (e) => e.preventDefault());
   canvas.addEventListener("pointerdown", (e) => {
     try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* pointeur déjà relâché */ }
+    if (walk.on) {
+      // Tactile : pouce gauche = manette de déplacement, le reste = regarder.
+      const rect = canvas.getBoundingClientRect();
+      const stick = e.pointerType === "touch" && e.clientX - rect.left < rect.width * 0.45 && !walk.joy;
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, ox: e.clientX, oy: e.clientY, stick });
+      if (stick) {
+        walk.joy = { x: 0, y: 0, mag: 0 };
+        joy.style.transform = "translate(" + (e.clientX - rect.left) + "px," + (e.clientY - rect.top) + "px)";
+        joyKnob.style.transform = "";
+        joy.classList.add("on");
+      }
+      dragMoved = 0;
+      return;
+    }
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, pan: e.button === 2 || e.button === 1 || e.shiftKey });
     dragMoved = 0;
     idle = 0;
@@ -1586,6 +1790,18 @@ export function createParking3D(container, options) {
     p.x = e.clientX; p.y = e.clientY;
     dragMoved += Math.abs(dx) + Math.abs(dy);
     idle = 0;
+    if (walk.on) {
+      if (p.stick) {
+        const jx = clamp((e.clientX - p.ox) / 55, -1, 1), jy = clamp((e.clientY - p.oy) / 55, -1, 1);
+        const mag = Math.min(1, Math.hypot(jx, jy));
+        walk.joy = { x: jx, y: jy, mag };
+        joyKnob.style.transform = "translate(" + jx * 34 + "px," + jy * 34 + "px)";
+      } else {
+        walk.yaw -= dx * 0.006;
+        walk.pitch = clamp(walk.pitch + dy * 0.004, 0.06, 1.25);
+      }
+      return;
+    }
     if (pointers.size >= 2) {
       const pts = Array.from(pointers.values());
       const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
@@ -1606,9 +1822,12 @@ export function createParking3D(container, options) {
     cam.gz = clamp(cam.gz - (-sn * dx + cs * dy) * k, -cam.bz, cam.bz);
   }
   function endPointer(e) {
+    const released = pointers.get(e.pointerId);
     const had = pointers.delete(e.pointerId);
     if (!pointers.size) canvas.classList.remove("dragging");
     pinch = 0;
+    if (released && released.stick) { walk.joy = null; joy.classList.remove("on"); }
+    if (walk.on) return;
     if (had && dragMoved < 6 && e.type === "pointerup") {
       updateHover(true);
       if (hovered && hovered.vehicle && hovered.vehicle.info && opts.onVehicleClick) opts.onVehicleClick(hovered.vehicle.info);
@@ -1620,10 +1839,12 @@ export function createParking3D(container, options) {
   canvas.addEventListener("pointerleave", () => { pointer = null; setHover(null); });
   canvas.addEventListener("wheel", (e) => {
     e.preventDefault();
+    if (walk.on) { walk.dist = clamp(walk.dist * Math.exp(e.deltaY * 0.0011), 3, 18); return; }
     cam.gRadius = clamp(cam.gRadius * Math.exp(e.deltaY * 0.0011), cam.min, cam.max);
     idle = 0;
   }, { passive: false });
   canvas.addEventListener("keydown", (e) => {
+    if (walk.on) return; // les touches pilotent le promeneur
     const step = { ArrowLeft: [0.12, 0], ArrowRight: [-0.12, 0], ArrowUp: [0, -0.06], ArrowDown: [0, 0.06] }[e.key];
     if (step) { cam.gTheta += step[0]; cam.gPhi = clamp(cam.gPhi + step[1], 0.18, 1.46); idle = 0; e.preventDefault(); }
     if (e.key === "+" || e.key === "=") cam.gRadius = clamp(cam.gRadius * 0.88, cam.min, cam.max);
@@ -1631,13 +1852,259 @@ export function createParking3D(container, options) {
     if (e.key === "0" || e.key === "Home") overview();
   });
 
+  // --- Promenade ------------------------------------------------------------------------------
+  // Touches lues par leur position (ZQSD sur un clavier français, WASD sinon).
+  function onKey(e, down) {
+    if (!walk.on || !active) return;
+    const t = e.target;
+    if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || "")) return;
+    if (e.code === "Escape") {
+      if (down) { if (walk.panel) closeResa(); else setWalk(false); }
+    } else if (WALK_KEYS[e.code]) {
+      walk.keys[e.code] = down;
+    } else if (e.code === "KeyE" || e.code === "Enter") {
+      if (down && !e.repeat) { if (walk.panel) closeResa(); else interact(); }
+    } else if (e.code === "KeyF") {
+      if (down && !e.repeat) bark();
+    } else {
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  const keyDown = (e) => onKey(e, true), keyUp = (e) => onKey(e, false);
+  const keyBlur = () => { walk.keys = {}; };
+  window.addEventListener("keydown", keyDown, true);
+  window.addEventListener("keyup", keyUp, true);
+  window.addEventListener("blur", keyBlur);
+
+  function setWalk(on) {
+    if (!lot || walk.on === on) return;
+    walk.on = on;
+    walk.keys = {};
+    walk.joy = null;
+    joy.classList.remove("on");
+    pointers.clear();
+    setHover(null);
+    container.classList.toggle("walking", on);
+    walkBtn.setAttribute("aria-pressed", String(on));
+    hint.textContent = on ? HINT_WALK : HINT_ORBIT;
+    if (on) {
+      walk.yaw = walk.rot; // caméra dans le dos du personnage
+      walk.dog.next = 1.2;
+      canvas.focus({ preventScroll: true });
+    } else {
+      closeResa();
+      prompt.classList.remove("on");
+      here.classList.remove("on");
+      walk.near = null;
+      walk.zone = null;
+      // Retour à la vue d'ensemble, centrée sur l'endroit où l'on se trouvait.
+      cam.gx = clamp(walk.x - lot.L.cx, -cam.bx, cam.bx);
+      cam.gz = clamp(walk.z - lot.L.cz, -cam.bz, cam.bz);
+      cam.tx = cam.gx; cam.tz = cam.gz;
+      cam.theta = cam.gTheta = walk.yaw + Math.PI;
+      cam.radius = walk.dist * 1.4;
+      cam.gRadius = cam.home * 0.7;
+      idle = 0;
+    }
+    width = 0; // recalcule le cadrage (champ plus large en promenade)
+  }
+
+  function collide(px, pz, r) {
+    const hit = (x0, x1, z0, z1) => {
+      const cx = clamp(px, x0, x1), cz = clamp(pz, z0, z1);
+      const dx = px - cx, dz = pz - cz, d2 = dx * dx + dz * dz;
+      if (d2 >= r * r) return;
+      if (d2 > 1e-8) {
+        const d = Math.sqrt(d2);
+        px = cx + (dx / d) * r; pz = cz + (dz / d) * r;
+      } else {
+        // Centre à l'intérieur : sortie par le bord le plus proche.
+        const l = px - x0, rr = x1 - px, t = pz - z0, b = z1 - pz, m = Math.min(l, rr, t, b);
+        if (m === l) px = x0 - r; else if (m === rr) px = x1 + r; else if (m === t) pz = z0 - r; else pz = z1 + r;
+      }
+    };
+    lot.obstacles.forEach((o) => hit(o[0], o[1], o[2], o[3]));
+    lot.zones.forEach((zone) => zone.spots.forEach((sp) => {
+      const v = sp.vehicle;
+      if (!v || v.state !== "parked") return;
+      const f = FOOT[v.model] || FOOT.sedan;
+      hit(sp.x - f[0], sp.x + f[0], sp.z - f[1], sp.z + f[1]);
+    }));
+    return [clamp(px, lot.L.cx - 120, lot.L.cx + 120), clamp(pz, -70, lot.D + 60)];
+  }
+
+  function bark() {
+    const d = walk.dog;
+    d.bark = 1.2;
+    d.next = 7 + Math.random() * 10;
+    lot.dogTag.name.textContent = BARKS[Math.floor(Math.random() * BARKS.length)];
+  }
+  function interact() {
+    if (walk.near) walk.near.action();
+  }
+  function openResa() {
+    panel.replaceChildren();
+    const title = elem("h3");
+    title.append(elem("i", null, "R"), document.createTextNode("Borne de réservation"));
+    const intro = elem("p", null,
+      "Une réservation se prend à l'heure, auprès du service Booking, et se paie à l'avance. " +
+      "À votre arrivée, la borne reconnaît votre plaque et vous attribue une place réservée ; " +
+      "rien à payer en sortant dans votre créneau.");
+    const table = elem("table");
+    const headRow = elem("tr");
+    ["Zone", "Réservables cette heure", "Sur place avec réservation"].forEach((h) => headRow.appendChild(elem("th", null, h)));
+    table.appendChild(headRow);
+    lot.zones.forEach((zone) => {
+      const row = elem("tr");
+      const name = elem("td");
+      const dot = elem("i");
+      dot.style.setProperty("--c", zone.kind.color);
+      name.append(dot, document.createTextNode(zone.label));
+      row.append(name,
+        elem("td", null, zone.reservable == null ? "non communiqué" : zone.reservable ? zone.reservable + " place(s)" : "aucune"),
+        elem("td", null, zone.reserved ? zone.reserved + " véhicule(s)" : "aucun"));
+      table.appendChild(row);
+    });
+    const source = elem("p", null, data.source === "live"
+      ? "Chiffres de Booking pour l'heure en cours, véhicules comptés par Access."
+      : "Chiffres de démonstration.");
+    const close = elem("button", null, "Fermer");
+    close.type = "button";
+    close.addEventListener("click", closeResa);
+    panel.append(title, intro, table, source, close);
+    panel.classList.add("on");
+    walk.panel = true;
+    walk.keys = {};
+  }
+  function closeResa() {
+    panel.classList.remove("on");
+    walk.panel = false;
+  }
+  prompt.addEventListener("click", () => { if (walk.panel) closeResa(); else interact(); });
+
+  /* Personnage et chien : déplacement, animation, caméra. Appelé à chaque image
+     (le chien remue la queue même quand on regarde le plan de haut). */
+  function stepWalk(dt, now) {
+    const L = lot.L, d = walk.dog, k = walk.keys;
+    let f = 0, sd = 0, turn = 0, run = false;
+    if (walk.on && !walk.panel) {
+      f = (k.KeyW || k.ArrowUp ? 1 : 0) - (k.KeyS || k.ArrowDown ? 1 : 0);
+      sd = (k.KeyD ? 1 : 0) - (k.KeyA ? 1 : 0);
+      turn = (k.ArrowRight ? 1 : 0) - (k.ArrowLeft ? 1 : 0);
+      run = Boolean(k.ShiftLeft || k.ShiftRight);
+      if (walk.joy) { f -= walk.joy.y; sd += walk.joy.x; run = run || walk.joy.mag > 0.9; }
+    }
+    walk.yaw -= turn * dt * 2.0;
+    const len = Math.hypot(f, sd);
+    const goal = len > 0.08 ? (run ? 8.4 : 4.3) * Math.min(1, len) : 0;
+    walk.speed = lerp(walk.speed, goal, 1 - Math.exp(-dt * 11));
+    if (len > 0.08) {
+      const dx = Math.sin(walk.yaw), dz = Math.cos(walk.yaw);
+      const mx = (dx * f - dz * sd) / len, mz = (dz * f + dx * sd) / len;
+      walk.rot = angleTo(walk.rot, Math.atan2(mx, mz), 1 - Math.exp(-dt * 13));
+      // Par petits pas : même à faible cadence d'images, on ne traverse rien.
+      const steps = Math.max(1, Math.ceil((walk.speed * dt) / 0.2));
+      for (let i = 0; i < steps; i++) {
+        const next = collide(walk.x + (mx * walk.speed * dt) / steps, walk.z + (mz * walk.speed * dt) / steps, 0.36);
+        walk.x = next[0]; walk.z = next[1];
+      }
+      walk.still = 0;
+    } else {
+      walk.still += dt;
+    }
+    walk.phase += walk.speed * dt * 2.4;
+    const stride = Math.min(1, walk.speed / 4.3), swing = Math.sin(walk.phase) * 0.8 * stride;
+    player.legL.rotation.x = swing; player.legR.rotation.x = -swing;
+    player.armL.rotation.x = -swing * 0.85; player.armR.rotation.x = swing * 0.85;
+    player.body.position.y = Math.abs(Math.sin(walk.phase)) * 0.06 * stride + Math.sin(now * 2.1) * 0.008;
+    player.body.rotation.x = stride * (walk.speed > 6 ? 0.12 : 0.04);
+    player.root.position.set(walk.x, 0, walk.z);
+    player.root.rotation.y = walk.rot;
+
+    // Le chihuahua : au pied quand on marche, il flâne et aboie quand on s'arrête.
+    const sn = Math.sin(walk.rot), cs = Math.cos(walk.rot);
+    let tx = walk.x - sn * 0.7 - cs * 0.6, tz = walk.z - cs * 0.7 + sn * 0.6;
+    if (walk.still > 2.5) {
+      d.roam -= dt;
+      if (d.roam <= 0 || d.tx == null) {
+        const a = Math.random() * Math.PI * 2, r = 0.9 + Math.random() * 1.9;
+        d.tx = walk.x + Math.cos(a) * r; d.tz = walk.z + Math.sin(a) * r;
+        d.roam = 2.2 + Math.random() * 3.5;
+      }
+      tx = d.tx; tz = d.tz;
+    } else {
+      d.tx = null;
+    }
+    let ddx = tx - d.x, ddz = tz - d.z;
+    const dist = Math.hypot(ddx, ddz);
+    if (dist > 16) { d.x = tx; d.z = tz; ddx = ddz = 0; }
+    const dogGoal = dist > 0.22 ? clamp(dist * 3.6, 1.1, 11) : 0;
+    d.speed = lerp(d.speed, dogGoal, 1 - Math.exp(-dt * 12));
+    if (dist > 0.22) {
+      d.rot = angleTo(d.rot, Math.atan2(ddx, ddz), 1 - Math.exp(-dt * 14));
+      const next = collide(d.x + (ddx / dist) * d.speed * dt, d.z + (ddz / dist) * d.speed * dt, 0.2);
+      d.x = next[0]; d.z = next[1];
+    } else if (walk.still > 0.6) {
+      d.rot = angleTo(d.rot, Math.atan2(walk.x - d.x, walk.z - d.z), 1 - Math.exp(-dt * 4)); // regarde son maître
+    }
+    d.phase += d.speed * dt * 9;
+    const trot = Math.min(1, d.speed / 3) * 0.9;
+    dog.legs[0].rotation.x = dog.legs[3].rotation.x = Math.sin(d.phase) * trot;
+    dog.legs[1].rotation.x = dog.legs[2].rotation.x = -Math.sin(d.phase) * trot;
+    dog.tail.rotation.z = Math.sin(now * (d.speed > 0.5 ? 20 : 12)) * 0.65;
+    dog.head.rotation.z = d.speed < 0.3 ? Math.sin(now * 1.3) * 0.16 : 0;
+    d.bark = Math.max(0, d.bark - dt);
+    dog.body.position.y = d.bark > 0 ? Math.abs(Math.sin(d.bark * 13)) * 0.13 : Math.abs(Math.sin(d.phase)) * 0.015 * trot;
+    dog.head.rotation.x = d.bark > 0 ? -0.5 : 0;
+    dog.root.position.set(d.x, 0, d.z);
+    dog.root.rotation.y = d.rot;
+    d.next -= dt;
+    if (d.next <= 0) { if (walk.on) bark(); else d.next = 8; }
+    lot.dogTag.hidden = d.bark <= 0;
+    lot.dogTag.pos.set(d.x - L.cx, 0.95, d.z - L.cz);
+
+    if (!walk.on) return;
+    // Caméra dans le dos, un peu au-dessus.
+    const cp = Math.cos(walk.pitch), px = walk.x - L.cx, pz = walk.z - L.cz;
+    walkCam.set(px - Math.sin(walk.yaw) * walk.dist * cp, 1.6 + walk.dist * Math.sin(walk.pitch), pz - Math.cos(walk.yaw) * walk.dist * cp);
+    camera.position.lerp(walkCam, 1 - Math.exp(-dt * 12));
+    camera.lookAt(px, 1.5, pz);
+
+    // Ce qu'on peut utiliser ici, et la zone où l'on se trouve.
+    let near = null, best = 2.6;
+    lot.points.forEach((pt) => {
+      const dd = Math.hypot(pt.x - walk.x, pt.z - walk.z);
+      if (dd < best) { best = dd; near = pt; }
+    });
+    if (near !== walk.near) {
+      walk.near = near;
+      prompt.classList.toggle("on", Boolean(near));
+      if (near) promptText.textContent = near.label;
+    }
+    const zone = lot.zones.find((z) => walk.x > z.bounds[0] - 0.5 && walk.x < z.bounds[1] + 0.5 && walk.z > z.bounds[2] - 0.5 && walk.z < z.bounds[3] + 0.5) || null;
+    const key = zone ? zone.name + ":" + zone.taken + ":" + zone.cap : "";
+    if (key !== walk.zone) {
+      walk.zone = key;
+      here.classList.toggle("on", Boolean(zone));
+      if (zone) {
+        hereDot.style.setProperty("--c", zone.kind.color);
+        hereName.textContent = "Zone " + zone.label;
+        const free = zone.cap - zone.taken;
+        hereCount.textContent = zone.taken + "/" + zone.cap + (free > 0 ? " · " + free + " libre(s)" : " · complet");
+      }
+    }
+  }
+  const walkCam = new THREE.Vector3();
+
   // --- Survol : véhicule ou place ----------------------------------------------------------
   const raycaster = new THREE.Raycaster();
   const ndc = new THREE.Vector2();
   const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   const hit = new THREE.Vector3();
   function updateHover(force) {
-    if (!lot || !pointer || (pointers.size && !force)) return;
+    if (!lot || !pointer || walk.on || (pointers.size && !force)) return;
     ndc.set((pointer.x / pointer.w) * 2 - 1, -(pointer.y / pointer.h) * 2 + 1);
     raycaster.setFromCamera(ndc, camera);
     const meshes = [];
@@ -1823,6 +2290,10 @@ export function createParking3D(container, options) {
       if (Math.abs(night - nightGoal) < 0.004) night = nightGoal;
       applyNight(night);
     }
+    // Promeneur et chien (toujours animés) ; en promenade, la caméra les suit.
+    stepWalk(dt, now);
+    sun.target.position.set(0, 0, 0);
+    if (walk.on) return;
     // Caméra
     idle += dt;
     if (autoRotate && idle > 3.5 && !pointers.size) cam.gTheta += dt * 0.045;
@@ -1842,7 +2313,7 @@ export function createParking3D(container, options) {
   function updateTags(w, h) {
     lot.tags.forEach((t) => {
       proj.copy(t.pos).project(camera);
-      const visible = proj.z < 1 && proj.x > -1.15 && proj.x < 1.15 && proj.y > -1.15 && proj.y < 1.15;
+      const visible = !t.hidden && proj.z < 1 && proj.x > -1.15 && proj.x < 1.15 && proj.y > -1.15 && proj.y < 1.15;
       t.node.style.opacity = visible ? "1" : "0";
       if (visible) {
         t.node.style.transform = "translate(-50%, -100%) translate(" + ((proj.x * 0.5 + 0.5) * w).toFixed(1) + "px," + ((-proj.y * 0.5 + 0.5) * h).toFixed(1) + "px)";
@@ -1857,10 +2328,11 @@ export function createParking3D(container, options) {
     width = w; height = h;
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
-    camera.fov = w < h ? 54 : 40;
-    // Le parking est décalé pour ne pas passer sous la légende.
+    camera.fov = walk.on ? 58 : w < h ? 54 : 40;
+    // Le parking est décalé pour ne pas passer sous la légende (pas en promenade).
     const narrow = w < 640;
-    camera.setViewOffset(w, h, narrow ? 0 : -w * 0.07, narrow ? h * 0.09 : h * 0.04, w, h);
+    if (walk.on) camera.clearViewOffset();
+    else camera.setViewOffset(w, h, narrow ? 0 : -w * 0.07, narrow ? h * 0.09 : h * 0.04, w, h);
     camera.updateProjectionMatrix();
   }
   const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(resize) : null;
@@ -1869,7 +2341,7 @@ export function createParking3D(container, options) {
   function frame(time) {
     raf = requestAnimationFrame(frame);
     const now = time / 1000;
-    const dt = Math.min(0.05, Math.max(0.001, now - last));
+    const dt = Math.min(0.1, Math.max(0.001, now - last));
     last = now;
     resize();
     if (!lot || !width) return;
@@ -1886,6 +2358,7 @@ export function createParking3D(container, options) {
     rotateBtn.setAttribute("aria-pressed", String(autoRotate));
   }, autoRotate);
   const nightBtn = toolButton("Nuit", "Passer du jour à la nuit", () => api.setTheme(nightGoal > 0.5 ? "latte" : "mocha"), nightGoal > 0.5);
+  const walkBtn = toolButton("Promenade", "Se promener dans le parking avec un personnage (ZQSD)", () => setWalk(!walk.on), false);
   toolButton("Plein écran", "Afficher le plan en plein écran", () => {
     if (document.fullscreenElement) document.exitFullscreen();
     else if (container.requestFullscreen) container.requestFullscreen().catch(() => {});
@@ -1922,6 +2395,17 @@ export function createParking3D(container, options) {
       const zone = lot && lot.zones.find((z) => z.name === name);
       if (zone) focusZone(zone);
     },
+    /* Entre en promenade (personnage à la troisième personne) ou en sort. */
+    walk(on, at) {
+      setWalk(on !== false);
+      if (at && lot) {
+        // Placement direct (repère du parking) : utile aux démonstrations et aux tests.
+        if (at.x != null) walk.x = at.x;
+        if (at.z != null) walk.z = at.z;
+        if (at.rot != null) { walk.rot = at.rot; walk.yaw = at.rot; }
+        walk.dog.x = walk.x + 0.8; walk.dog.z = walk.z - 0.6;
+      }
+    },
     /* Place la caméra : point visé (repère du parking, mètres), distance, angles. */
     view(v) {
       if (!lot) return;
@@ -1939,10 +2423,14 @@ export function createParking3D(container, options) {
         zones: lot ? lot.zones.map((z) => ({ name: z.name, spots: z.spots.length, vehicles: z.vehicles.length, held: z.spots.filter((s) => s.held).length })) : [],
         moving: movers.filter((m) => m.v.state !== "traffic").length,
         night: nightGoal,
+        walk: { on: walk.on, x: Math.round(walk.x * 100) / 100, z: Math.round(walk.z * 100) / 100, near: walk.near ? walk.near.label : null, panel: walk.panel },
       };
     },
     dispose() {
       api.setActive(false);
+      window.removeEventListener("keydown", keyDown, true);
+      window.removeEventListener("keyup", keyUp, true);
+      window.removeEventListener("blur", keyBlur);
       if (observer) observer.disconnect();
       if (lot) disposeTree(lot.group);
       pmrem.dispose();

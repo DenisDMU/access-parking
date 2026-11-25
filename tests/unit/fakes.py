@@ -133,10 +133,14 @@ class FakeBookingPort:
     def __init__(self, reservations: dict[str, Reservation] | None = None) -> None:
         self.reservations = reservations or {}
         self.calls: list[tuple[str, datetime | None]] = []
+        self.free: dict[str, int] = {}  # places réservables par type (plan 3D)
 
     def get_reservation(self, vehicle_id: str, at: datetime | None = None) -> Reservation | None:
         self.calls.append((vehicle_id, at))
         return self.reservations.get(vehicle_id)
+
+    def free_capacity(self, place_type: str, at: datetime | None = None) -> int | None:
+        return self.free.get(place_type)
 
 
 PARKING_CATEGORIES = [

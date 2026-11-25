@@ -253,3 +253,12 @@ def test_plan_de_la_borne_lit_la_route_publique_seulement(client):
     assert "/api/v1/borne/parking" in html
     # Jamais la route d'exploitation (clé requise, plus de détails).
     assert "/access/parking" not in html
+
+
+def test_plan_de_la_borne_de_jour_et_borne_du_decor_utilisable(client):
+    html = client.get("/borne").text
+    # Toujours de jour à l'arrivée, quel que soit le thème de l'appareil.
+    assert 'theme: "latte"' in html
+    assert 'prefers-color-scheme: dark)")' not in html
+    # En promenade, la borne d'entrée ou de sortie du décor lance le vrai parcours.
+    assert "onUseBorne: function (dir) { startPlate(dir); }" in html

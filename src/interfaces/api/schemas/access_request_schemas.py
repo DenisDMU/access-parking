@@ -365,6 +365,13 @@ class BorneParkingCategoryOut(BaseModel):
         default=0,
         description="Véhicules présents entrés avec une réservation Booking (compte d'Access)",
     )
+    reservable: int | None = Field(
+        default=None,
+        description=(
+            "Places encore réservables chez Booking pour l'heure en cours "
+            "(`null` si Booking ne répond pas)"
+        ),
+    )
 
 
 class BorneParkingOut(BaseModel):
@@ -437,7 +444,7 @@ class HealthOut(BaseModel):
         description="Moteur de base utilisé (sqlite ou postgresql) — jamais l'URL",
     )
     uptime_seconds: int = Field(alias="uptimeSeconds", examples=[1234])
-    version: str = Field(examples=["4.13.1"])
+    version: str = Field(examples=["4.14.0"])
     commit: str = Field(examples=["b742756d0c1e9f4a8b3c2d1e0f9a8b7c6d5e4f3a"])
     booking: str = Field(
         examples=["réel"],
