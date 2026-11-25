@@ -94,3 +94,9 @@ def test_plan_3d_mode_promenade(client):
     assert "Promenade" in source and "Borne de réservation" in source
     assert "function collide" in source  # on ne traverse ni haies ni véhicules garés
     assert "onUseBorne" in source  # la borne du décor lance le vrai parcours
+
+
+def test_dashboard_propose_de_liberer_les_vehicules_presents(client):
+    html = client.get("/static/dashboard.html").text
+    assert 'id="releaseAll"' in html and "Tout libérer" in html
+    assert "/release" in html and "window.confirm" in html  # jamais sans confirmation

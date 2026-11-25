@@ -4,6 +4,19 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.15.0] — 2026-11-25 — Libérer un véhicule présent
+
+### Ajouté
+- `POST /access/presences/{vehicleId}/release` (clé d'exploitation) : sortie
+  forcée d'un véhicule présent, désigné par son identifiant pseudonymisé
+  (Access ne garde aucune plaque). Place rendue à Parking, présence
+  « sorti », demande de sortie tracée avec un motif explicite, événement
+  `VEHICLE_EXITED` avec `forced: true`. Rien n'est facturé. 404 si le
+  véhicule n'est pas présent.
+- Dashboard, onglet « État du parking » : bouton « Libérer » sur chaque
+  véhicule présent et « Tout libérer », avec confirmation ; le bilan
+  signale les places que Parking n'a pas rendues.
+
 ## [4.14.0] — 2026-11-25 — Promenade dans le plan 3D
 
 ### Ajouté
