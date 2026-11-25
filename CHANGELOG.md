@@ -4,6 +4,26 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.22.0] — 2026-11-25 — Kingfarm, monde courbé, sons
+
+### Ajouté
+- Monde courbé en promenade : le sol s'arrondit vers l'horizon, comme sur
+  une petite planète. Effet de dessin seulement : collisions, ombres et plan
+  vu de haut restent à plat.
+- Sons synthétisés : gestes (saut, pas, panneau, tampon, succès, salut,
+  portière, klaxon avec H), voix des habitants, musique de promenade.
+  Réglages ⚙ : volume par paliers, musique oui ou non, gardés sur l'appareil.
+- Défis : pièce qui tourne, mains qui se secouent avant de se montrer, ligne
+  gagnante du morpion en jaune.
+
+### Modifié
+- La ferme s'appelle la Kingfarm : potager agrandi de quinze citrouilles
+  derrière sa clôture, pompe à eau, verger de neuf arbres à pommes.
+- La mine devient une grotte de pierre fermée (voûte, portail, rails,
+  wagonnet) ; la voûte s'efface quand on entre.
+- Maisons du village plus petites. Sol découpé en carreaux plus grands et
+  affichage moins dense sur écran tactile, pour les téléphones.
+
 ## [4.21.0] — 2026-11-25 — Décor de village
 
 ### Modifié

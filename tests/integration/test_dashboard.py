@@ -261,6 +261,14 @@ def test_plan_3d_decor_de_village(client):
     # Monde courbé : un effet de dessin seulement, coupé hors promenade et pour le ciel.
     assert "const BEND" in source and "noBend" in source and "isMeshDepthMaterial" in source
     assert "function tileTexture" in source and "roofSlab" in source  # pans de toit en tuiles
+    for word in (
+        "KINGFARM",
+        "function openSettings",
+        "function stepMusic",
+        "function babble",
+        "cave.outer",
+    ):
+        assert word in source
 
 
 def test_mini_jeux_servis_sans_ressource_externe(client):

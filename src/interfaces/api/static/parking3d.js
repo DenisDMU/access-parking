@@ -14,7 +14,7 @@
    et des identifiants pseudonymisés. */
 
 import * as THREE from "./vendor/three-0.160.0.module.min.js";
-import { GAMES as MINI, startGame } from "./promenade-jeux.js?v=4.21.0";
+import { GAMES as MINI, startGame } from "./promenade-jeux.js?v=4.22.0";
 
 // --- Catégories de Parking → zones du plan -----------------------------------
 
@@ -1064,6 +1064,7 @@ const CSS = `
 .p3d-reveal { animation: p3d-in .35s 1.5s both; }
 .p3d-reveal.fast { animation-delay: 1s; }
 .p3d-panel button.p3d-cell.mark { animation: p3d-in .25s both; }
+.p3d-panel button.p3d-cell.won { background: #ffd60a; border-color: #d9a900; color: #5b4636; animation: p3d-pulse .7s ease-in-out 3; }
 @media (prefers-reduced-motion: reduce) { .p3d-coin, .p3d-hand, .p3d-hand i, .p3d-reveal, .p3d-panel button.p3d-cell.mark { animation: none; } .p3d-hand i:first-child { display: none; } }
 .p3d-fail { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center;
   color: var(--text, #4c4f69); background: var(--mantle, #e6e9ef); font: 600 15px/1.4 system-ui, sans-serif; }
@@ -1174,7 +1175,8 @@ export function createParking3D(container, options) {
     container.replaceChildren(elem("div", "p3d-fail", "Le plan 3D a besoin de WebGL, indisponible dans ce navigateur."));
     return null;
   }
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  const coarse = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, coarse ? 1.5 : 2));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -1924,7 +1926,7 @@ export function createParking3D(container, options) {
     const W = L.xMax - L.xMin, D = L.zMax;
 
     // Sol : herbe, route, parking, voie d'accès
-    const grass = new THREE.Mesh(new THREE.PlaneGeometry(1400, 1000, 200, 143).rotateX(-Math.PI / 2), M.grass);
+    const grass = new THREE.Mesh(new THREE.PlaneGeometry(1400, 1000, 100, 72).rotateX(-Math.PI / 2), M.grass); // carreaux de 14 m : léger, même sur téléphone
     M.grass.map.repeat.set(110, 79);
     grass.position.set(L.cx, -0.06, L.cz);
     grass.receiveShadow = true;
@@ -2121,7 +2123,7 @@ export function createParking3D(container, options) {
     };
 
     // 1. La rue commerçante : huit échoppes de part et d'autre de la route
-    const shopDefs = [[24, 1, 11, 8, 2], [52, 1, 9.5, 7.5, 1], [98, 1, 12, 8.5, 2], [124, 1, 9, 7, 1], [32, -1, 10, 8, 1], [60, -1, 12, 8, 2], [104, -1, 9.5, 7.5, 1], [152, -1, 11, 8, 2]];
+    const shopDefs = [[24, 1, 8, 6.5, 1], [52, 1, 7.5, 6, 1], [98, 1, 8.5, 6.5, 2], [124, 1, 7.5, 6, 1], [32, -1, 7.5, 6, 1], [60, -1, 8.5, 6.5, 2], [104, -1, 7.5, 6, 1], [152, -1, 8, 6.5, 1]];
     shopDefs.forEach((sd, i) => {
       const hx = X0 + sd[0], w = sd[2], d = sd[3], out = -sd[1]; // la façade regarde la route
       const hz = R + sd[1] * (7.4 + d / 2);
@@ -2405,7 +2407,7 @@ export function createParking3D(container, options) {
     props.push(ball(0.24, "#f0d9b5", { x: crow.x, y: 2.34, z: crow.z }));
     props.push(box(0.5, 0.2, 0.5, "#1f2a44", { x: crow.x, y: 2.62, z: crow.z })); // et sa casquette
     props.push(box(0.42, 0.05, 0.24, "#1f2a44", { x: crow.x, y: 2.55, z: crow.z - 0.34 }));
-    [[22, -28, 12, 9], [44, -46, 11, 8.5], [18, -66, 12.5, 9]].forEach((f, i) => {
+    [[22, -28, 9, 7], [44, -46, 8.5, 6.5], [18, -66, 9, 7]].forEach((f, i) => {
       house(laneS + f[0], R + f[1], f[2], f[3], 1, i % 2 ? "#7a5a36" : "#8a6b3c", { steep: true, wall: "#efe0c4" });
       cityTrees.push([laneS + f[0] - f[2] / 2 - 3, R + f[1] + 3, i !== 1, 0], [laneS + f[0] + f[2] / 2 + 2.6, R + f[1] - f[3] / 2 - 2, false, 0]);
     });
@@ -2903,11 +2905,11 @@ export function createParking3D(container, options) {
       farm.nodes.push(node);
     };
     const timber = "#b9824f", plank = "#c9955f", rock = ["#a39d92", "#b9b4a6", "#8f897f"];
-    const fx0 = farm.x - 16.6, fx1 = farm.x - 6.2, fz0 = farm.z - 2.6, fz1 = farm.z + 3.6;
+    const fx0 = farm.x - 19.4, fx1 = farm.x - 4.6, fz0 = farm.z - 4.4, fz1 = farm.z + 5.2;
     const decor = [box(fx1 - fx0 - 0.5, 0.1, fz1 - fz0 - 0.5, "#a9764d", { x: (fx0 + fx1) / 2, y: 0.05, z: (fz0 + fz1) / 2 })]; // la terre du potager
     const veg = ["#f28c28", "#ffd60a", "#fdf6e3", "#f28c28"];
-    for (let k = 0; k < 8; k++) { // citrouilles posées sur leur feuillage, chacune sur sa butte
-      const px = farm.x - 15 + (k % 4) * 2.4, pz = farm.z - 1 + Math.floor(k / 4) * 3;
+    for (let k = 0; k < 15; k++) { // citrouilles posées sur leur feuillage, chacune sur sa butte
+      const px = farm.x - 17.4 + (k % 5) * 2.7, pz = farm.z - 2.6 + Math.floor(k / 5) * 2.9;
       decor.push(orb(0.62, "#8f6240", { x: px, y: 0.08, z: pz, sy: 0.22 }));
       const parts = [orb(0.3, veg[k % 4], { y: 0.34, sy: 0.74 }), orb(0.3, shade(veg[k % 4], 0.9), { y: 0.34, sx: 0.55, sy: 0.76 }), cyl(0.03, 0.12, "#5a8f3c", { y: 0.6 }, 6)];
       for (let j = 0; j < 4; j++) parts.push(orb(0.24, j % 2 ? "#5cc95a" : "#49b05a", { x: Math.cos(j * 1.57 + 0.6) * 0.34, y: 0.17, z: Math.sin(j * 1.57 + 0.6) * 0.34, sy: 0.22 }));
@@ -2931,7 +2933,7 @@ export function createParking3D(container, options) {
       orb(0.16, "#3f8f77", { x: pump.x, y: 1.08, z: pump.z }), box(0.5, 0.07, 0.07, "#3f8f77", { x: pump.x + 0.25, y: 1.0, z: pump.z }),
       cyl(0.22, 0.34, "#8a5a3c", { x: pump.x + 0.75, y: 0.17, z: pump.z + 0.2 }, 12), cyl(0.19, 0.04, "#7fc8f0", { x: pump.x + 0.75, y: 0.33, z: pump.z + 0.2 }, 12));
     obstacles.push([pump.x - 0.3, pump.x + 1.0, pump.z - 0.3, pump.z + 0.45]);
-    [[-3, 2.5], [0.5, -2.5], [3.5, 3], [6, -1.5], [-1, -6]].forEach((at, k) => { // le verger : arbres touffus à pommes, à abattre
+    [[-1.5, 2.5], [1.5, -2.5], [4.5, 3], [6.5, -2], [-1, -6.5], [8, 5.5], [3, 7.5], [-3.5, 8], [9.5, -6.5]].forEach((at, k) => { // le verger : arbres touffus à pommes, à abattre
       const tx2 = farm.x + at[0], tz2 = farm.z + at[1], green = k % 2 ? "#4fb957" : "#5cc95a";
       const parts = [cyl(0.26, 1.5, timber, { y: 0.75 }, 10), cyl(0.36, 0.3, timber, { y: 0.15 }, 10), orb(1.15, green, { y: 2.35 })];
       for (let j = 0; j < 5; j++) parts.push(orb(0.72, j % 2 ? "#7ed36f" : green, { x: Math.cos(j * 1.26) * 0.9, y: 2.1 + (j % 2) * 0.75, z: Math.sin(j * 1.26) * 0.9 }));
@@ -2947,10 +2949,28 @@ export function createParking3D(container, options) {
       const a = (k / 13) * Math.PI * 2;
       if (Math.abs(angleTo(Math.PI / 2, a, 1) - Math.PI / 2) < 0.6) continue;
       const bx = cave.x + Math.cos(a) * (cave.r + 0.5), bz = cave.z + Math.sin(a) * (cave.r + 0.5);
-      decor.push(orb(1.5, rock[k % 3], { x: bx, y: 0.95, z: bz, sy: 0.85 }), orb(1.05, rock[(k + 1) % 3], { x: bx + Math.cos(a + 0.5) * 0.5, y: 2.15, z: bz + Math.sin(a + 0.5) * 0.5, sy: 0.8 }),
-        orb(0.5, "#6fd36a", { x: bx + 0.6, y: 2.85, z: bz - 0.2, sy: 0.6 })); // un peu de mousse en haut
+      decor.push(orb(1.5, rock[k % 3], { x: bx, y: 0.95, z: bz, sy: 0.85 }));
       obstacles.push([bx - 1.3, bx + 1.3, bz - 1.3, bz + 1.3]);
     }
+    /* La voûte de pierre : fermée vue de dehors ; quand on entre, elle s'efface
+       et on voit l'intérieur de la grotte. */
+    const vault = (radius, material) => {
+      const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 30, 14, Math.PI / 2 + 0.42, Math.PI * 2 - 0.84, 0, Math.PI / 2), material);
+      mesh.position.set(cave.x, 0, cave.z);
+      mesh.scale.y = 0.82;
+      group.add(mesh);
+      return mesh;
+    };
+    cave.outer = vault(cave.r + 1.0, new THREE.MeshStandardMaterial({ color: 0xa39d92, roughness: 1, flatShading: true }));
+    cave.outer.castShadow = true;
+    cave.inner = vault(cave.r + 0.9, new THREE.MeshStandardMaterial({ color: 0x6f6a78, roughness: 1, side: THREE.BackSide }));
+    cave.inner.visible = false;
+    const moss = [];
+    for (let k = 0; k < 9; k++) { const a = k * 0.7 + 0.3, rr = 1.2 + (k % 3) * 1.5; moss.push(orb(0.9, k % 2 ? "#6fd36a" : "#58c26b", { x: Math.cos(a) * rr, y: Math.sqrt(Math.max(0.1, 38 - rr * rr)) * 0.82 + 0.1, z: Math.sin(a) * rr, sy: 0.35 })); }
+    cave.outer.add(limb(moss));
+    // La voûte se referme au-dessus du portail : il ne reste que l'arche d'entrée.
+    cave.outer.add(new THREE.Mesh(new THREE.SphereGeometry(cave.r + 1.0, 8, 8, Math.PI / 2 - 0.43, 0.86, 0, 0.95), cave.outer.material));
+    farm.cave = cave;
     const gateZ = cave.z + cave.r + 0.5; // le portail
     [-1.5, 1.5].forEach((dx) => { decor.push(box(0.32, 3.0, 0.32, "#8a5a3c", { x: cave.x + dx, y: 1.5, z: gateZ })); obstacles.push([cave.x + dx - 0.2, cave.x + dx + 0.2, gateZ - 0.2, gateZ + 0.2]); });
     decor.push(box(3.6, 0.34, 0.4, "#8a5a3c", { x: cave.x, y: 3.05, z: gateZ }), cyl(0.03, 0.4, "#22252e", { x: cave.x + 1.0, y: 2.7, z: gateZ }, 6), orb(0.16, "#ffd98a", { x: cave.x + 1.0, y: 2.45, z: gateZ }));
@@ -3929,8 +3949,32 @@ export function createParking3D(container, options) {
     stamp("boisson");
   }
   // Sons synthétisés (aucun fichier) : notes [fréquence, volume, départ], durée de l'écho.
-  let audio = null, muted = false;
-  try { muted = window.localStorage.getItem("access.plan3d.son") === "false"; } catch (err) { /* son activé par défaut */ }
+  let audio = null, master = null;
+  const audioMix = { vol: 0.6, music: true }; // réglages du son, gardés sur l'appareil
+  try {
+    const kept = JSON.parse(window.localStorage.getItem("access.plan3d.son") || "{}") || {};
+    if (Number.isFinite(kept.vol)) audioMix.vol = clamp(kept.vol, 0, 1);
+    if (typeof kept.music === "boolean") audioMix.music = kept.music;
+  } catch (err) { /* réglages par défaut */ }
+  // Petite musique de promenade : une ritournelle pentatonique et sa basse, jouées note à note.
+  const TUNE = [659, 0, 784, 659, 587, 0, 523, 587, 659, 784, 880, 0, 784, 659, 587, 0, 523, 0, 587, 659, 784, 0, 659, 587, 523, 587, 659, 0, 587, 523, 440, 0];
+  const BASS = [262, 196, 220, 196, 262, 196, 175, 196];
+  const music = { t: 0, i: 0 };
+  function stepMusic(dt) {
+    if (!walk.on || !audioMix.music || audioMix.vol <= 0 || walk.game) return;
+    music.t -= dt;
+    if (music.t > 0) return;
+    music.t += 0.36;
+    const note = TUNE[music.i % TUNE.length];
+    if (note) sound([[note, 0.028, 0], [note * 2, 0.008, 0]], 0.5, null, true);
+    if (music.i % 4 === 0) sound([[BASS[(music.i / 4) % BASS.length], 0.035, 0]], 1.3, null, true);
+    music.i++;
+  }
+  // La « voix » d'un habitant : quelques notes rapides, d'une hauteur propre à chacun.
+  function babble(seed) {
+    const base = 300 + (hash(seed) % 9) * 45;
+    sound(Array.from({ length: 8 }, (_, i) => [base * (1 + ((i * 7 + hash(seed)) % 5) * 0.07), 0.05, i * 0.075]), 0.07, "triangle", true);
+  }
   const SFX = { // petits sons synthétisés : notes [fréquence, volume, départ], durée, forme d'onde
     saut: [[[330, 0.07, 0], [520, 0.06, 0.07]], 0.16],
     pop: [[[620, 0.05, 0], [830, 0.04, 0.05]], 0.1],
@@ -3943,11 +3987,12 @@ export function createParking3D(container, options) {
   };
   function sfx(name) { const it = SFX[name]; if (it) sound(it[0], it[1], it[2], true); }
   function sound(notes, ring, shape, steady) {
-    if (muted) return;
+    if (audioMix.vol <= 0) return;
     try {
       const Ctx = window.AudioContext || window.webkitAudioContext;
       if (!Ctx) return;
-      audio = audio || new Ctx();
+      if (!audio) { audio = new Ctx(); master = audio.createGain(); master.connect(audio.destination); }
+      master.gain.value = audioMix.vol;
       const t0 = audio.currentTime;
       notes.forEach((n) => {
         const osc = audio.createOscillator(), gain = audio.createGain(), at = t0 + (n[2] || 0);
@@ -3957,7 +4002,7 @@ export function createParking3D(container, options) {
         gain.gain.setValueAtTime(0.0001, t0);
         gain.gain.setValueAtTime(n[1], at);
         gain.gain.exponentialRampToValueAtTime(0.0008, at + ring);
-        osc.connect(gain).connect(audio.destination);
+        osc.connect(gain).connect(master);
         osc.start(at);
         osc.stop(at + ring + 0.1);
       });
@@ -4198,7 +4243,13 @@ export function createParking3D(container, options) {
       }
       const verdict = elem("p", "p3d-luck p3d-reveal" + (d.game === "pfc" ? " fast" : ""), text);
       const more = elem("p", "p3d-reveal" + (d.game === "pfc" ? " fast" : ""), detail + " Sans rancune : à la fin, l'amour gagne toujours.");
-      if (d.game === "morpion") { verdict.className = "p3d-luck"; more.className = ""; } else nodes.push(stage);
+      if (d.game === "morpion") { // la grille finale, avec la ligne gagnante en jaune
+        verdict.className = "p3d-luck"; more.className = "";
+        const line = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]].find((l) => d.board[l[0]] && l.every((c) => d.board[c] === d.board[l[0]])) || [];
+        const grid = elem("div", "p3d-grid3");
+        d.board.forEach((v, i) => { const cell = button(v === 1 ? "✕" : v === 2 ? "○" : "", () => {}, "p3d-cell" + (line.includes(i) ? " won" : "")); cell.disabled = true; grid.appendChild(cell); });
+        nodes.push(grid);
+      } else nodes.push(stage);
       nodes.push(verdict, more, panelClose("Fermer"));
       if (walk.duelDone !== d.id) {
         walk.duelDone = d.id;
@@ -4248,6 +4299,9 @@ export function createParking3D(container, options) {
       if (d < 2.0 && (!best || d < best.d)) best = { d, node };
     });
     walk.farmNear = best;
+    const cv = lot.farm.cave, inside = walk.on && Math.hypot(walk.x - cv.x, walk.z - cv.z) < cv.r + 0.3;
+    cv.outer.visible = !inside;
+    cv.inner.visible = inside;
   }
   const qs = (id) => progress.quests[id] || 0; // 0 : à proposer, 1 : en cours, 2 : à rendre, 3 : terminée
   function refreshQuests() {
@@ -4278,6 +4332,7 @@ export function createParking3D(container, options) {
     const q = QUESTS.find((it) => it.id === id), v = qs(id);
     const f = lot.quest.folk.find((it) => it.id === id);
     walk.rot = Math.atan2(f.x - walk.x, f.z - walk.z);
+    babble(id);
     const button = (label, fn) => { const b = elem("button", null, label); b.type = "button"; b.addEventListener("click", fn); return b; };
     const line = v === 0 ? q.ask : v === 1 ? "Alors, ça avance ? " + q.todo : v === 2 ? q.done : "Encore merci pour tout à l'heure !";
     const nodes = [elem("span", "p3d-who", q.who), elem("p", "p3d-say", line)];
@@ -4325,6 +4380,17 @@ export function createParking3D(container, options) {
       if (qz.blooms.every((bl) => !bl.mesh.visible)) questEvent("fleurs");
       else toast("Fleur dorée cueillie.", 2.5);
     });
+  }
+  // Réglages : volume par paliers, musique oui ou non. Gardés sur l'appareil.
+  function openSettings() {
+    const save = () => { store("access.plan3d.son", { vol: audioMix.vol, music: audioMix.music }); if (master) master.gain.value = audioMix.vol; openSettings(); sfx("pop"); };
+    const row = elem("div", "p3d-row center");
+    row.append(button("−", () => { audioMix.vol = Math.max(0, Math.round((audioMix.vol - 0.2) * 10) / 10); save(); }, "p3d-chip"),
+      elem("b", null, audioMix.vol <= 0 ? "Son coupé" : "Volume " + Math.round(audioMix.vol * 100) + " %"),
+      button("+", () => { audioMix.vol = Math.min(1, Math.round((audioMix.vol + 0.2) * 10) / 10); save(); }, "p3d-chip"));
+    showPanel("Réglages du son", false, [panelTitle("⚙", "Réglages du son", "#5b4636"), elem("h4", null, "Volume"), row]
+      .concat(choices("Musique de promenade", [[true, "Avec"], [false, "Sans"]], audioMix.music, (v) => { audioMix.music = v; save(); }))
+      .concat([panelClose()]));
   }
   function openBalloons() {
     walk.zoom = { dist: 5.2, pitch: 0.12, y: 1.6 };
@@ -5153,6 +5219,7 @@ export function createParking3D(container, options) {
       fish.position.set(city.pond.x + Math.cos(a) * city.pond.rx * u.r, 0.25, city.pond.z + Math.sin(a) * city.pond.rz * u.r);
       fish.rotation.y = -a;
     });
+    stepMusic(dt);
     BEND.value = lerp(BEND.value, walk.on && !reduceMotion ? BEND_MAX : 0, 1 - Math.exp(-dt * 2.5));
     stepFireworks(dt);
     stepNet(dt);
@@ -5230,11 +5297,7 @@ export function createParking3D(container, options) {
   const nightBtn = toolButton("Nuit", "Passer du jour à la nuit", () => api.setTheme(nightGoal > 0.5 ? "latte" : "mocha"), nightGoal > 0.5);
   const walkBtn = toolButton("Promenade", "Se promener dans le parking avec un personnage (ZQSD)", () => setWalk(!walk.on), false);
   toolButton("?", "À propos de ce monde en 3D", () => openWelcome());
-  const soundBtn = toolButton("Son", "Couper ou remettre les sons", () => {
-    muted = !muted;
-    store("access.plan3d.son", !muted);
-    soundBtn.setAttribute("aria-pressed", String(!muted));
-  }, !muted);
+  toolButton("⚙", "Réglages du son : volume et musique", () => openSettings());
   toolButton("Plein écran", "Afficher le plan en plein écran", () => {
     if (document.fullscreenElement) document.exitFullscreen();
     else if (container.requestFullscreen) container.requestFullscreen().catch(() => {});
