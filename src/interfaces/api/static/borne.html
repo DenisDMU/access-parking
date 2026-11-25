@@ -590,7 +590,7 @@
     if (plan) { plan.setActive(true); refreshPlan(); return; }
     if (planLoading) return;
     planLoading = true;
-    import("/static/parking3d.js?v=4.27.0").then(function (mod) {
+    import("/static/parking3d.js?v=4.27.1").then(function (mod) {
       // Toujours de jour à l'arrivée (le bouton « Nuit » reste disponible). En
       // promenade, la borne d'entrée ou de sortie du décor lance le vrai parcours.
       plan = mod.createParking3D($("plan3d"), {

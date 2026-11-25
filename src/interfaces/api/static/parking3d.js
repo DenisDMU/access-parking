@@ -14,7 +14,7 @@
    et des identifiants pseudonymisés. */
 
 import * as THREE from "./vendor/three-0.160.0.module.min.js";
-import { GAMES as MINI, startGame } from "./promenade-jeux.js?v=4.27.0";
+import { GAMES as MINI, startGame } from "./promenade-jeux.js?v=4.27.1";
 
 // --- Catégories de Parking → zones du plan -----------------------------------
 
@@ -1942,9 +1942,10 @@ export function createParking3D(container, options) {
     paintMat.color.set(t ? t.paint : color);
     const extras = [];
     if (t && fit) {
-      const finish = { mat: [0.88, 0.04, 0.3], metal: [0.2, 0.78, 1.5], nacre: [0.26, 0.5, 1.3] }[t.finish];
+      const finish = { mat: [0.88, 0.04, 0.3], metal: [0.2, 0.78, 1.5], nacre: [0.24, 0.42, 1.35] }[t.finish];
       if (finish) { paintMat.roughness = finish[0]; paintMat.metalness = finish[1]; paintMat.envMapIntensity = finish[2]; }
-      if (t.finish === "nacre") { paintMat.emissive.set(t.paint).offsetHSL(0.14, 0.1, 0); paintMat.emissiveIntensity = 0.22; }
+      // Nacrée : un reflet à peine décalé vers la teinte voisine, pour que la couleur choisie reste la même.
+      if (t.finish === "nacre") { paintMat.emissive.set(t.paint).offsetHSL(0.035, 0, 0.06); paintMat.emissiveIntensity = 0.13; }
       const P = built.paint, D = built.detail, quarter = Math.PI / 2, dark = "#101114";
       const recolor = (from, to) => D.forEach((pt) => { if (pt.color === from) pt.color = to; });
       if (TINTS[t.tint] && t.tint !== "serie") recolor(GLASS, TINTS[t.tint][1]);
