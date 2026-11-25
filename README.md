@@ -20,7 +20,7 @@
 | | |
 |---|---|
 | **Rôle** | Décide si un véhicule peut entrer/sortir du parking et coordonne les échanges avec Vehicles, Booking, Parking, Pricing, Payment (aucune donnée métier des autres services). |
-| **Version actuelle** | `4.14.0` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
+| **Version actuelle** | `4.15.0` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
 | **Dernière mise à jour** | 24 novembre 2026 (plaques de tous pays ; Parking 1.5.0 : catégories et occupation ; borne client ; Vehicles par plaque) |
 | **URL du service déployé** | https://access-api-a1u7.onrender.com |
 | **Documentation Swagger/OpenAPI** | https://access-api-a1u7.onrender.com/docs (ReDoc : `/redoc`, spec brute : `/openapi.json`) |
@@ -69,11 +69,11 @@
 | **API** | ✅ REST documentée (`/docs`), entrées/sorties validées, erreurs normalisées, `/health` | [section 11](#11-endpoints) |
 | **Intégration** | ✅ Les 5 services réels (Vehicles, Booking, Parking, Pricing, Payment, en REST) ; événements publiés sur RabbitMQ (bus d'équipe) | [section 5](#5-brancher-un-vrai-microservice-à-la-place-dun-mock), [section 6](#6-publication-dévénements--webhook-ou-rabbitmq) |
 | **UI** | ✅ Borne client `/borne` (entrée/sortie, clavier à l'écran, ticket, clair/sombre, mobile) et dashboard servi par Access : borne d'entrée/sortie, état du parking (présences, occupation vue par Parking, décisions, santé), journal d'événements, recherche | [section 12](#12-borne-et-journal-de-bord-dashboard) |
-| **Qualité** | ✅ 410 tests (unitaires + intégration), entrées invalides et cas limites couverts, `ruff` (lint + format), script de vérification reproductible | [section 9](#9-tests-et-qualité) |
+| **Qualité** | ✅ 417 tests (unitaires + intégration), entrées invalides et cas limites couverts, `ruff` (lint + format), script de vérification reproductible | [section 9](#9-tests-et-qualité) |
 | **Observabilité** | ✅ Correlation ID propagé à tous les services et événements, logs par décision, `/metrics` Prometheus (techniques + métier + intégration), config Prometheus fournie, `/health` avec version et commit | [section 9](#métriques-prometheus) |
 | **CI/CD et déploiement** | ✅ GitHub Actions (lint → tests → bandit → pip-audit → gitleaks), déploiement Render après CI verte, smoke test de l'instance déployée (version vérifiée), CHANGELOG, Dependabot | [section 9](#intégration-continue-cicd), [section 14](#14-déploiement-sur-render) |
 | **Sécurité** | ✅ Clé API (comparaison en temps constant) sur toutes les routes sauf `/health`, clé borne limitée au passage d'un véhicule, refus de démarrer en production avec une clé faible, validation stricte, erreurs sans stack trace, en-têtes de sécurité, CORS restreint, rate limiting, secrets hors Git, plaque jamais stockée/publiée/renvoyée/loggée (test dédié) | [section 10](#10-sécurité) |
-| **Version** | `4.14.0` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
+| **Version** | `4.15.0` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
 | **Dernière mise à jour** | 24 novembre 2026 | |
 
 ### Suivi des jalons
@@ -503,7 +503,7 @@ ACCESS_TEST_DATABASE_URL=<url Postgres> pytest tests/integration   # idem contre
 pytest -v            # détail de chaque cas
 ```
 
-Couverture (410 tests) :
+Couverture (417 tests) :
 
 - **Unitaires** — matrice complète de la règle de compatibilité
   véhicule/place, règle de présence, règle d'accessibilité ; chaque use case
@@ -546,7 +546,7 @@ précédente, `needs:` dans le workflow) et doivent **tous** passer — si une
 | Job | Outil | Ce qu'il vérifie |
 |---|---|---|
 | Lint | `ruff` | Erreurs, imports, bugs probables, règles de sécurité, **formatage homogène** (config : `ruff.toml`) |
-| Tests | `pytest` | Les 410 tests unitaires + intégration, sans aucun secret |
+| Tests | `pytest` | Les 417 tests unitaires + intégration, sans aucun secret |
 | Sécurité du code | `bandit` | Analyse statique (SAST) : injections, appels dangereux, secrets en dur… |
 | Dépendances | `pip-audit` | Vulnérabilités connues (CVE) dans `requirements.txt` |
 | Secrets | `gitleaks` | Aucun secret (clé API, URL CloudAMQP…) dans tout l'historique git |
@@ -817,6 +817,7 @@ Préfixe `/api/v1` (sauf `/health` et `/metrics`).
 | GET | `/access/presences` | Oui | Véhicules actuellement présents (heure d'entrée, place attribuée, réservation) |
 | GET | `/borne/status` | Non | `{"publicAccess": true}` si la borne publique est ouverte (lu par `/borne` au démarrage) |
 | GET | `/borne/parking` | Non (borne publique) | Occupation pour le plan 3D de la borne : `available` et, par catégorie, `name`, `label`, `totalCapacity`, `spotTaken`, `spotHeld`, `reserved` (véhicules entrés avec une réservation), `reservable` (places encore réservables chez Booking pour l'heure en cours, gardé 60 s, `null` si Booking ne répond pas) ; aucun véhicule ni identifiant ; réponse de Parking gardée 10 s (`BORNE_PARKING_CACHE_S`), 30/min par adresse (`RATE_LIMIT_BORNE_PARKING`) ; 403 si `BORNE_PUBLIC=false` |
+| POST | `/access/presences/{vehicleId}/release` | Oui (exploitation) | Libère un véhicule présent, désigné par son identifiant pseudonymisé : place rendue à Parking, présence « sorti », demande de sortie tracée (« Sortie forcée par l'exploitation »), événement `VEHICLE_EXITED` avec `forced: true`, rien de facturé ; réponse `vehicleId`, `requestId`, `placeId`, `placeFreed` ; 404 si le véhicule n'est pas présent |
 | POST | `/borne/pmr-validation` | Code agent (`agentCode`) | Validation PMR par un agent après « confirmation requise » : `{"licensePlate", "country", "agentCode"}` ; justificatif enregistré chez Vehicles (`PUT`), puis entrée rejouée ; réponse identique à `/borne/passages` (entrée PMR autorisée même si Vehicles refuse l'enregistrement) ; 403 code faux |
 | POST | `/borne/passages` | Non (borne publique) | Passage d'un véhicule depuis la borne : `{"licensePlate", "type", "vehicleType"}` (`vehicleType` facultatif, entrée seulement : `STANDARD`, `ELECTRIC`, `XL`, `HANDICAPPED`, `TWO_WHEELS`) ; date imposée par le serveur, 10/min par adresse, réponse sans identifiants ; 403 si `BORNE_PUBLIC=false` |
 | GET | `/access/borne/key` | Oui (clé API seulement) | Clé des bornes client, pour leur mise en service depuis le dashboard ; 404 si `BORNE_API_KEY` n'est pas définie. Refusée (401) avec la clé borne |
@@ -887,7 +888,11 @@ Renseignez votre `X-API-Key` dans le champ prévu (stockée uniquement dans le
   récentes (autorisées / refusées / confirmation requise), liste des
   **véhicules présents** (place attribuée, réservation, heure et durée de
   présence) et des **dernières demandes** avec leur motif et montant. Un
-  clic ouvre le détail. Panneau **Occupation vue par Parking** : par
+  clic ouvre le détail. Chaque véhicule présent a un bouton **« Libérer »**
+  (et le panneau un bouton « Tout libérer ») : sortie forcée par
+  l'exploitation, sans plaque ni paiement, pour un véhicule parti sans
+  passer par la borne ou un véhicule de test ; une confirmation est
+  demandée, et le dashboard signale si Parking n'a pas rendu la place. Panneau **Occupation vue par Parking** : par
   catégorie, libellé de Parking, taux d'occupation (vert, orange au-delà de
   70 %, rouge au-delà de 90 %), places prises et mises de côté, capacité ;
   alerte si une catégorie utilisée par Access manque chez Parking, ou si

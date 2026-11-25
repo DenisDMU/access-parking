@@ -329,6 +329,15 @@
     text-transform: uppercase;
     border-radius: var(--r-md);
   }
+  /* Petite action dans une ligne ou un en-tête de panneau (ex. « Libérer ») */
+  .mini {
+    flex: none; height: 28px; padding: 0 10px; border: none; border-radius: 9px;
+    background: var(--field); color: var(--text); font-size: 12px; cursor: pointer; white-space: nowrap;
+    transition: background 0.2s var(--ease), color 0.2s var(--ease);
+  }
+  .mini:hover { background: color-mix(in srgb, var(--red) 16%, var(--field)); color: var(--red); }
+  .mini:disabled { opacity: 0.5; cursor: wait; }
+  .panel-head .mini { margin-left: auto; }
   .chips { display: flex; gap: 2px; padding: 3px; border-radius: 12px; background: var(--field); }
   .chip {
     flex: 1; height: 30px; padding: 0 6px;
@@ -605,7 +614,9 @@
         <div class="panel-head">
           <h2>Véhicules présents</h2>
           <code>GET /access/presences</code>
+          <button class="mini" id="releaseAll" type="button" hidden title="Sortir tous les véhicules présents, sans plaque ni paiement (véhicules de test, véhicules partis sans passer par la borne)">Tout libérer</button>
         </div>
+        <p class="notice" id="presenceNotice" role="status" hidden></p>
         <div id="presenceList" class="list"></div>
       </div>
       <div class="panel glass">
@@ -788,6 +799,15 @@
     if (opts.sub) main.appendChild(el("div", "row-sub", opts.sub));
     node.appendChild(main);
     if (opts.time) node.appendChild(el("span", "row-time", opts.time));
+    if (opts.action) {
+      // Action propre à la ligne : ne déclenche pas le clic de la ligne.
+      const act = el("button", "mini", opts.action.label);
+      act.type = "button";
+      act.title = opts.action.title || "";
+      act.addEventListener("click", function (e) { e.stopPropagation(); opts.action.onClick(act); });
+      act.addEventListener("keydown", function (e) { e.stopPropagation(); });
+      node.appendChild(act);
+    }
     if (opts.tooltip) node.title = opts.tooltip;
     if (opts.onClick) {
       node.tabIndex = 0;
@@ -1125,6 +1145,7 @@
     // La minute courante fait partie de la signature : les durées « depuis … » restent à jour.
     if (!changed("presences", [items, Math.floor(Date.now() / 60000)])) return;
     $("kpiPresent").textContent = items.length;
+    $("releaseAll").hidden = !items.length;
     if (!items.length) {
       setEmpty(presenceList, "Aucun véhicule dans le parking.", "car");
       return;
@@ -1137,9 +1158,68 @@
         time: fmtTime(v.enteredAt),
         tooltip: v.entryRequestId ? "Voir la demande d'entrée" : null,
         onClick: v.entryRequestId ? function () { openRequest(v.entryRequestId); } : null,
+        action: {
+          label: "Libérer",
+          title: "Sortir ce véhicule sans plaque ni paiement (parti sans passer par la borne, véhicule de test)",
+          onClick: function (button) { releaseOne(v.vehicleId, button); },
+        },
       });
     }));
   }
+
+  // --- Libérer un véhicule présent (sortie forcée par l'exploitation) ---------
+  // Access ne garde aucune plaque : un véhicule resté « présent » se libère par
+  // son identifiant pseudonymisé. La place est rendue à Parking, rien n'est facturé.
+  function setPresenceNotice(text, color) {
+    const notice = $("presenceNotice");
+    notice.hidden = !text;
+    notice.textContent = text || "";
+    notice.style.setProperty("--c", "var(--" + (color || "green") + ")");
+  }
+  async function releaseVehicle(vehicleId) {
+    const res = await fetch("/api/v1/access/presences/" + encodeURIComponent(vehicleId) + "/release", {
+      method: "POST", headers: { "X-API-Key": getKey() },
+    });
+    if (!res.ok) return { ok: false, status: res.status };
+    return Object.assign({ ok: true }, await res.json());
+  }
+  async function releaseOne(vehicleId, button) {
+    if (!window.confirm("Libérer le véhicule " + shortId(vehicleId) + " ?\n\nIl sortira du parking sans plaque ni paiement, et sa place sera rendue à Parking.")) return;
+    button.disabled = true;
+    try {
+      const result = await releaseVehicle(vehicleId);
+      if (!result.ok) setPresenceNotice(result.status === 404 ? "Ce véhicule n'est déjà plus présent." : "Libération impossible (HTTP " + result.status + ").", "red");
+      else if (result.placeFreed === false) setPresenceNotice("Véhicule " + shortId(vehicleId) + " libéré, mais Parking n'a pas rendu la place : à libérer aussi chez Parking.", "peach");
+      else setPresenceNotice("Véhicule " + shortId(vehicleId) + " libéré, place rendue à Parking.", "green");
+    } catch (err) {
+      setPresenceNotice("Service injoignable : rien n'a été libéré.", "red");
+    }
+    refreshAll(true);
+  }
+  $("releaseAll").addEventListener("click", async function () {
+    const vehicles = lastPresences.slice();
+    if (!vehicles.length) return;
+    if (!window.confirm("Libérer les " + vehicles.length + " véhicules présents ?\n\nIls sortiront tous sans plaque ni paiement, et leurs places seront rendues à Parking. À réserver aux véhicules de test ou partis sans passer par la borne.")) return;
+    const button = this;
+    button.disabled = true;
+    let done = 0, kept = 0, failed = 0;
+    for (const v of vehicles) {
+      setPresenceNotice("Libération en cours : " + (done + failed) + " / " + vehicles.length + "…", "blue");
+      try {
+        const result = await releaseVehicle(v.vehicleId);
+        if (result.ok) { done++; if (result.placeFreed === false) kept++; } else if (result.status !== 404) failed++;
+      } catch (err) {
+        failed++;
+      }
+    }
+    button.disabled = false;
+    setPresenceNotice(
+      done + " véhicule(s) libéré(s)" +
+      (kept ? ", dont " + kept + " place(s) non rendue(s) par Parking (à libérer chez Parking)" : "") +
+      (failed ? " · " + failed + " échec(s)" : "") + ".",
+      failed ? "red" : kept ? "peach" : "green");
+    refreshAll(true);
+  });
 
   function renderRecent(items) {
     if (!changed("recent", items)) return;

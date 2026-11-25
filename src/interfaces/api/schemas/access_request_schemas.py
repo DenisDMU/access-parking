@@ -239,6 +239,24 @@ class PresentVehicleOut(BaseModel):
     reservation: bool
 
 
+class PresenceReleaseOut(BaseModel):
+    """Réponse de `POST /access/presences/{vehicleId}/release`."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    vehicle_id: str = Field(alias="vehicleId")
+    request_id: str = Field(alias="requestId", description="Demande de sortie tracée pour l'audit")
+    place_id: str | None = Field(default=None, alias="placeId")
+    place_freed: bool | None = Field(
+        default=None,
+        alias="placeFreed",
+        description=(
+            "true : place rendue à Parking ; false : Parking n'a pas répondu "
+            "(à libérer chez Parking) ; null : aucune place connue pour ce véhicule"
+        ),
+    )
+
+
 class ParkingCategoryOut(BaseModel):
     """Une catégorie de places vue par Parking."""
 
@@ -444,7 +462,7 @@ class HealthOut(BaseModel):
         description="Moteur de base utilisé (sqlite ou postgresql) — jamais l'URL",
     )
     uptime_seconds: int = Field(alias="uptimeSeconds", examples=[1234])
-    version: str = Field(examples=["4.14.0"])
+    version: str = Field(examples=["4.15.0"])
     commit: str = Field(examples=["b742756d0c1e9f4a8b3c2d1e0f9a8b7c6d5e4f3a"])
     booking: str = Field(
         examples=["réel"],

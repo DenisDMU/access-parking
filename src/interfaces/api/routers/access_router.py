@@ -22,6 +22,7 @@ from src.application.use_cases.list_access_requests import ListAccessRequests
 from src.application.use_cases.list_present_vehicles import ListPresentVehicles
 from src.application.use_cases.process_entry_request import ProcessEntryRequest
 from src.application.use_cases.process_exit_request import ProcessExitRequest
+from src.application.use_cases.release_present_vehicle import ReleasePresentVehicle
 from src.domain.value_objects.dto import AccessFilters, PlaceType
 from src.domain.value_objects.enums import RequestType
 from src.infrastructure.config import get_settings
@@ -39,6 +40,7 @@ from src.interfaces.api.schemas.access_request_schemas import (
     ParkingCategoryOut,
     ParkingOverviewOut,
     PlaceTypeOut,
+    PresenceReleaseOut,
     PresentVehicleOut,
     VehicleKnownIn,
     VehicleKnownOut,
@@ -289,6 +291,41 @@ def list_present_vehicles(
         )
         for v in use_case.execute()
     ]
+
+
+@router.post(
+    "/presences/{vehicle_id}/release",
+    response_model=PresenceReleaseOut,
+    summary="Libérer un véhicule présent (sortie forcée par l'exploitation)",
+    description=(
+        "Pour un véhicule parti sans passer par la borne (barrière ouverte à la "
+        "main, panne, véhicule de test). Access ne garde aucune plaque : le "
+        "véhicule est désigné par son identifiant pseudonymisé. La place est "
+        "rendue à Parking, la présence passe à « sorti », une demande de sortie "
+        "est tracée avec un motif explicite et l'événement `VEHICLE_EXITED` est "
+        "publié avec `forced: true`. Rien n'est facturé (ni Pricing ni Payment). "
+        "404 si ce véhicule n'est pas présent."
+    ),
+    responses={
+        **_COMMON_ERROR_RESPONSES,
+        404: {"model": ErrorOut, "description": "Véhicule non présent dans le parking"},
+    },
+)
+def release_present_vehicle(
+    vehicle_id: str = Path(max_length=64, pattern=r"^[A-Za-z0-9_-]+$"),
+    use_case: ReleasePresentVehicle = Depends(deps.get_release_present_vehicle_use_case),
+) -> PresenceReleaseOut:
+    result = use_case.execute(vehicle_id, datetime.now(UTC))
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Véhicule non présent dans le parking"
+        )
+    return PresenceReleaseOut(
+        vehicleId=result.vehicle_id,
+        requestId=result.request_id,
+        placeId=result.place_id,
+        placeFreed=result.place_freed,
+    )
 
 
 @router.post(

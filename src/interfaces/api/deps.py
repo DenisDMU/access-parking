@@ -22,6 +22,7 @@ from src.application.use_cases.list_access_requests import ListAccessRequests
 from src.application.use_cases.list_present_vehicles import ListPresentVehicles
 from src.application.use_cases.process_entry_request import ProcessEntryRequest
 from src.application.use_cases.process_exit_request import ProcessExitRequest
+from src.application.use_cases.release_present_vehicle import ReleasePresentVehicle
 from src.domain.ports.access_repository_port import AccessRepositoryPort
 from src.domain.ports.ai_vision_port import AIVisionPort
 from src.domain.ports.booking_service_port import BookingServicePort
@@ -278,4 +279,18 @@ def get_confirm_disability_use_case(
 ) -> ConfirmDisabilityByAgent:
     return ConfirmDisabilityByAgent(
         vehicles_port=vehicles_port, entry_use_case=entry_use_case, access_repo=access_repo
+    )
+
+
+def get_release_present_vehicle_use_case(
+    parking_port: ParkingServicePort = Depends(get_parking_port),
+    presence_repo: VehiclePresenceRepositoryPort = Depends(get_presence_repository),
+    access_repo: AccessRepositoryPort = Depends(get_access_repository),
+    event_publisher: EventPublisherPort = Depends(get_event_publisher),
+) -> ReleasePresentVehicle:
+    return ReleasePresentVehicle(
+        parking_port=parking_port,
+        presence_repo=presence_repo,
+        access_repo=access_repo,
+        event_publisher=event_publisher,
     )
