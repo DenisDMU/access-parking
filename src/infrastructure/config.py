@@ -122,10 +122,17 @@ class Settings:
 
     rate_limit_access_requests: str = os.getenv("RATE_LIMIT_ACCESS_REQUESTS", "20/minute")
 
-    # Borne publique : le lien /borne marche pour tout le monde, sans clé, via
-    # une route limitée au passage d'un véhicule (date imposée par le serveur,
-    # débit limité par adresse). false = la borne exige sa clé (BORNE_API_KEY).
+    # Borne publique : le lien /borne s'ouvre pour tout le monde, sans clé, avec
+    # le plan 3D et la promenade (routes publiques en lecture, débit limité par
+    # adresse). false = tout ferme, la borne exige sa clé (BORNE_API_KEY).
     borne_public: bool = field(default_factory=lambda: _bool_env("BORNE_PUBLIC", True))
+    # Passage d'un véhicule sans clé (POST /borne/passages, jalon 15 : un
+    # endpoint métier ne doit pas être accessible librement). false par
+    # défaut : seule une borne mise en service avec sa clé fait entrer ou
+    # sortir un véhicule. true rouvre le passage public (démonstration).
+    borne_passages_public: bool = field(
+        default_factory=lambda: _bool_env("BORNE_PASSAGES_PUBLIC", False)
+    )
     rate_limit_borne: str = os.getenv("RATE_LIMIT_BORNE", "10/minute")
     # Réveil des services de l'équipe (offre gratuite de Render, voir
     # infrastructure/external/warm_up.py). `false` : aucun réveil envoyé.

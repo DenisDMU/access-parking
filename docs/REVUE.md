@@ -82,13 +82,15 @@ Principaux choix techniques à savoir justifier :
   dashboard (4.4.0) : seul l'exploitant (clé d'exploitation) peut obtenir la
   clé borne, rangée dans le navigateur pour la borne ; jamais servie à une
   page publique.
-- **Borne publique** (4.5.0) : le lien `/borne` devait marcher pour tous,
-  sans réglage. Une page publique ne pouvant pas cacher de clé, plutôt que
-  de publier la clé borne (qui ouvrirait `POST /access/requests` en
-  entier), une route publique dédiée ne fait que le passage : date imposée
+- **Borne publique** (4.5.0, refermée en 4.29.0) : le lien `/borne` devait
+  marcher pour tous, sans réglage. Une page publique ne pouvant pas cacher
+  de clé, une route publique dédiée ne faisait que le passage (date imposée
   par le serveur, source forcée, réponse sans identifiants, 10/min par
-  adresse. Contrepartie assumée pour la démo, réversible par
-  `BORNE_PUBLIC=false`.
+  adresse). Mais le jalon 15 demande qu'aucun endpoint métier ne soit
+  accessible librement : depuis la 4.29.0, le passage exige une borne mise
+  en service avec sa clé, la route sans clé est fermée par défaut
+  (`BORNE_PASSAGES_PUBLIC=false`), et seuls le plan 3D et la promenade
+  restent publics.
 - La plaque ne fait que traverser Access (4.0.0) : transmise à Vehicles puis
   oubliée, jamais stockée, publiée, renvoyée ni loggée (test dédié).
 - Borne client (`/borne`) servie par Access lui-même : pas de front séparé à

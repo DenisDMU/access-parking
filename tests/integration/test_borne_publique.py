@@ -11,7 +11,7 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 from src.interfaces.api.rate_limit import client_ip
-from tests.integration.conftest import AUTH_HEADERS
+from tests.integration.conftest import AUTH_HEADERS, BORNE_HEADERS
 
 URL = "/api/v1/borne/passages"
 
@@ -23,7 +23,7 @@ def _passage(plate: str, type_: int, **extra) -> dict:
 def test_statut_public_sans_cle(client):
     response = client.get("/api/v1/borne/status")
     assert response.status_code == 200
-    assert response.json() == {"publicAccess": True}
+    assert response.json() == {"publicAccess": True, "publicPassages": True}
 
 
 def test_entree_puis_sortie_sans_aucune_cle(client):
@@ -73,11 +73,55 @@ def test_borne_publique_desactivee(client, monkeypatch):
 
     settings = borne_router.get_settings()
     monkeypatch.setattr(borne_router, "get_settings", lambda: replace(settings, borne_public=False))
-    assert client.get("/api/v1/borne/status").json() == {"publicAccess": False}
+    assert client.get("/api/v1/borne/status").json() == {
+        "publicAccess": False,
+        "publicPassages": False,
+    }
     response = client.post(URL, json=_passage("AA-111-AA", 1))
     assert response.status_code == 403
     # Rien n'a été enregistré.
     assert client.get("/api/v1/access/requests", headers=AUTH_HEADERS).json() == []
+
+
+def test_passage_sans_cle_ferme_par_defaut(monkeypatch):
+    """Jalon 15 : sans réglage, le passage d'un véhicule exige une clé."""
+
+    from src.infrastructure.config import Settings
+
+    monkeypatch.delenv("BORNE_PASSAGES_PUBLIC", raising=False)
+    assert Settings().borne_passages_public is False
+
+
+def test_passage_sans_cle_ferme_plan_3d_ouvert(client, monkeypatch):
+    from src.interfaces.api.routers import borne_router
+
+    settings = borne_router.get_settings()
+    monkeypatch.setattr(
+        borne_router, "get_settings", lambda: replace(settings, borne_passages_public=False)
+    )
+    assert client.get("/api/v1/borne/status").json() == {
+        "publicAccess": True,
+        "publicPassages": False,
+    }
+    response = client.post(URL, json=_passage("AA-111-AA", 1))
+    assert response.status_code == 403
+    assert "clé" in response.json()["detail"]
+    assert client.get("/api/v1/access/requests", headers=AUTH_HEADERS).json() == []
+    # Le plan 3D de la borne reste public : des compteurs, aucun véhicule.
+    assert client.get("/api/v1/borne/parking").status_code == 200
+    # Une borne mise en service avec sa clé fait toujours passer un véhicule.
+    keyed = client.post(
+        "/api/v1/access/requests",
+        json={
+            "licensePlate": "AA-111-AA",
+            "type": 1,
+            "date": datetime.now(UTC).isoformat(),
+            "source": 2,
+        },
+        headers=BORNE_HEADERS,
+    )
+    assert keyed.status_code == 200
+    assert keyed.json()["authorization"]["result"] == 1
 
 
 def test_debit_limite_par_adresse(client):

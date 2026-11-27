@@ -20,8 +20,8 @@
 | | |
 |---|---|
 | **Rôle** | Décide si un véhicule peut entrer/sortir du parking et coordonne les échanges avec Vehicles, Booking, Parking, Pricing, Payment (aucune donnée métier des autres services). |
-| **Version actuelle** | `4.28.0` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
-| **Dernière mise à jour** | 25 novembre 2026 (plan 3D et promenade sur la borne publique ; `/metrics` protégé par un jeton de lecture ; TP Prometheus) |
+| **Version actuelle** | `4.29.0` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
+| **Dernière mise à jour** | 27 novembre 2026 (le passage d'un véhicule exige une borne mise en service avec sa clé ; le plan 3D et la promenade restent publics) |
 | **URL du service déployé** | https://access-api-a1u7.onrender.com |
 | **Documentation Swagger/OpenAPI** | https://access-api-a1u7.onrender.com/docs (ReDoc : `/redoc`, spec brute : `/openapi.json`) |
 | **Dépendances (services appelés)** | **Vehicles**, **Booking**, **Parking**, **Pricing**, **Payment** : tous réels |
@@ -39,7 +39,7 @@
 - [x] Refuser une sortie en cas de paiement refusé ou de véhicule non présent.
 - [x] Publier un événement (webhook ou RabbitMQ) à chaque entrée/sortie/refus.
 - [x] Lister/consulter l'historique des demandes et des événements publiés (audit).
-- [x] **Borne client** (`/borne`) : le lien marche pour tout le monde, sans réglage ; le conducteur saisit sa plaque, entre ou sort, voit sa place ou son ticket (durée, montant payé) ; protégée par une clé borne qui ne permet que le passage d'un véhicule.
+- [x] **Borne client** (`/borne`) : le conducteur saisit sa plaque, entre ou sort, voit sa place ou son ticket (durée, montant payé) ; la borne est mise en service d'un clic depuis le dashboard avec une clé borne qui ne permet que le passage d'un véhicule. Le lien reste ouvert à tous pour le plan 3D et la promenade.
 - [x] Simuler une borne d'entrée/sortie depuis le dashboard (décision, montant et paiement en direct).
 - [x] Voir l'état du parking vu par Access : véhicules présents, dernières décisions, santé et version du service (dashboard + `GET /access/presences`).
 - [x] Refuser une sortie datée avant l'entrée (cas limite, jamais transmis à Pricing/Payment).
@@ -73,8 +73,8 @@
 | **Observabilité** | ✅ Correlation ID propagé à tous les services et événements, logs par décision, `/metrics` Prometheus (techniques + métier + intégration), Prometheus et Grafana fournis ([`tp/prometheus`](tp/prometheus/README.md)), `/health` avec version et commit | [section 9](#métriques-prometheus) |
 | **CI/CD et déploiement** | ✅ GitHub Actions (lint → tests → bandit → pip-audit → gitleaks), déploiement Render après CI verte, smoke test de l'instance déployée (version vérifiée), CHANGELOG, Dependabot | [section 9](#intégration-continue-cicd), [section 14](#14-déploiement-sur-render) |
 | **Sécurité** | ✅ Clé API (comparaison en temps constant) sur toutes les routes sauf `/health`, clé borne limitée au passage d'un véhicule, refus de démarrer en production avec une clé faible, validation stricte, erreurs sans stack trace, en-têtes de sécurité, CORS restreint, rate limiting, secrets hors Git, plaque jamais stockée/publiée/renvoyée/loggée (test dédié) | [section 10](#10-sécurité) |
-| **Version** | `4.28.0` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
-| **Dernière mise à jour** | 24 novembre 2026 | |
+| **Version** | `4.29.0` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
+| **Dernière mise à jour** | 27 novembre 2026 | |
 
 ### Suivi des jalons
 
@@ -752,21 +752,24 @@ Puis <http://localhost:9090> — requêtes utiles :
   service depuis le dashboard. Elle doit faire 16 caractères au
   moins et différer d'`API_KEY` (sinon Access refuse de démarrer en
   production). Vide = pas de clé borne.
-- **Borne publique** (`BORNE_PUBLIC`, activée par défaut) : pour que le
-  lien `/borne` marche pour tout le monde sans réglage, la borne sans clé
-  passe par `POST /borne/passages`, **sans clé**. Une page web publique ne
-  peut pas cacher de secret : cette route est donc réduite au strict
-  nécessaire. Elle ne fait que le passage d'un véhicule (mêmes règles
-  métier), la date est imposée par le serveur (impossible d'antidater une
-  entrée) et la source forcée à « borne », la réponse ne contient ni
-  identifiant de demande ni identifiant du véhicule, et le débit est limité
-  à 10 passages par minute et par adresse (`RATE_LIMIT_BORNE`, adresse
-  réelle lue derrière le proxy de Render). Tout le reste de l'API garde sa
-  clé. Contrepartie assumée pour la démonstration : n'importe qui ayant le
-  lien peut faire entrer ou sortir un véhicule (et déclencher un paiement
-  de test). En production, une borne serait un appareil géré, avec sa clé
-  installée par l'exploitant : `BORNE_PUBLIC=false` ferme la route
-  publique (403) sans changer le code.
+- **Passage d'un véhicule : toujours avec une clé (4.29.0)**. Le passage
+  est un endpoint métier : il exige une borne mise en service avec sa clé
+  (`POST /access/requests` avec la clé borne), y compris la validation PMR
+  par un agent (`POST /borne/pmr-validation`, 401 sans clé). La route sans
+  clé `POST /borne/passages` reste dans le code mais elle est **fermée par
+  défaut** (`BORNE_PASSAGES_PUBLIC=false`, 403). De la 4.5.0 à la 4.28.0,
+  elle était ouverte pour que le lien `/borne` fasse passer un véhicule sans
+  réglage : n'importe qui ayant le lien pouvait alors faire entrer ou sortir
+  un véhicule. Une page web publique ne pouvant pas cacher de secret, c'est
+  l'appareil de la borne qui porte la clé, installée par l'exploitant
+  depuis le dashboard. Si on la rouvre (`BORNE_PASSAGES_PUBLIC=true`, pour
+  une démonstration), elle ne fait que le passage : date imposée par le
+  serveur, source forcée à « borne », réponse sans identifiants, 10
+  passages par minute et par adresse (`RATE_LIMIT_BORNE`).
+- **Borne publique en lecture** (`BORNE_PUBLIC`, activée par défaut) : le
+  lien `/borne` reste ouvert à tous pour le plan 3D et la promenade (routes
+  ci-dessous, sans véhicule ni identifiant). `BORNE_PUBLIC=false` les ferme
+  aussi (403).
 - **Occupation publique** (`GET /borne/parking`, 4.12.0) : pour le plan 3D
   de la borne. Ne rend que des compteurs par catégorie, déjà visibles de
   quiconque regarde le parking ; ni véhicule, ni identifiant, ni demande.
@@ -841,15 +844,15 @@ Préfixe `/api/v1` (sauf `/health` et `/metrics`).
 | GET | `/access/requests/{id}` | Oui | Détail d'une demande + décision |
 | GET | `/access/requests?vehicleId=&type=&from=&to=&limit=` | Oui | Liste/filtre (audit), plus récentes d'abord, avec la décision (`result`, `reason`, `paymentAmount`) |
 | GET | `/access/presences` | Oui | Véhicules actuellement présents (heure d'entrée, place attribuée, réservation) |
-| GET | `/borne/status` | Non | `{"publicAccess": true}` si la borne publique est ouverte (lu par `/borne` au démarrage) |
+| GET | `/borne/status` | Non | `{"publicAccess": true, "publicPassages": false}` : plan 3D et promenade ouverts, passage sans clé fermé (lu par `/borne` au démarrage) |
 | GET | `/borne/parking` | Non (borne publique) | Occupation pour le plan 3D de la borne : `available` et, par catégorie, `name`, `label`, `totalCapacity`, `spotTaken`, `spotHeld`, `reserved` (véhicules entrés avec une réservation), `reservable` (places encore réservables chez Booking pour l'heure en cours, gardé 60 s, `null` si Booking ne répond pas) ; aucun véhicule ni identifiant ; réponse de Parking gardée 10 s (`BORNE_PARKING_CACHE_S`), 30/min par adresse (`RATE_LIMIT_BORNE_PARKING`) ; 403 si `BORNE_PUBLIC=false` |
 | POST | `/borne/promenade` | Non (borne publique) | Promenade multijoueur du plan 3D : le navigateur envoie la position, la tenue de son personnage et, au volant, le tuning du véhicule (jeton aléatoire, nombres bornés, couleurs `#rrggbb`, mots courts ; aucun texte libre) et reçoit les autres promeneurs, le **pseudo attribué** par Access, `online` et `nextMs` (délai avant le prochain envoi, plus long quand il y a du monde). Rien en base ; un promeneur silencieux disparaît en 12 s ; 60 promeneurs au plus (`PROMENADE_CAPACITY`, sinon 503) ; `RATE_LIMIT_PROMENADE` par adresse ; 403 si `BORNE_PUBLIC=false` ou `PROMENADE_MULTI=false` |
 | GET | `/borne/promenade` | Non (borne publique) | Les promeneurs du moment, pour qui regarde le plan sans se promener (vue d'ensemble, dashboard) |
 | GET, POST | `/borne/promenade/scores` | Non (borne publique) | Meilleurs scores des mini-jeux (5 par jeu, pseudo et score), et déclaration d'un score par le navigateur : jeu connu et score plafonné par jeu, sinon 422. En mémoire : remis à zéro au redémarrage du service |
 | POST | `/borne/promenade/defi` | Non (borne publique) | Défi amical entre deux promeneurs : `invite` (cible, jeu : `morpion`, `pfc`, `piece`), `accept`, `decline`, `move`. Le serveur arbitre (coups validés, pièce lancée par lui, choix de l'autre caché jusqu'à la fin de la manche) ; 409 avec un message si l'action est refusée. Les défis en cours reviennent dans la réponse de `POST /borne/promenade` (`duels`). Aucun texte libre ; un défi sans nouvelle est oublié en 90 s |
 | POST | `/access/presences/{vehicleId}/release` | Oui (exploitation) | Libère un véhicule présent, désigné par son identifiant pseudonymisé : place rendue à Parking, présence « sorti », demande de sortie tracée (« Sortie forcée par l'exploitation »), événement `VEHICLE_EXITED` avec `forced: true`, rien de facturé ; réponse `vehicleId`, `requestId`, `placeId`, `placeFreed` ; 404 si le véhicule n'est pas présent |
-| POST | `/borne/pmr-validation` | Code agent (`agentCode`) | Validation PMR par un agent après « confirmation requise » : `{"licensePlate", "country", "agentCode"}` ; justificatif enregistré chez Vehicles (`PUT`), puis entrée rejouée ; réponse identique à `/borne/passages` (entrée PMR autorisée même si Vehicles refuse l'enregistrement) ; 403 code faux |
-| POST | `/borne/passages` | Non (borne publique) | Passage d'un véhicule depuis la borne : `{"licensePlate", "type", "vehicleType"}` (`vehicleType` facultatif, entrée seulement : `STANDARD`, `ELECTRIC`, `XL`, `HANDICAPPED`, `TWO_WHEELS`) ; date imposée par le serveur, 10/min par adresse, réponse sans identifiants ; 403 si `BORNE_PUBLIC=false` |
+| POST | `/borne/pmr-validation` | Code agent (`agentCode`) | Validation PMR par un agent après « confirmation requise » : `{"licensePlate", "country", "agentCode"}` ; justificatif enregistré chez Vehicles (`PUT`), puis entrée rejouée ; réponse identique à `/borne/passages` (entrée PMR autorisée même si Vehicles refuse l'enregistrement) ; clé de la borne exigée (`X-API-Key`, 401 sinon) tant que le passage sans clé est fermé ; 403 code faux |
+| POST | `/borne/passages` | Non, **fermé par défaut** (403) | Passage sans clé, ouvert seulement si `BORNE_PASSAGES_PUBLIC=true` : `{"licensePlate", "type", "vehicleType"}` (`vehicleType` facultatif, entrée seulement : `STANDARD`, `ELECTRIC`, `XL`, `HANDICAPPED`, `TWO_WHEELS`) ; date imposée par le serveur, 10/min par adresse, réponse sans identifiants |
 | GET | `/access/borne/key` | Oui (clé API seulement) | Clé des bornes client, pour leur mise en service depuis le dashboard ; 404 si `BORNE_API_KEY` n'est pas définie. Refusée (401) avec la clé borne |
 | GET | `/access/parking` | Oui (clé API) | Occupation par catégorie vue par Parking (libellé, prises, mises de côté, capacité) et catégories utilisées par Access mais absentes chez Parking ; `available: false` si Parking ne répond pas |
 | POST | `/access/vehicles/known` | Oui | Vérifie si une plaque (`{"licensePlate": …}`) est connue de Vehicles, sans la créer ni rien persister |
@@ -1165,14 +1168,15 @@ l'arrivée (bouton « Nuit » disponible), avec le mode « Promenade », le
 village de Bonneplace et la borne de réservation décrits plus haut. Le dock disparaît pendant l'envoi d'un passage et dans les
 réglages ; quitter le plan arrête son rendu.
 
-**Mise en service : aucune.** Le lien
-[`/borne`](https://access-api-a1u7.onrender.com/borne) (ou
-`/borne?mode=entree`, `/borne?mode=sortie`) marche tel quel, pour tout le
-monde, sur n'importe quel appareil : la borne demande à Access si la borne
-publique est ouverte (`GET /borne/status`) et passe alors par la route
-publique `POST /borne/passages` (voir [section 10](#10-sécurité)).
+**Sans mise en service**, le lien
+[`/borne`](https://access-api-a1u7.onrender.com/borne) s'ouvre pour tout le
+monde mais n'accepte aucun passage (4.29.0) : la borne demande à Access ce
+qui est ouvert (`GET /borne/status`), affiche « Borne hors service » et
+laisse voir le parking en 3D depuis le dock. Pour une démonstration, on peut
+rouvrir le passage sans clé (`BORNE_PASSAGES_PUBLIC=true`, voir
+[section 10](#10-sécurité)).
 
-**Avec la clé borne (si `BORNE_PUBLIC=false`)**, depuis le dashboard : onglet
+**Mise en service avec la clé borne**, depuis le dashboard : onglet
 « Borne » du dashboard, panneau **Borne client** (affiché seulement une fois
 la clé d'exploitation validée) : choisir l'emplacement (entrée et sortie,
 entrée, sortie) puis **Ouvrir la borne client**. Le dashboard demande la clé
@@ -1188,9 +1192,9 @@ sur le logo, ou `/borne?config`. On y saisit la **clé borne**
 cas, la borne s'en souvient ensuite (à refaire seulement sur un autre
 appareil ou navigateur, en navigation privée, ou si les données du site sont
 effacées). Une borne configurée avec sa clé utilise `POST /access/requests`
-(si la clé a changé dans Render, elle repasse d'elle-même par la route
-publique). Sans clé et avec `BORNE_PUBLIC=false`, la borne affiche « Borne
-hors service ».
+et envoie aussi sa clé pour la validation PMR. Si la clé a changé dans
+Render, la borne affiche « Borne hors service » : la remettre en service
+depuis le dashboard.
 
 **Données** : la borne ne garde que sa clé et son emplacement (stockage du
 navigateur). La plaque n'est conservée nulle part : elle disparaît de

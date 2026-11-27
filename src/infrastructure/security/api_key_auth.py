@@ -4,7 +4,8 @@ Trois niveaux :
 
 - `API_KEY` (exploitation) : accès à toutes les routes.
 - `BORNE_API_KEY` (bornes client, écran public) : accès au seul passage d'un
-  véhicule (`POST /access/requests`, via `verify_passage_key`). Une borne
+  véhicule (`POST /access/requests`, via `verify_passage_key`) et à la
+  validation PMR de la borne (`is_passage_key`). Une borne
   volée ou inspectée ne donne donc accès ni à l'historique, ni aux
   présences, ni aux événements, ni aux métriques.
 - `METRICS_TOKEN` (supervision) : lecture de `GET /metrics` seulement (via
@@ -63,6 +64,22 @@ def verify_passage_key(api_key: str | None = Security(_api_key_header)) -> str:
     if not (is_admin or is_borne):
         raise _unauthorized()
     return api_key
+
+
+def is_passage_key(api_key: str | None) -> bool:
+    """Vrai si la clé fournie est celle d'exploitation ou celle des bornes.
+
+    Pour les routes de la borne qui acceptent une clé sans l'exiger toujours
+    (validation PMR : clé exigée dès que le passage public est fermé).
+    """
+
+    if not api_key:
+        return False
+    settings = get_settings()
+    # Les deux comparaisons sont toujours faites (pas de court-circuit).
+    is_admin = _matches(api_key, settings.api_key)
+    is_borne = _matches(api_key, settings.borne_api_key)
+    return is_admin or is_borne
 
 
 def verify_metrics_key(
