@@ -10,8 +10,11 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from urllib.parse import urlsplit
 
 from dotenv import load_dotenv
+
+from src.infrastructure.external.route_paths import safe_route_path
 
 load_dotenv()
 
@@ -116,6 +119,11 @@ class Settings:
     # ou "rabbitmq" (voir infrastructure/external/rabbitmq_event_publisher.py).
     event_publisher: str = os.getenv("EVENT_PUBLISHER", "webhook")
     rabbitmq_url: str = os.getenv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/%2F")
+    # Bus sans TLS (`amqp://`) vers un autre hôte : refusé en production, sauf
+    # si le bus est sur le réseau privé de Render (voir `check_secrets`).
+    rabbitmq_allow_plaintext: bool = field(
+        default_factory=lambda: _bool_env("RABBITMQ_ALLOW_PLAINTEXT", False)
+    )
     # Exchange partagé de l'équipe (bus d'événements commun à tous les
     # microservices) — chacun publie sous sa propre routing key
     # (access.entry, access.exit, ... pour Access) sur le même exchange.
@@ -196,6 +204,9 @@ def check_secrets(settings: Settings, *, production: bool) -> list[str]:
         elif settings.metrics_token in (settings.api_key, settings.borne_api_key):
             problems.append("METRICS_TOKEN doit être différent d'API_KEY et de BORNE_API_KEY")
     problems += _keys_sent_in_clear(settings)
+    problems += _credentials_in_addresses(settings)
+    problems += _bus_password_in_clear(settings)
+    problems += _unsafe_vehicles_routes(settings)
     if problems and production:
         raise InsecureConfigurationError("; ".join(problems))
     return problems
@@ -221,6 +232,74 @@ def _keys_sent_in_clear(settings: Settings) -> list[str]:
         # Adresse comparée telle quelle : c'est elle que le client utilise,
         # une espace en tête la rendrait inutilisable.
         if key and not url.lower().startswith("https://")
+    ]
+
+
+def _has_credentials(url: str) -> bool:
+    try:
+        parts = urlsplit(url)
+        return bool(parts.username or parts.password)
+    except ValueError:
+        return True  # adresse illisible : traitée comme douteuse
+
+
+def _credentials_in_addresses(settings: Settings) -> list[str]:
+    """Une adresse du type `https://utilisateur:motdepasse@hôte` met un secret
+    là où il finit recopié (messages d'erreur, métriques, journaux d'un
+    proxy). Les services de l'équipe s'authentifient par l'en-tête
+    `X-API-Key`, jamais par l'adresse."""
+
+    addresses = {
+        "VEHICLES_SERVICE_URL": settings.vehicles_service_url,
+        "BOOKING_SERVICE_URL": settings.booking_service_url,
+        "PARKING_SERVICE_URL": settings.parking_service_url,
+        "PRICING_SERVICE_URL": settings.pricing_service_url,
+        "PAYMENT_SERVICE_URL": settings.payment_service_url,
+    }
+    problems = [
+        f"{name} contient des identifiants (la clé va dans {name[:-12]}_API_KEY)"
+        for name, url in addresses.items()
+        if _has_credentials(url)
+    ]
+    if any(_has_credentials(url) for url in settings.event_subscribers_urls):
+        problems.append("EVENT_SUBSCRIBERS_URLS contient une adresse avec des identifiants")
+    return problems
+
+
+_LOCAL_HOSTS = ("localhost", "127.0.0.1", "::1")
+
+
+def _bus_password_in_clear(settings: Settings) -> list[str]:
+    """`RABBITMQ_URL` porte l'identifiant et le mot de passe du bus : en
+    `amqp://` (sans TLS) ils partent en clair. Toléré vers la machine locale
+    (valeur par défaut, bus de développement) ou, sur déclaration explicite
+    (`RABBITMQ_ALLOW_PLAINTEXT=true`), vers un bus du réseau privé de Render."""
+
+    if settings.event_publisher != "rabbitmq" or settings.rabbitmq_allow_plaintext:
+        return []
+    try:
+        parts = urlsplit(settings.rabbitmq_url)
+        scheme, host = parts.scheme.lower(), parts.hostname
+    except ValueError:
+        return ["RABBITMQ_URL est illisible"]
+    if scheme == "amqps" or not host or host in _LOCAL_HOSTS:
+        return []
+    return ["RABBITMQ_URL n'est pas en amqps:// (le mot de passe du bus partirait en clair)"]
+
+
+def _unsafe_vehicles_routes(settings: Settings) -> list[str]:
+    """Les routes réglables de Vehicles sont collées derrière son adresse :
+    « @autre.hote/x » enverrait la plaque et la clé à un autre serveur. Même
+    filtre que pour les routes lues dans son Swagger."""
+
+    routes = {
+        "VEHICLES_IDENTIFY_PATH": settings.vehicles_identify_path,
+        "VEHICLES_LOOKUP_PATH": settings.vehicles_lookup_path,
+    }
+    return [
+        f"{name} n'est pas un simple chemin (attendu : /api/…)"
+        for name, path in routes.items()
+        if not safe_route_path(path)
     ]
 
 

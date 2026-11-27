@@ -4,6 +4,28 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.29.3] — 2026-11-27 — Aucun secret dans une adresse ni dans le journal
+
+### Sécurité
+- Un appel sortant qui échoue (Parking, Payment, abonnés aux événements, bus
+  RabbitMQ) n'écrit plus dans le journal que le code HTTP reçu ou le type de
+  l'erreur. Le message d'erreur complet recopiait l'adresse appelée, donc
+  tout identifiant ou jeton qui s'y serait trouvé. Pour un abonné, seul son
+  hôte est écrit.
+- En production, Access refuse aussi de démarrer si :
+  - l'adresse d'un service ou d'un abonné contient des identifiants
+    (`https://utilisateur:motdepasse@hôte`) ;
+  - `RABBITMQ_URL` vise un bus distant sans TLS (`amqp://`) : son mot de
+    passe partirait en clair. Nouvelle variable `RABBITMQ_ALLOW_PLAINTEXT`
+    (`false` par défaut) pour un bus du réseau privé de Render ;
+  - `VEHICLES_IDENTIFY_PATH` ou `VEHICLES_LOOKUP_PATH` n'est pas un simple
+    chemin (même filtre que pour les routes lues dans le Swagger de
+    Vehicles).
+  En local, ce sont de simples avertissements.
+- `scripts/tests_en_ligne.py` n'envoie `VEHICLES_API_KEY` qu'en https ;
+  `scripts/bilan_journal.py` n'envoie la clé d'exploitation qu'en https ou
+  vers la machine locale.
+
 ## [4.29.2] — 2026-11-27 — Une clé de service ne part jamais sans https
 
 ### Sécurité

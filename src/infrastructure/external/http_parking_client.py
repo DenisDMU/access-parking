@@ -86,7 +86,11 @@ from src.domain.value_objects.dto import (
     PlaceType,
     VehicleType,
 )
-from src.infrastructure.external.outgoing_http import COLD_START_TIMEOUT_S, outgoing_client
+from src.infrastructure.external.outgoing_http import (
+    COLD_START_TIMEOUT_S,
+    describe_error,
+    outgoing_client,
+)
 from src.infrastructure.external.place_categories import (
     code_from_place_type,
     place_type_from_code,
@@ -214,9 +218,9 @@ class HttpParkingClient:
                 "Parking indisponible sur request_place (%s/%s) : %s",
                 category,
                 commercial_type,
-                exc,
+                describe_error(exc),
             )
-            raise ParkingUnavailableError(str(exc)) from exc
+            raise ParkingUnavailableError(describe_error(exc)) from exc
 
         if not response.json().get("success", False):
             return None
@@ -269,8 +273,8 @@ class HttpParkingClient:
             response.raise_for_status()
             return response.json()
         except (httpx.HTTPError, ValueError) as exc:
-            logger.warning("Parking indisponible sur %s : %s", operation, exc)
-            raise ParkingUnavailableError(str(exc)) from exc
+            logger.warning("Parking indisponible sur %s : %s", operation, describe_error(exc))
+            raise ParkingUnavailableError(describe_error(exc)) from exc
 
     def _is_full(self, category: str, commercial_type: str) -> bool:
         """`True` seulement si Parking dit lui-même qu'il n'y a plus de place
@@ -323,7 +327,9 @@ class HttpParkingClient:
                     },
                 )
         except httpx.HTTPError as exc:
-            logger.warning("Parking indisponible sur confirm_entry (%s) : %s", place_id, exc)
+            logger.warning(
+                "Parking indisponible sur confirm_entry (%s) : %s", place_id, describe_error(exc)
+            )
             return False
         if response.status_code == 409:
             # Place mise de côté expirée (30 s) ou déjà confirmée.
@@ -340,7 +346,9 @@ class HttpParkingClient:
                     json={"category_name": category, "commercial_type": commercial_type},
                 )
         except httpx.HTTPError as exc:
-            logger.warning("Parking indisponible sur mark_place_free (%s) : %s", place_id, exc)
+            logger.warning(
+                "Parking indisponible sur mark_place_free (%s) : %s", place_id, describe_error(exc)
+            )
             return False
         return self._accepted(response, "free", place_id)
 

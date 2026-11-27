@@ -36,6 +36,8 @@ VEHICLES_KEY = os.getenv("VEHICLES_API_KEY", "")
 PASSAGE_KEY = os.getenv("BORNE_API_KEY", "")
 if PASSAGE_KEY and not A.startswith("https://"):
     sys.exit("ACCESS_URL doit être en https:// quand BORNE_API_KEY est fournie")
+if VEHICLES_KEY and not V.startswith("https://"):
+    sys.exit("VEHICLES_URL doit être en https:// quand VEHICLES_API_KEY est fournie")
 KEY_HEADERS = {"X-API-Key": PASSAGE_KEY}
 _INIT = os.path.join(os.path.dirname(__file__), "..", "src", "__init__.py")
 VERSION = re.search(r'__version__ = "([^"]+)"', open(_INIT, encoding="utf-8").read()).group(1)

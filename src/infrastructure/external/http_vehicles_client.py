@@ -86,6 +86,7 @@ import httpx
 from src.domain.value_objects.dto import VehicleInfo, VehicleType
 from src.domain.value_objects.enums import VehicleCategory
 from src.infrastructure.external.outgoing_http import COLD_START_TIMEOUT_S, outgoing_client
+from src.infrastructure.external.route_paths import safe_route_path
 
 logger = logging.getLogger(__name__)
 
@@ -99,14 +100,10 @@ DISCOVERY_MIN_INTERVAL_S = 60.0
 _CREATED = (200, 201)
 
 _PATH_PARAM = re.compile(r"\{[^}]+\}")
-# Route acceptée depuis le Swagger de Vehicles : un simple chemin (« /api/… »),
-# jamais un hôte, un « @ », une requête ou « .. » (revue de sécurité du 25/11 :
-# « @autre.hote/x » aurait envoyé la plaque à un autre serveur).
-_SAFE_PATH = re.compile(r"^/(?!/)[A-Za-z0-9_./{}-]+$")
-
-
-def _safe_path(path: object) -> bool:
-    return isinstance(path, str) and bool(_SAFE_PATH.match(path)) and ".." not in path
+# Route acceptée depuis le Swagger de Vehicles : un simple chemin (voir
+# `route_paths.py`). Les routes réglables passent le même filtre au démarrage
+# (`config.check_secrets`).
+_safe_path = safe_route_path
 
 
 # Routes découvertes dans le Swagger de Vehicles, par URL de base : partagées

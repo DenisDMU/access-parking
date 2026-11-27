@@ -134,7 +134,9 @@ services:
 # (CloudAMQP) gratuit. Pour y revenir un jour : décommenter ce service, et
 # remplacer la valeur de RABBITMQ_URL ci-dessus par
 # amqp://guest:guest@access-rabbitmq:5672/%2F (plus besoin de sync: false
-# dans ce cas, ce ne serait plus un secret externe).
+# dans ce cas, ce ne serait plus un secret externe). Ajouter aussi
+# RABBITMQ_ALLOW_PLAINTEXT=true : sans TLS (amqp://), Access refuse sinon de
+# démarrer en production, pour ne pas envoyer le mot de passe du bus en clair.
 #
 #  - type: pserv
 #    name: access-rabbitmq

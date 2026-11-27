@@ -104,7 +104,12 @@ class RabbitMQEventPublisher:
             EVENTS_PUBLISHED.labels(
                 channel="rabbitmq", event_type=event_type, outcome="error"
             ).inc()
-            logger.warning("Échec de publication RabbitMQ pour l'événement %s: %s", event.id, exc)
+            # Type de l'erreur seulement : l'adresse du bus porte son mot de passe.
+            logger.warning(
+                "Échec de publication RabbitMQ pour l'événement %s : %s",
+                event.id,
+                type(exc).__name__,
+            )
 
     def _connection_params(self) -> pika.URLParameters:
         params = pika.URLParameters(self._amqp_url)
