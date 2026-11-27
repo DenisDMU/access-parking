@@ -4,6 +4,24 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.29.5] — 2026-11-27 — Pricing exige sa clé
+
+### Constaté
+- À 15 h 17, Pricing a déployé la vérification de sa clé (commit `b52c726`,
+  version 1.1.0 inchangée) : `POST /quote` répond 401 sans `X-API-Key` ou
+  avec une clé fausse. L'en-tête, le corps de la demande et celui de la
+  réponse sont ceux qu'Access utilise déjà : aucun code à changer.
+- `GET /health` et `GET /rates` restent sans clé. Nouvelle route publique
+  `POST /simulate` (devis non enregistré), qu'Access n'utilise pas : le
+  devis d'une sortie doit rester tracé chez Pricing.
+
+### Documentation
+- `PRICING_API_KEY` passe d'optionnelle à obligatoire (README, `render.yaml`,
+  `.env.example`, commentaires du client Pricing).
+- Agent `veille-api` : le contrôle de Pricing passe par `POST /simulate`,
+  puisque `POST /quote` exige une clé ; la borne ne fait plus de passage
+  sans clé depuis la 4.29.0.
+
 ## [4.29.4] — 2026-11-27 — Clé de Pricing
 
 ### Corrigé

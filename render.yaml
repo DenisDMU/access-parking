@@ -111,7 +111,7 @@ services:
       - key: BOOKING_API_KEY
         sync: false  # OBLIGATOIRE : Booking exige X-API-Key depuis sa version 2.x (27/11) — clé à demander à l'équipe Booking
       - key: PRICING_API_KEY
-        sync: false  # saisie le 27/11 : Pricing annonce une clé X-API-Key (pas encore vérifiée par sa version 1.1.0) — clé à demander à l'équipe Pricing
+        sync: false  # OBLIGATOIRE : Pricing exige X-API-Key sur POST /quote depuis le 27/11 — clé à demander à l'équipe Pricing
       - key: VEHICLES_API_KEY
         sync: false  # optionnel tant que Vehicles n'a pas activé son authentification
       - key: AI_MODEL_NAME

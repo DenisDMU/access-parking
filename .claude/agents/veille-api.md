@@ -54,14 +54,21 @@ fois avant de conclure qu'un service est en panne.
      (`BOOKING_API_KEY`, chargée de `.env` dans une variable du shell si
      elle y est ; jamais affichée, jamais recopiée, pas de `curl -v`) :
      `GET /v2/booking/reservations/valid?vehicle_id=00000000-0000-0000-0000-000000000000&at=<maintenant>`.
-   - Pricing : `GET /rates` (zones réelles) et `POST /quote` pour chaque
-     zone qu'Access envoie (un devis ne coûte rien).
+   - Pricing : `GET /rates` (zones réelles) et `POST /simulate` pour chaque
+     zone qu'Access envoie (même corps que `POST /quote`, rien n'est
+     enregistré). `POST /quote` exige `X-API-Key` depuis le 27/11 : sans
+     clé, vérifie seulement qu'il répond 401, et relis dans le Swagger que
+     son corps et sa réponse n'ont pas changé.
    - Parking : `GET /health` ; ses autres routes exigent `X-API-Key`, que tu
      n'as pas : appuie-toi sur le Swagger, et sur le passage réel ci-dessous.
    - Payment : `GET /health` uniquement.
-   - Un passage complet sur la borne publique d'Access (entrée puis sortie,
-     plaque `ZZ-9xx-ZZ`, `vehicleType` `STANDARD`) :
-     `POST https://access-api-a1u7.onrender.com/api/v1/borne/passages`.
+   - Un passage complet sur la borne d'Access (entrée puis sortie, plaque
+     `ZZ-9xx-ZZ`, `vehicleType` `STANDARD`) :
+     `POST https://access-api-a1u7.onrender.com/api/v1/borne/passages`,
+     seulement si `GET /api/v1/borne/status` répond `publicPassages: true`.
+     Depuis la 4.29.0 les passages sans clé sont fermés par défaut : dans
+     ce cas, dis que la sortie réelle (Pricing puis Payment) n'a pas pu
+     être vérifiée et qu'il faut un passage à la borne mise en service.
      Attends 7 s entre deux passages (limite de 10 par minute).
 
 ## Interdits
