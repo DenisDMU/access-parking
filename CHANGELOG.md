@@ -4,6 +4,21 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.29.4] — 2026-11-27 — Clé de Pricing
+
+### Corrigé
+- Pricing annonce une clé d'API. Access l'envoyait déjà dans `X-API-Key`
+  quand `PRICING_API_KEY` est renseignée (c'est fait sur Render), mais une
+  clé refusée (401 ou 403) passait pour une panne de Pricing. Elle s'écrit
+  maintenant en erreur dans le journal, avec le nom de la variable à
+  corriger et jamais sa valeur. La sortie reste refusée, comme pour une
+  panne : aucun montant n'est inventé.
+
+### Constaté
+- Le 27/11, Pricing en ligne (1.1.0) ne vérifie pas encore la clé : un devis
+  passe sans clé. Rien ne change donc pour les sorties tant que Pricing n'a
+  pas déployé sa vérification.
+
 ## [4.29.3] — 2026-11-27 — Aucun secret dans une adresse ni dans le journal
 
 ### Sécurité

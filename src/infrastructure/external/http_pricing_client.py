@@ -44,8 +44,11 @@ comportement inattendu apparaît) :
     payload de l'événement `VEHICLE_EXITED` côté Access — actuellement
     seul `amount_eur` est utilisé. À étendre si la traçabilité doit
     remonter jusqu'à Access.
-  - Pas d'authentification côté Pricing au 2026-11-18 ; si elle est activée,
-    renseigner `PRICING_API_KEY` (envoyée dans `X-API-Key`).
+  - Authentification : `PRICING_API_KEY` est renseignée sur Render depuis le
+    2026-11-27 et envoyée dans `X-API-Key`. Pricing 1.1.0 (en ligne ce
+    jour-là) ne la vérifie pas encore. Dès qu'il la vérifiera, une clé
+    refusée (401/403) est écrite en erreur dans le journal, avec le nom de
+    la variable à corriger ; la sortie est refusée, comme pour une panne.
 """
 
 from __future__ import annotations
@@ -124,8 +127,7 @@ class HttpPricingClient:
         self._base_url = base_url.rstrip("/")
         self._transport = transport  # injecté par les tests (httpx.MockTransport)
         self._timeout_s = timeout_s
-        # Envoyé seulement si PRICING_API_KEY est renseignée (authentification
-        # pas encore activée côté Pricing au 2026-11-18).
+        # Envoyé seulement si PRICING_API_KEY est renseignée.
         self._headers = {"X-API-Key": api_key} if api_key else {}
 
     def calculate_price(
@@ -155,6 +157,13 @@ class HttpPricingClient:
                     if not _zone_not_found(response):
                         break
                     logger.warning("Pricing ne connaît pas la zone %r", name)
+            if response.status_code in (401, 403):
+                # Pas une panne : la clé manque ou n'est plus la bonne.
+                logger.error(
+                    "Pricing refuse la clé d'Access (%s) : vérifier PRICING_API_KEY",
+                    response.status_code,
+                )
+                return None
             response.raise_for_status()
             return Decimal(str(response.json()["amount_eur"]))
         except (httpx.HTTPError, KeyError, TypeError, ValueError, ArithmeticError) as exc:
