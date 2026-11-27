@@ -175,8 +175,9 @@ def check_secrets(settings: Settings, *, production: bool) -> list[str]:
 
     En production (Render définit `RENDER=true`), une clé API par défaut ou
     trop courte **empêche le démarrage** : mieux vaut un déploiement en échec
-    qu'une API ouverte avec `change-me`. En local, simple avertissement
-    (renvoyé à l'appelant pour être loggé).
+    qu'une API ouverte avec `change-me`. Même refus si la clé d'un service de
+    l'équipe partirait vers une adresse qui n'est pas en https. En local,
+    simple avertissement (renvoyé à l'appelant pour être loggé).
     """
 
     problems = []
@@ -194,9 +195,33 @@ def check_secrets(settings: Settings, *, production: bool) -> list[str]:
             problems.append(f"METRICS_TOKEN fait moins de {MIN_API_KEY_LENGTH} caractères")
         elif settings.metrics_token in (settings.api_key, settings.borne_api_key):
             problems.append("METRICS_TOKEN doit être différent d'API_KEY et de BORNE_API_KEY")
+    problems += _keys_sent_in_clear(settings)
     if problems and production:
         raise InsecureConfigurationError("; ".join(problems))
     return problems
+
+
+def _keys_sent_in_clear(settings: Settings) -> list[str]:
+    """Une clé d'un service de l'équipe suit l'adresse de ce service : si
+    l'adresse n'est pas en `https://`, la clé part en clair à chaque appel
+    (une faute de frappe dans Render suffit). Sans clé renseignée, rien à
+    protéger : l'adresse n'est pas contrôlée."""
+
+    services = [
+        ("VEHICLES", settings.vehicles_service_url, settings.vehicles_api_key),
+        ("PARKING", settings.parking_service_url, settings.parking_api_key),
+        ("PRICING", settings.pricing_service_url, settings.pricing_api_key),
+        ("PAYMENT", settings.payment_service_url, settings.payment_api_key),
+    ]
+    if not settings.booking_use_mock:
+        services.append(("BOOKING", settings.booking_service_url, settings.booking_api_key))
+    return [
+        f"{name}_SERVICE_URL n'est pas en https alors que {name}_API_KEY est renseignée"
+        for name, url, key in services
+        # Adresse comparée telle quelle : c'est elle que le client utilise,
+        # une espace en tête la rendrait inutilisable.
+        if key and not url.lower().startswith("https://")
+    ]
 
 
 def is_production() -> bool:

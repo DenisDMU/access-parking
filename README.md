@@ -20,7 +20,7 @@
 | | |
 |---|---|
 | **Rôle** | Décide si un véhicule peut entrer/sortir du parking et coordonne les échanges avec Vehicles, Booking, Parking, Pricing, Payment (aucune donnée métier des autres services). |
-| **Version actuelle** | `4.29.1` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
+| **Version actuelle** | `4.29.2` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
 | **Dernière mise à jour** | 27 novembre 2026 (Access suit Booking 2.5.0 : routes sous `/v2/booking` et clé `BOOKING_API_KEY` ; le passage d'un véhicule exige une borne mise en service avec sa clé ; le plan 3D et la promenade restent publics) |
 | **URL du service déployé** | https://access-api-a1u7.onrender.com |
 | **Documentation Swagger/OpenAPI** | https://access-api-a1u7.onrender.com/docs (ReDoc : `/redoc`, spec brute : `/openapi.json`) |
@@ -69,11 +69,11 @@
 | **API** | ✅ REST documentée (`/docs`), entrées/sorties validées, erreurs normalisées, `/health` | [section 11](#11-endpoints) |
 | **Intégration** | ✅ Les 5 services réels (Vehicles, Booking, Parking, Pricing, Payment, en REST) ; événements publiés sur RabbitMQ (bus d'équipe) | [section 5](#5-brancher-un-vrai-microservice-à-la-place-dun-mock), [section 6](#6-publication-dévénements--webhook-ou-rabbitmq) |
 | **UI** | ✅ Borne client `/borne` (entrée/sortie, clavier à l'écran, ticket, clair/sombre, mobile) et dashboard servi par Access : borne d'entrée/sortie, état du parking (présences, occupation vue par Parking, décisions, santé), journal d'événements, recherche | [section 12](#12-borne-et-journal-de-bord-dashboard) |
-| **Qualité** | ✅ 499 tests (unitaires + intégration), entrées invalides et cas limites couverts, `ruff` (lint + format), script de vérification reproductible | [section 9](#9-tests-et-qualité) |
+| **Qualité** | ✅ 520 tests (unitaires + intégration), entrées invalides et cas limites couverts, `ruff` (lint + format), script de vérification reproductible | [section 9](#9-tests-et-qualité) |
 | **Observabilité** | ✅ Correlation ID propagé à tous les services et événements, logs par décision, `/metrics` Prometheus (techniques + métier + intégration), Prometheus et Grafana fournis ([`tp/prometheus`](tp/prometheus/README.md)), `/health` avec version et commit | [section 9](#métriques-prometheus) |
 | **CI/CD et déploiement** | ✅ GitHub Actions (lint → tests → bandit → pip-audit → gitleaks), déploiement Render après CI verte, smoke test de l'instance déployée (version vérifiée), CHANGELOG, Dependabot | [section 9](#intégration-continue-cicd), [section 14](#14-déploiement-sur-render) |
 | **Sécurité** | ✅ Clé API (comparaison en temps constant) sur toutes les routes sauf `/health`, clé borne limitée au passage d'un véhicule, refus de démarrer en production avec une clé faible, validation stricte, erreurs sans stack trace, en-têtes de sécurité, CORS restreint, rate limiting, secrets hors Git, plaque jamais stockée/publiée/renvoyée/loggée (test dédié) | [section 10](#10-sécurité) |
-| **Version** | `4.29.1` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
+| **Version** | `4.29.2` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
 | **Dernière mise à jour** | 27 novembre 2026 | |
 
 ### Suivi des jalons
@@ -169,7 +169,10 @@ envoie la plaque lue ; Access la transmet à Vehicles (règle 3.7 : Access
 l'oublie (`del plate` dans `ProcessEntryRequest` / `ProcessExitRequest` /
 `CheckVehicleKnown`). À l'entrée, `identify_vehicle` retrouve le véhicule ou
 le fait créer par Vehicles s'il est inconnu (règle 3.2) ; à la sortie et
-pour la vérification, `get_vehicle_info` ne fait que consulter. Seul le
+pour la vérification, `get_vehicle_info` ne demande que l'identifiant, mais
+Vehicles n'offre plus de consultation par plaque sans création : une plaque
+qu'il n'a jamais vue y est enregistrée au passage (voir
+[section 16](#16-écarts-assumés-par-rapport-à-la-spec)). Seul le
 `pseudoId` renvoyé par Vehicles (le `vehicleId`) est persisté, publié et
 renvoyé. La plaque n'apparaît dans aucune table, aucun événement, aucune
 réponse (y compris les erreurs 422, dont la valeur reçue est retirée) ni
@@ -505,7 +508,7 @@ ACCESS_TEST_DATABASE_URL=<url Postgres> pytest tests/integration   # idem contre
 pytest -v            # détail de chaque cas
 ```
 
-Couverture (499 tests) :
+Couverture (520 tests) :
 
 - **Unitaires** — matrice complète de la règle de compatibilité
   véhicule/place, règle de présence, règle d'accessibilité ; chaque use case
@@ -548,7 +551,7 @@ précédente, `needs:` dans le workflow) et doivent **tous** passer — si une
 | Job | Outil | Ce qu'il vérifie |
 |---|---|---|
 | Lint | `ruff` | Erreurs, imports, bugs probables, règles de sécurité, **formatage homogène** (config : `ruff.toml`) |
-| Tests | `pytest` | Les 499 tests unitaires + intégration, sans aucun secret |
+| Tests | `pytest` | Les 520 tests unitaires + intégration, sans aucun secret |
 | Sécurité du code | `bandit` | Analyse statique (SAST) : injections, appels dangereux, secrets en dur… |
 | Dépendances | `pip-audit` | Vulnérabilités connues (CVE) dans `requirements.txt` |
 | Secrets | `gitleaks` | Aucun secret (clé API, URL CloudAMQP…) dans tout l'historique git |
@@ -796,8 +799,11 @@ Puis <http://localhost:9090> — requêtes utiles :
   Render (`sync: false`) : `PARKING_API_KEY` et `BOOKING_API_KEY`,
   obligatoires (ces deux services exigent l'en-tête `X-API-Key`), et
   `PAYMENT_API_KEY`. **En production, Access refuse de démarrer** si `API_KEY`
-  vaut `change-me` ou fait moins de 16 caractères (`config.check_secrets`) ;
-  en local, simple avertissement.
+  vaut `change-me` ou fait moins de 16 caractères, ou si la clé d'un service
+  de l'équipe partirait vers une adresse qui n'est pas en `https://` (une
+  clé suit l'adresse de son service : une faute de frappe dans Render
+  l'enverrait en clair) (`config.check_secrets`) ; en local, simple
+  avertissement.
 - **En-têtes de sécurité** : `X-Content-Type-Options: nosniff`,
   `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`,
   `Cache-Control: no-store` sur `/api/*`, HSTS derrière le proxy HTTPS.
@@ -860,7 +866,7 @@ Préfixe `/api/v1` (sauf `/health` et `/metrics`).
 | POST | `/borne/passages` | Non, **fermé par défaut** (403) | Passage sans clé, ouvert seulement si `BORNE_PASSAGES_PUBLIC=true` : `{"licensePlate", "type", "vehicleType"}` (`vehicleType` facultatif, entrée seulement : `STANDARD`, `ELECTRIC`, `XL`, `HANDICAPPED`, `TWO_WHEELS`) ; date imposée par le serveur, 10/min par adresse, réponse sans identifiants |
 | GET | `/access/borne/key` | Oui (clé API seulement) | Clé des bornes client, pour leur mise en service depuis le dashboard ; 404 si `BORNE_API_KEY` n'est pas définie. Refusée (401) avec la clé borne |
 | GET | `/access/parking` | Oui (clé API) | Occupation par catégorie vue par Parking (libellé, prises, mises de côté, capacité) et catégories utilisées par Access mais absentes chez Parking ; `available: false` si Parking ne répond pas |
-| POST | `/access/vehicles/known` | Oui | Vérifie si une plaque (`{"licensePlate": …}`) est connue de Vehicles, sans la créer ni rien persister |
+| POST | `/access/vehicles/known` | Oui | Demande à Vehicles l'identifiant pseudonymisé d'une plaque (`{"licensePlate": …}`), sans rien persister dans Access. Vehicles enregistre une plaque qu'il n'a jamais vue : `known` vaut `true` dès qu'il répond |
 | GET | `/access/events` | Oui | Liste les événements publiés (outbox, démo/observabilité) |
 | GET | `/health` | Non | Healthcheck (API + DB) + moteur de base, version et SHA du commit déployé |
 | GET | `/metrics` | Oui (clé API ou jeton `METRICS_TOKEN`) | Métriques Prometheus, pour le Prometheus qui supervise Access (`X-API-Key` ou `Authorization: Bearer`) : `http_requests_total` (méthode, gabarit de route, classe de statut), `parking_operations_total` (opération, résultat), latences, métriques métier et d'intégration. Uniquement des agrégats, aucune plaque ni identifiant ; hors limitation de débit ; ne compte pas ses propres lectures |
@@ -1075,7 +1081,7 @@ Renseignez votre `X-API-Key` dans le champ prévu (stockée uniquement dans le
   détail JSON dépliable.
 - **Recherche** : une demande par `requestId`, l'historique d'un
   `vehicleId`, ou d'une plaque (résolue d'abord en `vehicleId` auprès de
-  Vehicles, sans la créer).
+  Vehicles, qui enregistre une plaque qu'il n'a jamais vue).
 
 **Design** : thème [Catppuccin](https://catppuccin.com) — **Latte** (clair)
 par défaut, **Mocha** (sombre) en un clic, choix mémorisé dans le navigateur ;
@@ -1476,25 +1482,34 @@ non intrusives** ont été ajoutées :
   refusée avec "réessayez", ce qui est sans risque puisque rejouer la sortie
   renvoie le même paiement (jamais de double encaissement). Un stationnement
   à 0 € ne déclenche aucun paiement (Payment refuse un montant nul).
-- `VehiclesServicePort.get_vehicle_info(plate)` / `identify_vehicle(plate)` :
-  depuis sa mise à jour du 24/11, Vehicles ne connaît plus de `code` et
-  identifie les véhicules par leur plaque (`GET /api/vehicles/{plaque}`, 404
-  si inconnue ; `POST /api/vehicles/identify` retrouve ou crée). Access reçoit
-  donc de nouveau la plaque (`licensePlate` dans `POST /access/requests`,
-  `POST /access/vehicles/known` au lieu de `GET /access/vehicles/{code}/known`)
-  et la transmet à Vehicles sans la conserver. Changement de contrat de l'API
-  Access, d'où la version `4.0.0`. Le `pseudoId` renvoyé devient le
-  `vehicleId`. À l'entrée, une plaque inconnue est créée chez Vehicles comme
-  un 4 roues standard (Access ne connaît pas ses caractéristiques) ; à la
-  sortie, elle ne l'est jamais.
-  Vehicles n'expose pas de justificatif PMR distinct : `isHandicaped` (`handicaped` puis `disabled` avant le 24/11) sert à la
-  fois de type de véhicule (`is_handicap`) et de justificatif
-  (`disability_permit`), donc un véhicule PMR est toujours autorisé sur une
-  place PMR (plus de `CONFIRMATION_REQUIRED` pour justificatif manquant avec
-  le vrai service). Une panne de Vehicles (erreur réseau, 5xx, réponse
-  hors contrat) n'entraîne jamais de création : elle est traitée comme
-  « véhicule non identifié » (procédure alternative), jamais comme un
-  plantage d'Access.
+- `VehiclesServicePort.get_vehicle_info(plate)` /
+  `identify_vehicle(plate, declared)` : Vehicles identifie un véhicule par sa
+  plaque. Access reçoit donc la plaque (`licensePlate` dans
+  `POST /access/requests` et `POST /access/vehicles/known`) et la transmet à
+  Vehicles sans la conserver (changement de contrat de l'API Access, d'où la
+  version `4.0.0`). Contrat actuel de Vehicles (le sixième du 24/11) :
+  `POST /api/vehicle/create` retrouve le véhicule ou le crée et renvoie son
+  `pseudoId`, qui devient le `vehicleId` ; `GET /api/vehicle/{pseudoId}`
+  donne ses caractéristiques. Si Vehicles renomme encore ces routes, Access
+  les retrouve dans son Swagger.
+  **Vehicles n'offre plus de consultation par plaque sans création.** À
+  l'entrée, une plaque inconnue est créée avec le type choisi sur la borne
+  (un véhicule déjà connu n'est jamais réécrit). À la sortie et pour
+  `POST /access/vehicles/known`, une plaque jamais vue est elle aussi
+  enregistrée par Vehicles, comme un 4 roues standard : pour Access rien ne
+  change (sortie refusée « véhicule non présent »), mais `known` vaut `true`
+  dès que Vehicles répond. À remonter à l'équipe Vehicles : une route de
+  consultation par plaque qui ne crée rien.
+  Vehicles n'expose pas de justificatif PMR distinct : `isHandicaped`
+  (`handicaped` puis `disabled` avant le 24/11) sert à la fois de type de
+  véhicule (`is_handicap`) et de justificatif (`disability_permit`). Un
+  véhicule connu comme PMR entre donc sans confirmation. Un véhicule déclaré
+  PMR sur la borne mais inconnu comme tel reçoit `CONFIRMATION_REQUIRED`
+  (« Un agent arrive ») : PMR n'est jamais enregistré sur simple
+  déclaration, c'est la validation par un agent (`POST /borne/pmr-validation`)
+  qui l'inscrit chez Vehicles. Une panne de Vehicles (erreur réseau, 5xx,
+  réponse hors contrat) est traitée comme « véhicule non identifié »
+  (procédure alternative), jamais comme un plantage d'Access.
 
 **Nommage anglais vs. contenu français** : tous les identifiants de code
 (classes d'entités, champs, colonnes SQL, clés JSON) sont en anglais — la

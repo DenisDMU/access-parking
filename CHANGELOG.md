@@ -4,6 +4,32 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.29.2] — 2026-11-27 — Une clé de service ne part jamais sans https
+
+### Sécurité
+- La clé d'un service de l'équipe suit l'adresse de ce service. En
+  production, Access **refuse de démarrer** si une clé (`VEHICLES_API_KEY`,
+  `BOOKING_API_KEY`, `PARKING_API_KEY`, `PRICING_API_KEY`,
+  `PAYMENT_API_KEY`) est renseignée alors que l'adresse du service
+  (`…_SERVICE_URL`) n'est pas en `https://` : une faute de frappe dans
+  Render aurait envoyé la clé en clair à chaque appel. En local, simple
+  avertissement. Sans clé renseignée, l'adresse n'est pas contrôlée.
+
+### Documentation
+- La vérification d'une plaque (`POST /access/vehicles/known`) et la sortie
+  n'interrogent pas Vehicles « sans créer » le véhicule, comme la doc le
+  disait : depuis le 24/11, Vehicles n'offre plus de consultation par plaque
+  sans création, une plaque jamais vue y est donc enregistrée, et `known`
+  vaut `true` dès que Vehicles répond. README, description de la route dans
+  `/docs`, aide du dashboard et commentaires du code corrigés (aucun
+  changement de comportement).
+- La présentation de l'API dans `/docs` disait encore qu'Access « ne reçoit
+  jamais la plaque » : il la reçoit depuis la 4.0.0, la transmet à Vehicles
+  et ne la conserve jamais. Texte corrigé.
+- README, section 16 : le paragraphe Vehicles décrit le contrat actuel
+  (`POST /api/vehicle/create`, `GET /api/vehicle/{pseudoId}`) et la
+  validation PMR par un agent, au lieu du premier contrat du 24/11.
+
 ## [4.29.1] — 2026-11-27 — Booking 2.5.0 : nouvelles routes et clé
 
 ### Corrigé
