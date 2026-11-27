@@ -1224,6 +1224,7 @@
 
   function showOutOfService() {
     clearTimers();
+    pendingPmr = null; // la plaque ne reste pas en mémoire après un refus
     // Borne sans clé : le parking en 3D reste visible depuis le dock.
     $("offPlan").hidden = !publicAccess;
     show("off");

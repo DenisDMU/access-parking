@@ -9,8 +9,8 @@ véhicules de test chez Vehicles.
 
 - `ACCESS_URL` : instance testée (par défaut, celle de Render). La version
   attendue est lue dans `src/__init__.py`.
-- `BORNE_API_KEY` : clé des bornes (ou `API_KEY`), lue dans Render >
-  Environment. Depuis la 4.29.0, un passage exige une borne mise en service
+- `BORNE_API_KEY` : clé des bornes (jamais la clé d'exploitation), lue dans
+  Render > Environment ; `ACCESS_URL` doit alors être en https. Depuis la 4.29.0, un passage exige une borne mise en service
   avec sa clé : les passages passent par `POST /access/requests`, comme la
   borne. Sans cette clé, les sections de passages sont sautées (signalé,
   sans compter comme un échec).
@@ -32,7 +32,10 @@ from datetime import UTC, datetime
 A = os.getenv("ACCESS_URL", "https://access-api-a1u7.onrender.com").rstrip("/")
 V = os.getenv("VEHICLES_URL", "https://parking-vehicles.onrender.com").rstrip("/")
 VEHICLES_KEY = os.getenv("VEHICLES_API_KEY", "")
-PASSAGE_KEY = os.getenv("BORNE_API_KEY", "") or os.getenv("API_KEY", "")
+# Clé des bornes seulement : jamais la clé d'exploitation pour faire des passages.
+PASSAGE_KEY = os.getenv("BORNE_API_KEY", "")
+if PASSAGE_KEY and not A.startswith("https://"):
+    sys.exit("ACCESS_URL doit être en https:// quand BORNE_API_KEY est fournie")
 KEY_HEADERS = {"X-API-Key": PASSAGE_KEY}
 _INIT = os.path.join(os.path.dirname(__file__), "..", "src", "__init__.py")
 VERSION = re.search(r'__version__ = "([^"]+)"', open(_INIT, encoding="utf-8").read()).group(1)

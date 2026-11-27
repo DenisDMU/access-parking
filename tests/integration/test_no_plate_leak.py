@@ -13,10 +13,14 @@ from __future__ import annotations
 
 import logging
 import re
+from dataclasses import replace
+from datetime import UTC, datetime
 
+import pytest
 from sqlalchemy import inspect, text
 
-from tests.integration.conftest import AUTH_HEADERS
+from src.interfaces.api.routers import borne_router
+from tests.integration.conftest import AUTH_HEADERS, BORNE_HEADERS
 
 # Forme canonique (celle transmise à Vehicles), avec bornes de mot pour ne
 # pas confondre avec un morceau d'UUID hexadécimal.
@@ -125,6 +129,46 @@ def test_no_plate_in_responses_tables_events_or_logs(client, caplog):
             "/api/v1/borne/pmr-validation", json={"licensePlate": "BO-333-RN", "agentCode": "999"}
         )
         assert wrong.status_code == 403 and not PLATE.search(wrong.text)
+
+        # Configuration de production (4.29.0) : passage sans clé fermé, la
+        # borne mise en service passe avec sa clé, validation PMR comprise.
+        settings = borne_router.get_settings()
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(
+                borne_router, "get_settings", lambda: replace(settings, borne_passages_public=False)
+            )
+            closed = client.post(
+                "/api/v1/borne/passages", json={"licensePlate": "PR-444-OD", "type": 1}
+            )
+            assert closed.status_code == 403 and not PLATE.search(closed.text)
+            entry = client.post(
+                URL,
+                json={
+                    "licensePlate": "PR-444-OD",
+                    "type": 1,
+                    "date": datetime.now(UTC).isoformat(),  # attente PMR : 5 min
+                    "source": 2,
+                    "vehicleType": "HANDICAPPED",
+                },
+                headers=BORNE_HEADERS,
+            )
+            assert entry.json()["authorization"]["result"] == 3
+            assert not PLATE.search(entry.text)
+            for headers, code in (({}, 401), (BORNE_HEADERS, 200)):
+                response = client.post(
+                    "/api/v1/borne/pmr-validation",
+                    json={"licensePlate": "pr 444 od", "agentCode": "123"},
+                    headers=headers,
+                )
+                assert response.status_code == code and not PLATE.search(response.text)
+            for body in (
+                {"licensePlate": "PR-444-OD", "agentCode": "999"},
+                {"licensePlate": "PR-555-OD", "agentCode": "123"},
+            ):
+                response = client.post(
+                    "/api/v1/borne/pmr-validation", json=body, headers=BORNE_HEADERS
+                )
+                assert response.status_code in (403, 409) and not PLATE.search(response.text)
 
         client.vehicles.available = False
         down = client.post(URL, json=_SCENARIOS[2], headers=AUTH_HEADERS)
