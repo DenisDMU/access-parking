@@ -37,7 +37,11 @@ from decimal import ROUND_HALF_UP, Decimal
 import httpx
 
 from src.domain.value_objects.dto import PaymentResult
-from src.infrastructure.external.outgoing_http import COLD_START_TIMEOUT_S, outgoing_client
+from src.infrastructure.external.outgoing_http import (
+    COLD_START_TIMEOUT_S,
+    describe_error,
+    outgoing_client,
+)
 from src.infrastructure.metrics import PAYMENT_AMOUNT_EUROS, PAYMENTS
 
 logger = logging.getLogger(__name__)
@@ -102,7 +106,7 @@ class HttpPaymentClient:
                     data = response.json()
         except (httpx.HTTPError, KeyError, ValueError) as exc:
             # ValueError/KeyError : réponse non-JSON ou contrat inattendu.
-            logger.warning("Service Payment indisponible : %r", exc)
+            logger.warning("Service Payment indisponible : %s", describe_error(exc))
             PAYMENTS.labels(outcome="unavailable").inc()
             return None
 

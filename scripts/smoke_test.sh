@@ -16,6 +16,18 @@ set -uo pipefail
 
 BASE_URL="${BASE_URL:-http://localhost:8000}"
 API_KEY="${API_KEY:-change-me}"
+
+# La clé ne part qu'en https, ou vers cette machine (jamais d'identifiants
+# dans l'adresse : « http://localhost:8000@autre.example » vise autre.example).
+case "$BASE_URL" in
+  *@*) ok=0 ;;
+  https://*|http://localhost|http://localhost[:/]*|http://127.0.0.1|http://127.0.0.1[:/]*) ok=1 ;;
+  *) ok=0 ;;
+esac
+if [ "$ok" != 1 ]; then
+  echo "BASE_URL doit être en https:// (http:// accepté pour localhost)" >&2
+  exit 2
+fi
 VEHICLE_PLATE="${VEHICLE_PLATE:-}"
 # Si défini (ex. par la CI) : vérifie que l'instance sert bien CETTE version.
 EXPECTED_VERSION="${EXPECTED_VERSION:-}"

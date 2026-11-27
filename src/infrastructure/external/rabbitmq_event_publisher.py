@@ -99,12 +99,20 @@ class RabbitMQEventPublisher:
         try:
             self._send_to_rabbitmq(event)
             EVENTS_PUBLISHED.labels(channel="rabbitmq", event_type=event_type, outcome="ok").inc()
-        except AMQPError as exc:
+        except (AMQPError, ValueError, OSError) as exc:
             # Best-effort : un souci RabbitMQ ne bloque jamais la décision d'accès.
+            # ValueError : adresse du bus mal formée (pika en recopie un morceau
+            # dans son message, donc parfois un bout du mot de passe) ; OSError :
+            # hôte introuvable.
             EVENTS_PUBLISHED.labels(
                 channel="rabbitmq", event_type=event_type, outcome="error"
             ).inc()
-            logger.warning("Échec de publication RabbitMQ pour l'événement %s: %s", event.id, exc)
+            # Type de l'erreur seulement : l'adresse du bus porte son mot de passe.
+            logger.warning(
+                "Échec de publication RabbitMQ pour l'événement %s : %s",
+                event.id,
+                type(exc).__name__,
+            )
 
     def _connection_params(self) -> pika.URLParameters:
         params = pika.URLParameters(self._amqp_url)

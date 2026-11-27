@@ -16,6 +16,7 @@ domaine ni aux use cases — seul ce fichier serait ré-implémenté.
 from __future__ import annotations
 
 import logging
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -24,7 +25,7 @@ from src.domain.ports.access_repository_port import AccessRepositoryPort
 from src.infrastructure.db.repositories.sql_outbox_repository import (
     SqlOutboxRepository,
 )
-from src.infrastructure.external.outgoing_http import outgoing_client
+from src.infrastructure.external.outgoing_http import describe_error, outgoing_client
 from src.infrastructure.logging_config import get_correlation_id
 from src.infrastructure.metrics import EVENT_TYPE_LABEL, EVENTS_PUBLISHED
 
@@ -80,4 +81,9 @@ class OutboxEventPublisher:
                 EVENTS_PUBLISHED.labels(
                     channel="webhook", event_type=event_type, outcome="error"
                 ).inc()
-                logger.warning("Échec de diffusion de l'événement vers %s: %s", url, exc)
+                # Hôte seulement : l'adresse d'un abonné peut porter un jeton.
+                logger.warning(
+                    "Échec de diffusion de l'événement vers %s : %s",
+                    urlsplit(url).hostname or "abonné",
+                    describe_error(exc),
+                )

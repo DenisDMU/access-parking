@@ -27,6 +27,16 @@ from src.infrastructure.metrics import OUTGOING_DURATION, OUTGOING_REQUESTS, sta
 CORRELATION_HEADER = "X-Correlation-ID"
 
 
+def describe_error(exc: BaseException) -> str:
+    """Ce qu'on peut écrire d'un appel sortant qui échoue : le code HTTP reçu
+    ou le type de l'erreur. Jamais le message de l'exception : celui d'httpx
+    recopie l'adresse appelée, donc tout identifiant qui s'y trouverait."""
+
+    if isinstance(exc, httpx.HTTPStatusError):
+        return f"HTTP {exc.response.status_code}"
+    return type(exc).__name__
+
+
 class _TracedTransport(httpx.BaseTransport):
     """Enveloppe un transport httpx : ajoute le correlation ID et mesure."""
 

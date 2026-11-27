@@ -26,14 +26,19 @@ import urllib.error
 import urllib.request
 from collections import Counter
 from datetime import UTC, datetime
+from urllib.parse import urlsplit
 
 RESULT = {1: "autorisée", 2: "refusée", 3: "à confirmer"}
 TYPE = {1: "entrée", 2: "sortie"}
 
 
 def get(base: str, path: str, key: str):
-    if not base.startswith(("https://", "http://")):
-        raise SystemExit("ACCESS_URL doit commencer par http:// ou https://")
+    # La clé d'exploitation ne part qu'en https, ou vers cette machine (hôte
+    # comparé en entier : « localhost.autre.example » n'est pas cette machine).
+    parts = urlsplit(base)
+    local = parts.scheme == "http" and parts.hostname in ("localhost", "127.0.0.1", "::1")
+    if parts.username or parts.password or not (parts.scheme == "https" or local):
+        raise SystemExit("ACCESS_URL doit être en https:// (http:// accepté pour localhost)")
     req = urllib.request.Request(f"{base}{path}", headers={"X-API-Key": key})  # noqa: S310
     try:
         with urllib.request.urlopen(req, timeout=90) as resp:  # noqa: S310 (http(s) vérifié)
