@@ -55,10 +55,15 @@ services:
         # Access : il ne donne accès à aucune autre route. Généré par Render.
         generateValue: true
       - key: BORNE_PUBLIC
-        # true : le lien /borne marche pour tous, sans clé, via la route
-        # publique POST /api/v1/borne/passages (passage seulement, date
-        # imposée, 10/min par adresse). false : la borne exige sa clé.
+        # true : le lien /borne s'ouvre pour tous, avec le plan 3D et la
+        # promenade (lecture seulement). false : tout ferme, la borne exige
+        # sa clé.
         value: "true"
+      - key: BORNE_PASSAGES_PUBLIC
+        # Passage d'un véhicule SANS clé (POST /api/v1/borne/passages).
+        # false (jalon 15) : seule une borne mise en service avec sa clé fait
+        # entrer ou sortir un véhicule. true : passage public, démonstration.
+        value: "false"
       - key: AGENT_CODE
         # Code saisi par l'agent sur la borne pour valider un PMR (carte
         # mobilité inclusion vérifiée). Volontairement simple : démonstration.

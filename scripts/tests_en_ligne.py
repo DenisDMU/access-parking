@@ -1,18 +1,23 @@
-"""Batterie de tests en ligne d'Access (sans clé : routes publiques seulement).
+"""Batterie de tests en ligne d'Access.
 
 Fait de vrais passages (Vehicles, Booking, Parking, Pricing, Payment réels),
 toujours dans la première heure (0 €, aucun paiement), puis supprime les
 véhicules de test chez Vehicles.
 
-    python3 scripts/tests_en_ligne.py
-    ACCESS_URL=https://... VEHICLES_API_KEY=... python3 scripts/tests_en_ligne.py
+    BORNE_API_KEY=... python3 scripts/tests_en_ligne.py
+    ACCESS_URL=https://... BORNE_API_KEY=... VEHICLES_API_KEY=... python3 scripts/tests_en_ligne.py
 
 - `ACCESS_URL` : instance testée (par défaut, celle de Render). La version
   attendue est lue dans `src/__init__.py`.
+- `BORNE_API_KEY` : clé des bornes (jamais la clé d'exploitation), lue dans
+  Render > Environment ; `ACCESS_URL` doit alors être en https. Depuis la 4.29.0, un passage exige une borne mise en service
+  avec sa clé : les passages passent par `POST /access/requests`, comme la
+  borne. Sans cette clé, les sections de passages sont sautées (signalé,
+  sans compter comme un échec).
 - Nettoyage chez Vehicles : `DELETE` est protégé depuis le 24/11. Sans
   `VEHICLES_API_KEY`, les véhicules de test (plaques ZZ-9xx-ZZ) restent chez
   Vehicles ; c'est signalé, sans compter comme un échec.
-- Environ 3 minutes : la borne publique limite à 10 passages par minute.
+- Environ 2 minutes : `POST /access/requests` limite à 20 passages par minute.
 """
 
 import json
@@ -22,10 +27,16 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from datetime import UTC, datetime
 
 A = os.getenv("ACCESS_URL", "https://access-api-a1u7.onrender.com").rstrip("/")
 V = os.getenv("VEHICLES_URL", "https://parking-vehicles.onrender.com").rstrip("/")
 VEHICLES_KEY = os.getenv("VEHICLES_API_KEY", "")
+# Clé des bornes seulement : jamais la clé d'exploitation pour faire des passages.
+PASSAGE_KEY = os.getenv("BORNE_API_KEY", "")
+if PASSAGE_KEY and not A.startswith("https://"):
+    sys.exit("ACCESS_URL doit être en https:// quand BORNE_API_KEY est fournie")
+KEY_HEADERS = {"X-API-Key": PASSAGE_KEY}
 _INIT = os.path.join(os.path.dirname(__file__), "..", "src", "__init__.py")
 VERSION = re.search(r'__version__ = "([^"]+)"', open(_INIT, encoding="utf-8").read()).group(1)
 results = []
@@ -65,18 +76,36 @@ def check(label, ok, detail=""):
     print(("  OK   " if ok else "  ÉCHEC ") + label + (f"  ({detail})" if detail else ""))
 
 
+def keyed(body):
+    """Passage comme la borne mise en service : clé borne, date et source fixées."""
+
+    body = {"date": datetime.now(UTC).isoformat(), "source": 2, **body}
+    return call("POST", f"{A}/api/v1/access/requests", body, headers=KEY_HEADERS)
+
+
 def passage(plate, type_, vehicle_type=None, country=None):
     body = {"licensePlate": plate, "type": type_}
     if vehicle_type:
         body["vehicleType"] = vehicle_type
     if country:
         body["country"] = country
-    code, raw, _ = call("POST", f"{A}/api/v1/borne/passages", body)
-    time.sleep(7)  # limite publique : 10 passages / minute
+    code, raw, _ = keyed(body)
+    time.sleep(3.5)  # limite : 20 passages / minute
     try:
-        return code, json.loads(raw)
+        data = json.loads(raw)
     except ValueError:
         return code, raw
+    if not isinstance(data, dict) or "authorization" not in data:
+        return code, data
+    # Même forme que la réponse affichée par la borne.
+    auth = data["authorization"]
+    return code, {
+        "result": auth.get("result"),
+        "reason": auth.get("reason"),
+        "paymentAmount": auth.get("paymentAmount"),
+        "vehicleIdentified": bool(data.get("vehicleId")),
+        "placeType": data.get("placeType"),
+    }
 
 
 print("1. Santé")
@@ -118,7 +147,20 @@ for method, path in [
     code = call(method, f"{A}{path}", {} if method == "POST" else None)[0]
     check(f"{method} {path} → 401", code == 401, code)
 code, raw, headers = call("GET", f"{A}/api/v1/borne/status")
-check("borne publique ouverte", json.loads(raw) == {"publicAccess": True})
+check(
+    "plan 3D public, passage sans clé fermé",
+    json.loads(raw) == {"publicAccess": True, "publicPassages": False},
+    raw,
+)
+code = call("POST", f"{A}/api/v1/borne/passages", {"licensePlate": "ZZ-920-ZZ", "type": 1})[0]
+check("POST /api/v1/borne/passages sans clé → 403", code == 403, code)
+code = call(
+    "POST", f"{A}/api/v1/borne/pmr-validation", {"licensePlate": "ZZ-920-ZZ", "agentCode": "0"}
+)[0]
+check("POST /api/v1/borne/pmr-validation sans clé → 401", code == 401, code)
+check(
+    "plan 3D public (GET /api/v1/borne/parking)", call("GET", f"{A}/api/v1/borne/parking")[0] == 200
+)
 low = {k.lower(): v for k, v in headers.items()}
 check(
     "en-têtes de sécurité",
@@ -127,16 +169,20 @@ check(
     and low.get("referrer-policy") == "no-referrer",
 )
 
-print("4. Erreurs de saisie (borne publique)")
-code, raw, _ = call("POST", f"{A}/api/v1/borne/passages", {"licensePlate": "AB#123", "type": 1})
+if not PASSAGE_KEY:
+    print("\n  (sans BORNE_API_KEY : passages réels sautés, voir l'en-tête de ce script)")
+    failed = [label for label, ok in results if not ok]
+    print(f"\n{len(results) - len(failed)}/{len(results)} contrôles OK")
+    for label in failed:
+        print("  échec :", label)
+    sys.exit(1 if failed else 0)
+
+print("4. Erreurs de saisie (borne avec sa clé)")
+code, raw, _ = keyed({"licensePlate": "AB#123", "type": 1})
 check("plaque invalide → 422 sans la plaque", code == 422 and "AB#123" not in raw, code)
-code, _, _ = call("POST", f"{A}/api/v1/borne/passages", {"licensePlate": "AB-123-CD", "type": 3})
+code, _, _ = keyed({"licensePlate": "AB-123-CD", "type": 3})
 check("sens invalide → 422", code == 422, code)
-code, _, _ = call(
-    "POST",
-    f"{A}/api/v1/borne/passages",
-    {"licensePlate": "AB-123-CD", "type": 1, "vehicleType": "TANK"},
-)
+code, _, _ = keyed({"licensePlate": "AB-123-CD", "type": 1, "vehicleType": "TANK"})
 check("type de véhicule invalide → 422", code == 422, code)
 
 print("5. Passages réels, un par type de véhicule")
@@ -162,7 +208,6 @@ for plate_in, plate_out, vtype, country, place_ok in cases:
             bool(body.get("placeType")) and place_ok(body["placeType"]),
             body.get("placeType"),
         )
-        check("  aucun identifiant renvoyé", "vehicleId" not in body and "requestId" not in body)
     code, body = passage(plate_out, 2, None, country)
     ok = code == 200 and isinstance(body, dict) and body.get("result") == 1
     check(
@@ -209,17 +254,13 @@ code, body = passage("ZZ932ZZ", 2, None, "IT")
 check("sortie italienne", code == 200 and body.get("result") == 1, body)
 code, body = passage("ZZ-932-ZZ", 2, None, "FR")
 check("sortie française", code == 200 and body.get("result") == 1, body)
-code, raw, _ = call(
-    "POST", f"{A}/api/v1/borne/passages", {"licensePlate": "B-MW 1234", "type": 1, "country": "FR"}
-)
+code, raw, _ = keyed({"licensePlate": "B-MW 1234", "type": 1, "country": "FR"})
 check(
     "plaque allemande déclarée française → 422 sans la plaque",
     code == 422 and "BMW1234" not in raw and "B-MW" not in raw,
     code,
 )
-code, _, _ = call(
-    "POST", f"{A}/api/v1/borne/passages", {"licensePlate": "AB-123-CD", "type": 1, "country": "US"}
-)
+code, _, _ = keyed({"licensePlate": "AB-123-CD", "type": 1, "country": "US"})
 check("pays inconnu → 422", code == 422, code)
 
 print("8. Nettoyage chez Vehicles")

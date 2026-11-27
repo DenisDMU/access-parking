@@ -4,6 +4,30 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.29.0] — 2026-11-27 — Le passage d'un véhicule exige une clé
+
+### Sécurité
+- Jalon 15 : un endpoint métier ne doit pas être accessible librement. Le
+  passage d'un véhicule sans clé (`POST /borne/passages`) est **fermé par
+  défaut** (403) : seule une borne mise en service avec sa clé fait entrer
+  ou sortir un véhicule (`POST /access/requests`). Nouvelle variable
+  `BORNE_PASSAGES_PUBLIC` (`false` par défaut, `false` dans `render.yaml`)
+  pour le rouvrir lors d'une démonstration.
+- `POST /borne/pmr-validation` exige aussi la clé de la borne (`X-API-Key`,
+  401 sinon) tant que le passage sans clé est fermé. Une borne mise en
+  service valide désormais ses PMR même si `BORNE_PUBLIC=false`.
+
+### Modifié
+- `BORNE_PUBLIC` ne gouverne plus que le plan 3D et la promenade, qui
+  restent publics (lecture seulement).
+- `GET /borne/status` renvoie aussi `publicPassages` (ajout, aucun champ
+  retiré).
+- Borne sans clé : écran « Borne hors service », avec le parking en 3D
+  toujours accessible depuis le dock. La borne envoie sa clé pour la
+  validation PMR.
+- `scripts/tests_en_ligne.py` fait ses passages avec la clé de la borne
+  (`BORNE_API_KEY`) et vérifie que le passage sans clé est refusé.
+
 ## [4.28.0] — 2026-11-25 — Le gros bouton rouge et sa pub
 
 ### Ajouté

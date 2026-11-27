@@ -23,6 +23,9 @@ os.environ["API_KEY"] = "test-api-key"
 os.environ["BORNE_API_KEY"] = "test-borne-key-0001"
 os.environ["METRICS_TOKEN"] = ""  # pas de jeton de lecture hérité d'un .env local
 os.environ["BORNE_PUBLIC"] = "true"
+# Passage sans clé ouvert dans les tests existants de la borne publique ; sa
+# fermeture (défaut en production) a ses propres tests.
+os.environ["BORNE_PASSAGES_PUBLIC"] = "true"
 os.environ["RATE_LIMIT_BORNE"] = "10/minute"
 os.environ["BOOKING_USE_MOCK"] = "true"
 os.environ["PAYMENT_API_KEY"] = ""

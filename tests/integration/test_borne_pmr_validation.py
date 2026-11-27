@@ -9,8 +9,10 @@ est rejouée sur une place PMR. Aux passages suivants, plus besoin d'agent.
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import UTC, datetime
 
 from src.interfaces.api.routers import borne_router
+from tests.integration.conftest import AUTH_HEADERS, BORNE_HEADERS
 
 PASSAGE = "/api/v1/borne/passages"
 URL = "/api/v1/borne/pmr-validation"
@@ -109,6 +111,72 @@ def test_borne_publique_desactivee(client, monkeypatch):
     settings = borne_router.get_settings()
     monkeypatch.setattr(borne_router, "get_settings", lambda: replace(settings, borne_public=False))
     assert _validate(client).status_code == 403
+
+
+def _passages_fermes(monkeypatch):
+    settings = borne_router.get_settings()
+    monkeypatch.setattr(
+        borne_router, "get_settings", lambda: replace(settings, borne_passages_public=False)
+    )
+
+
+def _pmr_entry_with_key(client):
+    return client.post(
+        "/api/v1/access/requests",
+        json={
+            "licensePlate": PLATE,
+            "type": 1,
+            "date": datetime.now(UTC).isoformat(),
+            "source": 2,
+            "vehicleType": "HANDICAPPED",
+        },
+        headers=BORNE_HEADERS,
+    )
+
+
+def test_passage_ferme_validation_sans_cle_refusee(client, monkeypatch):
+    _passages_fermes(monkeypatch)
+    assert _pmr_entry_with_key(client).json()["authorization"]["result"] == 3
+    response = _validate(client)
+    assert response.status_code == 401
+    assert not client.vehicles.confirmed  # rien n'est enregistré
+
+
+def test_passage_ferme_mauvaise_cle_refusee(client, monkeypatch):
+    _passages_fermes(monkeypatch)
+    _pmr_entry_with_key(client)
+    response = client.post(
+        URL,
+        json={"licensePlate": PLATE, "agentCode": "123"},
+        headers={"X-API-Key": "pas-la-bonne-cle-0000"},
+    )
+    assert response.status_code == 401
+    assert not client.vehicles.confirmed
+
+
+def test_passage_ferme_borne_avec_sa_cle_valide_le_pmr(client, monkeypatch):
+    _passages_fermes(monkeypatch)
+    _pmr_entry_with_key(client)
+    response = client.post(
+        URL, json={"licensePlate": PLATE, "agentCode": "123"}, headers=BORNE_HEADERS
+    )
+    assert response.status_code == 200
+    assert response.json()["result"] == 1
+    assert client.vehicles.confirmed
+
+
+def test_borne_avec_sa_cle_valide_le_pmr_borne_publique_fermee(client, monkeypatch):
+    settings = borne_router.get_settings()
+    monkeypatch.setattr(
+        borne_router,
+        "get_settings",
+        lambda: replace(settings, borne_public=False, borne_passages_public=False),
+    )
+    _pmr_entry_with_key(client)
+    response = client.post(
+        URL, json={"licensePlate": PLATE, "agentCode": "123"}, headers=AUTH_HEADERS
+    )
+    assert response.status_code == 200
 
 
 def test_plaque_invalide_sans_la_plaque(client):

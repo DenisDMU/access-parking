@@ -405,7 +405,13 @@ class BorneParkingOut(BaseModel):
 class BorneStatusOut(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    public_access: bool = Field(alias="publicAccess")
+    public_access: bool = Field(
+        alias="publicAccess", description="Plan 3D et promenade ouverts au public"
+    )
+    public_passages: bool = Field(
+        alias="publicPassages",
+        description="Passage d'un véhicule sans clé (POST /borne/passages) autorisé",
+    )
 
 
 class VehicleKnownIn(BaseModel):
@@ -462,7 +468,7 @@ class HealthOut(BaseModel):
         description="Moteur de base utilisé (sqlite ou postgresql) — jamais l'URL",
     )
     uptime_seconds: int = Field(alias="uptimeSeconds", examples=[1234])
-    version: str = Field(examples=["4.28.0"])
+    version: str = Field(examples=["4.29.0"])
     commit: str = Field(examples=["b742756d0c1e9f4a8b3c2d1e0f9a8b7c6d5e4f3a"])
     booking: str = Field(
         examples=["réel"],

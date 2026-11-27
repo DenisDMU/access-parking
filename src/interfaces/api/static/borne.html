@@ -466,6 +466,7 @@
     <div class="center">
       <h1 id="offTitle">Borne hors service</h1>
       <p class="lead">Un agent est à votre disposition à l'accueil du parking.</p>
+      <p class="lead" id="offPlan" hidden>En attendant, touchez « Parking en direct » en bas de l'écran pour voir le parking en 3D.</p>
     </div>
   </section>
 
@@ -528,8 +529,12 @@
   var MODE_STORAGE = "access.borne.mode";
   function load(name) { try { return localStorage.getItem(name) || ""; } catch (e) { return ""; } }
   function forget(name) { try { localStorage.removeItem(name); } catch (e) { /* non bloquant */ } }
-  // Vrai si Access accepte les passages sans clé (borne publique, BORNE_PUBLIC).
+  // Vrai si le plan 3D et la promenade sont ouverts au public (BORNE_PUBLIC).
   var publicAccess = false;
+  // Vrai si Access accepte aussi les passages sans clé (BORNE_PASSAGES_PUBLIC,
+  // fermé par défaut) : sinon, seule une borne mise en service avec sa clé
+  // fait entrer ou sortir un véhicule.
+  var publicPassages = false;
   function save(name, value) { try { localStorage.setItem(name, value); } catch (e) { /* non bloquant */ } }
 
   var params = new URLSearchParams(location.search);
@@ -556,8 +561,9 @@
   // première ouverture ; rendu arrêté dès qu'on quitte l'écran.
   var plan = null, planLoading = false, planTimer = null;
   function updateDock() {
-    // Masqué pendant un passage en cours d'envoi, dans les réglages, ou borne fermée.
-    var hidden = !publicAccess || current === "wait" || current === "config" || current === "off";
+    // Masqué pendant un passage en cours d'envoi, dans les réglages, ou borne
+    // fermée. Sur une borne sans clé, le parking en 3D reste accessible.
+    var hidden = !publicAccess || current === "wait" || current === "config";
     $("dock").hidden = hidden;
     document.body.classList.toggle("has-dock", !hidden);
     var onPlan = current === "plan";
@@ -590,7 +596,7 @@
     if (plan) { plan.setActive(true); refreshPlan(); return; }
     if (planLoading) return;
     planLoading = true;
-    import("/static/parking3d.js?v=4.28.0").then(function (mod) {
+    import("/static/parking3d.js?v=4.29.0").then(function (mod) {
       // Toujours de jour à l'arrivée (le bouton « Nuit » reste disponible). En
       // promenade, la borne d'entrée ou de sortie du décor lance le vrai parcours.
       plan = mod.createParking3D($("plan3d"), {
@@ -640,7 +646,7 @@
     pendingPmr = null;
     updatePill();
     // Sans clé, la borne passe par la route publique (si Access l'autorise).
-    if (!borneKey() && !publicAccess) { show("off"); return; }
+    if (!borneKey() && !publicPassages) { showOutOfService(); return; }
     var m = fixedMode();
     if (m) { startPlate(m); return; }
     direction = null;
@@ -692,6 +698,8 @@
   $("typeChange").addEventListener("click", function () { show("type"); });
 
   function startPlate(dir) {
+    // Depuis la promenade : sans clé et sans passage public, pas de passage.
+    if (!borneKey() && !publicPassages) { showOutOfService(); return; }
     setCountry(COUNTRIES[0]); // France par défaut à chaque nouveau passage
     if (dir === 1) {
       // Entrée : d'abord le type de véhicule, puis la plaque.
@@ -919,7 +927,7 @@
         headers: { "Content-Type": "application/json", "X-API-Key": key },
         body: JSON.stringify({ licensePlate: plate, type: dir, date: new Date().toISOString(), source: 2, vehicleType: opts.vehicleType, country: opts.country }),
       }).then(function (res) {
-        if (res.status === 401 && publicAccess) {
+        if (res.status === 401 && publicPassages) {
           // Clé périmée (changée dans Render) : on l'oublie et on passe par la route publique.
           forget(KEY_STORAGE);
           return send(plate, dir, opts);
@@ -1173,11 +1181,14 @@
     agentCode = ""; renderAgent();
     $("agentSubmit").disabled = true;
     agentHint("Vérification…", false);
+    var headers = { "Content-Type": "application/json" };
+    if (borneKey()) headers["X-API-Key"] = borneKey();
     fetch("/api/v1/borne/pmr-validation", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: headers,
       body: JSON.stringify(body),
     }).then(function (res) {
+      if (res.status === 401) { showOutOfService(); return null; }
       if (res.status === 403) {
         return res.json().catch(function () { return {}; }).then(function (data) {
           if (/code agent/i.test(data.detail || "")) { agentHint("Code incorrect. Réessayez.", true); agentTimeout(); }
@@ -1211,7 +1222,13 @@
     sendAndShow(pending.plate, 1, { vehicleType: "STANDARD", country: pending.country });
   });
 
-  function showOutOfService() { clearTimers(); show("off"); }
+  function showOutOfService() {
+    clearTimers();
+    pendingPmr = null; // la plaque ne reste pas en mémoire après un refus
+    // Borne sans clé : le parking en 3D reste visible depuis le dock.
+    $("offPlan").hidden = !publicAccess;
+    show("off");
+  }
 
   // --- Réglages (appui long sur le logo, ou ?config) --------------------------------
   var pressTimer = null;
@@ -1275,8 +1292,11 @@
   }
   fetch("/api/v1/borne/status")
     .then(function (res) { return res.ok ? res.json() : { publicAccess: false }; })
-    .then(function (status) { publicAccess = Boolean(status.publicAccess); })
-    .catch(function () { publicAccess = false; })
+    .then(function (status) {
+      publicAccess = Boolean(status.publicAccess);
+      publicPassages = Boolean(status.publicPassages);
+    })
+    .catch(function () { publicAccess = false; publicPassages = false; })
     .then(start);
 })();
 </script>

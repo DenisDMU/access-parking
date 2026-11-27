@@ -1,9 +1,10 @@
-"""Borne publique — `/borne/status` et `/borne/passages`, sans clé.
+"""Borne publique — `/borne/status`, `/borne/passages`, `/borne/parking`.
 
-Le lien de la borne client (`/borne`) doit marcher pour n'importe qui, sans
-réglage. Une page web publique ne peut pas cacher de clé : cette route
-publique est donc réduite au strict nécessaire, et tout le reste de l'API
-garde sa clé.
+Le lien de la borne client (`/borne`) s'ouvre pour n'importe qui : le plan 3D
+et la promenade sont publics. Le passage d'un véhicule, lui, est un endpoint
+métier (jalon 15) : depuis la 4.29.0, il exige une borne mise en service
+avec sa clé (`POST /access/requests`). La route sans clé `/borne/passages`
+reste dans le code, fermée par défaut (`BORNE_PASSAGES_PUBLIC=false`).
 
 - Une seule action : faire entrer ou sortir un véhicule (mêmes use cases,
   mêmes règles métier que `POST /access/requests`).
@@ -12,12 +13,14 @@ garde sa clé.
 - Débit limité par adresse (`RATE_LIMIT_BORNE`, 10/minute par défaut).
 - Réponse réduite à ce qu'affiche la borne : ni identifiant de demande, ni
   identifiant pseudonymisé du véhicule (pas de lien plaque → pseudoId).
-- Interrupteur `BORNE_PUBLIC` (activé par défaut) : à `false`, 403 et la
-  borne exige sa clé (`BORNE_API_KEY`).
+- Interrupteurs : `BORNE_PUBLIC` (activé par défaut) ouvre le plan 3D et la
+  promenade ; `BORNE_PASSAGES_PUBLIC` (désactivé par défaut) ouvre en plus le
+  passage sans clé. Fermés : 403.
 - `POST /borne/pmr-validation` : un agent valide sur la borne un conducteur
   PMR que Vehicles ne connaissait pas comme tel (carte vérifiée, code agent
-  `AGENT_CODE`). Le justificatif est enregistré chez Vehicles, puis l'entrée
-  est rejouée normalement. Même débit limité par adresse.
+  `AGENT_CODE`). Exige aussi la clé de la borne quand le passage public est
+  fermé. Le justificatif est enregistré chez Vehicles, puis l'entrée est
+  rejouée normalement. Même débit limité par adresse.
 - `GET /borne/parking` : occupation par catégorie pour le plan 3D affiché
   sur la borne. Des compteurs seulement (capacité, places prises, mises de
   côté) : aucun véhicule, aucun identifiant. Réponse de Parking gardée
@@ -37,7 +40,8 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Security, status
+from fastapi.security import APIKeyHeader
 
 from src.application.use_cases.confirm_disability_by_agent import (
     ConfirmDisabilityByAgent,
@@ -52,6 +56,7 @@ from src.domain.value_objects.enums import DetectionSource, RequestType
 from src.infrastructure.config import get_settings
 from src.infrastructure.external.place_categories import code_of_place
 from src.infrastructure.metrics import record_decision
+from src.infrastructure.security.api_key_auth import is_passage_key
 from src.interfaces.api import deps
 from src.interfaces.api.rate_limit import client_ip, limiter
 from src.interfaces.api.routers.access_router import _place_type_out
@@ -69,6 +74,9 @@ from src.interfaces.api.vehicle_types import declared_vehicle_type
 router = APIRouter(prefix="/borne", tags=["Borne publique"])
 
 BORNE_OFF = "Borne publique désactivée : configurez la borne avec sa clé"
+PASSAGES_OFF = "Passage sans clé désactivé : la borne doit être mise en service avec sa clé"
+NO_KEY = "Clé API manquante ou invalide"
+_borne_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 BORNE_BUSY = "Borne très sollicitée, réessayez dans un instant"
 NO_PENDING_PMR = (
     "Aucune entrée en attente de vérification PMR pour ce véhicule : "
@@ -99,6 +107,17 @@ def _require_public_borne() -> None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=BORNE_OFF)
 
 
+def _passages_public() -> bool:
+    settings = get_settings()
+    return settings.borne_public and settings.borne_passages_public
+
+
+def _require_public_passages() -> None:
+    _require_public_borne()
+    if not _passages_public():
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=PASSAGES_OFF)
+
+
 def _entry_out(decision) -> BornePassageOut:
     record_decision(decision.type, decision.result, decision.reason)
     return BornePassageOut(
@@ -120,21 +139,25 @@ def _entry_out(decision) -> BornePassageOut:
 def borne_status() -> BorneStatusOut:
     # La borne vient de s'ouvrir : un passage va suivre, on réveille les services.
     deps.wake_services()
-    return BorneStatusOut(publicAccess=get_settings().borne_public)
+    return BorneStatusOut(
+        publicAccess=get_settings().borne_public, publicPassages=_passages_public()
+    )
 
 
 @router.post(
     "/passages",
     response_model=BornePassageOut,
-    summary="Passage d'un véhicule à la borne publique (sans clé)",
+    summary="Passage d'un véhicule sans clé (fermé par défaut)",
     description=(
         "Entrée ou sortie d'un véhicule depuis la borne client, sans clé. "
-        "Date imposée par le serveur, source TERMINAL, débit limité par "
-        "adresse. Réponse réduite à ce qu'affiche la borne. 403 si la borne "
-        "publique est désactivée (`BORNE_PUBLIC=false`)."
+        "**Fermé par défaut** (403) : un passage exige une borne mise en "
+        "service avec sa clé (`POST /access/requests`). Ouvert seulement si "
+        "`BORNE_PUBLIC` et `BORNE_PASSAGES_PUBLIC` valent `true`. Date imposée "
+        "par le serveur, source TERMINAL, débit limité par adresse, réponse "
+        "réduite à ce qu'affiche la borne."
     ),
     responses={
-        403: {"model": ErrorOut, "description": "Borne publique désactivée"},
+        403: {"model": ErrorOut, "description": "Passage sans clé désactivé"},
         422: {"model": ErrorOut, "description": "Plaque ou type invalide"},
         429: {"description": "Trop de passages depuis cette adresse"},
     },
@@ -146,7 +169,7 @@ def borne_passage(
     entry_use_case: ProcessEntryRequest = Depends(deps.get_process_entry_request_use_case),
     exit_use_case: ProcessExitRequest = Depends(deps.get_process_exit_request_use_case),
 ) -> BornePassageOut:
-    _require_public_borne()
+    _require_public_passages()
     with _borne_slot():
         return _passage(body, entry_use_case, exit_use_case)
 
@@ -190,11 +213,14 @@ def _passage(body, entry_use_case, exit_use_case) -> BornePassageOut:
         "(le véhicule n'aura plus besoin d'agent), puis rejoue l'entrée : "
         "réponse identique à `POST /borne/passages`. Si Vehicles refuse "
         "d'enregistrer le justificatif, l'entrée PMR est quand même autorisée "
-        "pour ce passage (carte vérifiée par l'agent). 403 si le code est faux "
-        "ou la borne publique désactivée ; 409 si ce véhicule n'a pas été mis "
-        "en attente de vérification PMR à l'entrée dans les 5 dernières minutes."
+        "pour ce passage (carte vérifiée par l'agent). Clé de la borne "
+        "(`X-API-Key`) exigée, sauf si le passage sans clé est ouvert : 401 "
+        "sinon. 403 si le code est faux ou la borne publique désactivée ; 409 "
+        "si ce véhicule n'a pas été mis en attente de vérification PMR à "
+        "l'entrée dans les 5 dernières minutes."
     ),
     responses={
+        401: {"model": ErrorOut, "description": "Clé de la borne manquante ou invalide"},
         403: {"model": ErrorOut, "description": "Code agent incorrect, ou borne désactivée"},
         409: {
             "model": ErrorOut,
@@ -210,8 +236,14 @@ def borne_pmr_validation(
     request: Request,
     body: BornePmrValidationIn,
     use_case: ConfirmDisabilityByAgent = Depends(deps.get_confirm_disability_use_case),
+    api_key: str | None = Security(_borne_key_header),
 ) -> BornePassageOut:
-    _require_public_borne()
+    # Une borne mise en service avec sa clé valide toujours ses PMR ; sans clé,
+    # seulement si le passage public est ouvert.
+    if not is_passage_key(api_key):
+        _require_public_borne()
+        if not _passages_public():
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=NO_KEY)
     expected = get_settings().agent_code
     if not expected or not hmac.compare_digest(body.agent_code.encode(), expected.encode()):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=WRONG_AGENT_CODE)
