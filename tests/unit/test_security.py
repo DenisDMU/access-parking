@@ -99,11 +99,21 @@ def test_adresse_sans_https_toleree_tant_qu_aucune_cle_ne_part(name):
     assert check_secrets(settings, production=True) == []
 
 
-def test_le_message_de_refus_ne_contient_pas_la_cle():
-    settings = _with_service("booking", "http://booking.example", "cle-de-test-du-service")
+def test_le_message_de_refus_ne_contient_ni_la_cle_ni_l_adresse():
+    settings = _with_service(
+        "booking", "http://agent:motdepasse@booking.example", "cle-de-test-du-service"
+    )
     with pytest.raises(InsecureConfigurationError) as refus:
         check_secrets(settings, production=True)
-    assert "cle-de-test-du-service" not in str(refus.value)
+    for secret in ("cle-de-test-du-service", "motdepasse", "booking.example"):
+        assert secret not in str(refus.value)
+
+
+@pytest.mark.parametrize("url", ["", " https://parking.example", "//parking.example", "https:/x"])
+def test_adresse_vide_ou_mal_saisie_refusee_quand_une_cle_part(url):
+    settings = _with_service("parking", url, "cle-de-test-du-service")
+    with pytest.raises(InsecureConfigurationError, match="PARKING_SERVICE_URL"):
+        check_secrets(settings, production=True)
 
 
 def test_booking_simule_son_adresse_n_est_pas_controlee():

@@ -23,6 +23,9 @@ sémantique (majeure = contrat d'API cassé).
   vaut `true` dès que Vehicles répond. README, description de la route dans
   `/docs`, aide du dashboard et commentaires du code corrigés (aucun
   changement de comportement).
+- La présentation de l'API dans `/docs` disait encore qu'Access « ne reçoit
+  jamais la plaque » : il la reçoit depuis la 4.0.0, la transmet à Vehicles
+  et ne la conserve jamais. Texte corrigé.
 - README, section 16 : le paragraphe Vehicles décrit le contrat actuel
   (`POST /api/vehicle/create`, `GET /api/vehicle/{pseudoId}`) et la
   validation PMR par un agent, au lieu du premier contrat du 24/11.

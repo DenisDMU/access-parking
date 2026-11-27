@@ -77,8 +77,10 @@ app = FastAPI(
         "Access décide si un véhicule peut entrer ou sortir du parking et "
         "coordonne les échanges nécessaires avec Vehicles, Booking, Parking, "
         "Pricing et Payment. Il ne possède pas les données métier de ces "
-        "services et ne reçoit jamais la plaque d'un véhicule : uniquement son "
-        "code Vehicles, résolu en identifiant pseudonymisé (`vehicleId`)."
+        "services. La plaque d'un véhicule ne fait que le traverser : il la "
+        "transmet à Vehicles, qui renvoie un identifiant pseudonymisé "
+        "(`vehicleId`), et ne la conserve, ne la publie et ne la renvoie "
+        "jamais."
     ),
     version=__version__,
     lifespan=lifespan,

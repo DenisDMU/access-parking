@@ -218,7 +218,9 @@ def _keys_sent_in_clear(settings: Settings) -> list[str]:
     return [
         f"{name}_SERVICE_URL n'est pas en https alors que {name}_API_KEY est renseignée"
         for name, url, key in services
-        if key and not url.strip().lower().startswith("https://")
+        # Adresse comparée telle quelle : c'est elle que le client utilise,
+        # une espace en tête la rendrait inutilisable.
+        if key and not url.lower().startswith("https://")
     ]
 
 
