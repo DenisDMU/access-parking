@@ -12,8 +12,9 @@ from __future__ import annotations
 import re
 
 # Un simple chemin (« /api/… ») : jamais un hôte, un « @ », une requête ou « .. ».
-_SAFE_PATH = re.compile(r"^/(?!/)[A-Za-z0-9_./{}-]+$")
+_SAFE_PATH = re.compile(r"/(?!/)[A-Za-z0-9_./{}-]+")
 
 
 def safe_route_path(path: object) -> bool:
-    return isinstance(path, str) and bool(_SAFE_PATH.match(path)) and ".." not in path
+    # `fullmatch` : « $ » accepterait un saut de ligne final.
+    return isinstance(path, str) and bool(_SAFE_PATH.fullmatch(path)) and ".." not in path

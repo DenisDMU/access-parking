@@ -39,6 +39,12 @@ def _booking_service_url() -> str:
     return url
 
 
+def _env_or(name: str, default: str) -> str:
+    """Variable absente, vide ou blanche : valeur par défaut."""
+
+    return os.getenv(name, "").strip() or default
+
+
 def _bool_env(name: str, default: bool) -> bool:
     raw = os.getenv(name)
     if raw is None:
@@ -105,8 +111,14 @@ class Settings:
     # `{plate}` est remplacé par la plaque (encodée).
     # `{vehicleId}` : consultation par identifiant après `identify` (contrat du
     # 24/11 au soir) ; `{plate}` : ancien contrat, consultation par plaque.
-    vehicles_lookup_path: str = os.getenv("VEHICLES_LOOKUP_PATH", "/api/vehicle/{vehicleId}")
-    vehicles_identify_path: str = os.getenv("VEHICLES_IDENTIFY_PATH", "/api/vehicle/create")
+    # Variable définie mais vide (champ laissé blanc dans Render) : valeur par
+    # défaut, comme si elle était absente.
+    vehicles_lookup_path: str = field(
+        default_factory=lambda: _env_or("VEHICLES_LOOKUP_PATH", "/api/vehicle/{vehicleId}")
+    )
+    vehicles_identify_path: str = field(
+        default_factory=lambda: _env_or("VEHICLES_IDENTIFY_PATH", "/api/vehicle/create")
+    )
 
     ai_model_name: str = os.getenv("AI_MODEL_NAME", "fake-vision-v1")
 

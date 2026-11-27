@@ -196,7 +196,15 @@ def test_bus_non_controle_quand_les_evenements_partent_en_webhook():
 
 @pytest.mark.parametrize(
     "path",
-    ["@autre.hote/x", "//autre.hote/x", "/api/../admin", "/api/create?x=1", "api/create", ""],
+    [
+        "@autre.hote/x",
+        "//autre.hote/x",
+        "/api/../admin",
+        "/api/create?x=1",
+        "api/create",
+        "/api/create\n",
+        "",
+    ],
 )
 @pytest.mark.parametrize("variable", ["vehicles_identify_path", "vehicles_lookup_path"])
 def test_route_de_vehicles_qui_n_est_pas_un_simple_chemin_refusee(variable, path):
@@ -211,3 +219,18 @@ def test_route_de_vehicles_qui_n_est_pas_un_simple_chemin_refusee(variable, path
 def test_route_de_vehicles_habituelle_acceptee(path):
     settings = Settings(api_key="x" * 44, vehicles_identify_path=path, vehicles_lookup_path=path)
     assert check_secrets(settings, production=True) == []
+
+
+@pytest.mark.parametrize("value", ["", "   "])
+def test_route_de_vehicles_laissee_vide_dans_l_environnement_valeur_par_defaut(monkeypatch, value):
+    monkeypatch.setenv("VEHICLES_LOOKUP_PATH", value)
+    monkeypatch.setenv("VEHICLES_IDENTIFY_PATH", value)
+    settings = Settings(api_key="x" * 44)
+    assert settings.vehicles_lookup_path == "/api/vehicle/{vehicleId}"
+    assert settings.vehicles_identify_path == "/api/vehicle/create"
+    assert check_secrets(settings, production=True) == []
+
+
+def test_route_de_vehicles_reglee_dans_l_environnement_est_lue(monkeypatch):
+    monkeypatch.setenv("VEHICLES_LOOKUP_PATH", " /api/vehicles/{vehicleId} ")
+    assert Settings(api_key="x" * 44).vehicles_lookup_path == "/api/vehicles/{vehicleId}"

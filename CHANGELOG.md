@@ -23,8 +23,18 @@ sémantique (majeure = contrat d'API cassé).
     Vehicles).
   En local, ce sont de simples avertissements.
 - `scripts/tests_en_ligne.py` n'envoie `VEHICLES_API_KEY` qu'en https ;
-  `scripts/bilan_journal.py` n'envoie la clé d'exploitation qu'en https ou
-  vers la machine locale.
+  `scripts/bilan_journal.py` et `scripts/smoke_test.sh` n'envoient la clé
+  d'exploitation qu'en https ou vers la machine locale (hôte comparé en
+  entier, aucune adresse avec identifiants).
+
+### Corrigé
+- Une adresse de bus mal formée ou un hôte de bus introuvable faisait
+  échouer le passage en cours (500), et le message d'erreur pouvait recopier
+  un morceau du mot de passe : l'échec est maintenant traité comme les
+  autres pannes du bus (une ligne dans le journal, le passage continue).
+- `VEHICLES_IDENTIFY_PATH` ou `VEHICLES_LOOKUP_PATH` définie mais vide
+  reprend sa valeur par défaut. Un chemin terminé par un saut de ligne est
+  refusé par le filtre.
 
 ## [4.29.2] — 2026-11-27 — Une clé de service ne part jamais sans https
 

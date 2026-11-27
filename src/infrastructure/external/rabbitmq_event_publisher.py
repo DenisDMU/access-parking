@@ -99,8 +99,11 @@ class RabbitMQEventPublisher:
         try:
             self._send_to_rabbitmq(event)
             EVENTS_PUBLISHED.labels(channel="rabbitmq", event_type=event_type, outcome="ok").inc()
-        except AMQPError as exc:
+        except (AMQPError, ValueError, OSError) as exc:
             # Best-effort : un souci RabbitMQ ne bloque jamais la décision d'accès.
+            # ValueError : adresse du bus mal formée (pika en recopie un morceau
+            # dans son message, donc parfois un bout du mot de passe) ; OSError :
+            # hôte introuvable.
             EVENTS_PUBLISHED.labels(
                 channel="rabbitmq", event_type=event_type, outcome="error"
             ).inc()

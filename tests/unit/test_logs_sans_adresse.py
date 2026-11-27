@@ -111,3 +111,17 @@ def test_bus_injoignable_le_journal_ne_porte_pas_son_mot_de_passe(caplog):
         publisher.publish(_event())
     assert "Échec de publication RabbitMQ" in caplog.text
     assert _SECRET not in caplog.text
+
+
+def test_adresse_du_bus_mal_formee_ni_500_ni_morceau_du_mot_de_passe(caplog):
+    # Un « / » non encodé dans le mot de passe : pika lève ValueError et son
+    # message recopie le début du mot de passe.
+    publisher = RabbitMQEventPublisher(
+        access_repo=FakeAccessRepo(),
+        outbox_repo=_FakeOutboxRepo(),
+        amqp_url=f"amqps://agent:{_SECRET}/suite@bus.example/vhost",
+    )
+    with caplog.at_level(logging.WARNING, logger="src"):
+        publisher.publish(_event())  # ne lève pas
+    assert "Échec de publication RabbitMQ" in caplog.text
+    assert _SECRET not in caplog.text
