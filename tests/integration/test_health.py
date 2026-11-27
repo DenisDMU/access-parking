@@ -57,3 +57,5 @@ def test_reveil_vise_les_cinq_services(client, monkeypatch):
     monkeypatch.setattr(deps, "warm_up_services", lambda services: seen.update(services) or True)
     assert deps.wake_services() is True
     assert set(seen) == {"vehicles", "parking", "pricing", "payment", "booking"}
+    # Booking 2.x : la route de santé est sous /v2/booking (404 à la racine).
+    assert seen["booking"].endswith("/v2/booking")

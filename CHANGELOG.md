@@ -4,6 +4,27 @@ Version exposée par `GET /health` (`version` + `commit` déployé) et dans `/do
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 sémantique (majeure = contrat d'API cassé).
 
+## [4.29.1] — 2026-11-27 — Booking 2.5.0 : nouvelles routes et clé
+
+### Corrigé
+- Booking est passé en 2.5.0 : ses routes sont désormais sous `/v2/booking`,
+  `/reservations/active` s'appelle `/reservations/valid` (mêmes paramètres,
+  même réponse) et toutes exigent `X-API-Key`. Access appelait l'ancienne
+  adresse (404) : plus aucune réservation n'était reconnue, les véhicules
+  entraient comme des clients sans réservation. Access appelle maintenant
+  `GET /v2/booking/reservations/valid` et `GET /v2/booking/availability`
+  avec la clé `BOOKING_API_KEY`.
+- Une clé refusée par Booking (401 ou 403) s'écrit en erreur dans le journal
+  (« Booking refuse la clé d'Access ») au lieu de passer pour une panne.
+- Le réveil de Booking (au démarrage d'Access et à l'ouverture de la borne)
+  visait encore `/health`, qui répond 404 depuis Booking 2.x : il appelle
+  maintenant `/v2/booking/health`.
+
+### Modifié
+- `BOOKING_API_KEY` devient obligatoire en production : déclarée dans
+  `render.yaml` (`sync: false`, à saisir dans Render > Environment), décrite
+  dans `.env.example` et dans la procédure de déploiement du README.
+
 ## [4.29.0] — 2026-11-27 — Le passage d'un véhicule exige une clé
 
 ### Sécurité

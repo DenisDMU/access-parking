@@ -20,8 +20,8 @@
 | | |
 |---|---|
 | **Rôle** | Décide si un véhicule peut entrer/sortir du parking et coordonne les échanges avec Vehicles, Booking, Parking, Pricing, Payment (aucune donnée métier des autres services). |
-| **Version actuelle** | `4.29.0` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
-| **Dernière mise à jour** | 27 novembre 2026 (le passage d'un véhicule exige une borne mise en service avec sa clé ; le plan 3D et la promenade restent publics) |
+| **Version actuelle** | `4.29.1` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
+| **Dernière mise à jour** | 27 novembre 2026 (Access suit Booking 2.5.0 : routes sous `/v2/booking` et clé `BOOKING_API_KEY` ; le passage d'un véhicule exige une borne mise en service avec sa clé ; le plan 3D et la promenade restent publics) |
 | **URL du service déployé** | https://access-api-a1u7.onrender.com |
 | **Documentation Swagger/OpenAPI** | https://access-api-a1u7.onrender.com/docs (ReDoc : `/redoc`, spec brute : `/openapi.json`) |
 | **Dépendances (services appelés)** | **Vehicles**, **Booking**, **Parking**, **Pricing**, **Payment** : tous réels |
@@ -49,7 +49,7 @@
 - [x] Exposer la version et le commit déployés (`/health`) et des métriques d'exploitation (`/metrics`, lisible par Prometheus avec un jeton de lecture).
 - [x] Conserver les données (stationnements, décisions, événements) dans une base Postgres (Neon) qui survit aux redémarrages.
 - [x] Plafonner la durée facturée à 7 jours et compter tout début de minute (règles 2.4 et 2.5).
-- [x] Vérifier une réservation via le vrai service **Booking** (`GET /reservations/active`, à l'heure du passage) ; la place est prise dans le quota « réservation » de Parking, et la sortie ne refait pas payer le créneau déjà réglé (seul un dépassement est facturé).
+- [x] Vérifier une réservation via le vrai service **Booking** (`GET /v2/booking/reservations/valid`, à l'heure du passage) ; la place est prise dans le quota « réservation » de Parking, et la sortie ne refait pas payer le créneau déjà réglé (seul un dépassement est facturé).
 - [x] Identifier un véhicule via le vrai service **Vehicles** (`POST /api/vehicle/create` : plaque → identifiant, création si inconnue ; puis `GET /api/vehicle/{identifiant}` ; routes réglables, et retrouvées automatiquement dans le Swagger de Vehicles s'il les renomme).
 - [x] Attribuer/occuper/libérer une place via le vrai service **Parking** (place mise de côté puis confirmée avec son `hold_id`).
 - [x] Vérifier que chaque catégorie demandée existe chez Parking (`GET /parking/categories`, en cache 5 min) : une catégorie renommée donne un motif précis, pas « Parking indisponible ».
@@ -69,11 +69,11 @@
 | **API** | ✅ REST documentée (`/docs`), entrées/sorties validées, erreurs normalisées, `/health` | [section 11](#11-endpoints) |
 | **Intégration** | ✅ Les 5 services réels (Vehicles, Booking, Parking, Pricing, Payment, en REST) ; événements publiés sur RabbitMQ (bus d'équipe) | [section 5](#5-brancher-un-vrai-microservice-à-la-place-dun-mock), [section 6](#6-publication-dévénements--webhook-ou-rabbitmq) |
 | **UI** | ✅ Borne client `/borne` (entrée/sortie, clavier à l'écran, ticket, clair/sombre, mobile) et dashboard servi par Access : borne d'entrée/sortie, état du parking (présences, occupation vue par Parking, décisions, santé), journal d'événements, recherche | [section 12](#12-borne-et-journal-de-bord-dashboard) |
-| **Qualité** | ✅ 491 tests (unitaires + intégration), entrées invalides et cas limites couverts, `ruff` (lint + format), script de vérification reproductible | [section 9](#9-tests-et-qualité) |
+| **Qualité** | ✅ 499 tests (unitaires + intégration), entrées invalides et cas limites couverts, `ruff` (lint + format), script de vérification reproductible | [section 9](#9-tests-et-qualité) |
 | **Observabilité** | ✅ Correlation ID propagé à tous les services et événements, logs par décision, `/metrics` Prometheus (techniques + métier + intégration), Prometheus et Grafana fournis ([`tp/prometheus`](tp/prometheus/README.md)), `/health` avec version et commit | [section 9](#métriques-prometheus) |
 | **CI/CD et déploiement** | ✅ GitHub Actions (lint → tests → bandit → pip-audit → gitleaks), déploiement Render après CI verte, smoke test de l'instance déployée (version vérifiée), CHANGELOG, Dependabot | [section 9](#intégration-continue-cicd), [section 14](#14-déploiement-sur-render) |
 | **Sécurité** | ✅ Clé API (comparaison en temps constant) sur toutes les routes sauf `/health`, clé borne limitée au passage d'un véhicule, refus de démarrer en production avec une clé faible, validation stricte, erreurs sans stack trace, en-têtes de sécurité, CORS restreint, rate limiting, secrets hors Git, plaque jamais stockée/publiée/renvoyée/loggée (test dédié) | [section 10](#10-sécurité) |
-| **Version** | `4.29.0` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
+| **Version** | `4.29.1` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
 | **Dernière mise à jour** | 27 novembre 2026 | |
 
 ### Suivi des jalons
@@ -141,7 +141,7 @@ sequenceDiagram
     A->>Ve: POST /api/vehicle/create (plaque → pseudoId, crée si inconnue)
     A->>Ve: GET /api/vehicle/{pseudoId}
     Ve-->>A: pseudoId (= vehicleId) + attributs
-    A->>B: GET /reservations/active?vehicle_id=…&at=…
+    A->>B: GET /v2/booking/reservations/valid?vehicle_id=…&at=…
     alt réservation valable
         A->>P: hold (type réservé, quota « booking ») puis confirm_entry
     else pas de réservation
@@ -363,8 +363,8 @@ aucune route, aucun schéma n'a changé.
 Chaque service externe a eu sa **propre bascule mock/réel**
 (`VEHICLES_USE_MOCK`, `BOOKING_USE_MOCK`, `PARKING_USE_MOCK`,
 `PRICING_USE_MOCK`, `PAYMENT_USE_MOCK` — seule `BOOKING_USE_MOCK` subsiste,
-les autres ont disparu depuis que ces services sont branchés en réel) — `USE_MOCKS` reste la valeur par
-défaut globale tant qu'aucune bascule individuelle n'est définie. **C'est
+les autres ont disparu depuis que ces services sont branchés en réel) — `USE_MOCKS` était la valeur par
+défaut globale tant qu'aucune bascule individuelle n'était définie. **C'est
 volontaire** : vos camarades finissent leur service chacun à son rythme, pas
 question d'attendre que les 5 soient prêts pour en brancher un premier. Les
 5 squelettes HTTP existent déjà (`infrastructure/external/http_*_client.py`),
@@ -393,7 +393,7 @@ même fichier `deps.py`) — chaque squelette liste ses propres `TODO` :
 | Service  | Fichier squelette                      | Points ouverts principaux |
 |----------|------------------------------------------|----------------------------|
 | **Vehicles** | `http_vehicles_client.py` | **✅ Branché** (`POST /api/vehicle/create` : plaque → pseudoId, création si inconnue, véhicule connu jamais réécrit ; puis `GET /api/vehicle/{pseudoId}` ; routes réglables par `VEHICLES_IDENTIFY_PATH` et `VEHICLES_LOOKUP_PATH`, Vehicles ayant changé son contrat cinq fois le 24/11 ; **sur un 404, routes retrouvées automatiquement dans son Swagger** (`/v3/api-docs`), réessai immédiat, routes mémorisées et loggées en avertissement ; `GET /api/vehicle/{id}/plate`, qui redonne la plaque pour la facturation, n'est jamais appelé par Access (à protéger par une clé côté Vehicles, REVUE 28) ; `{plate}` dans la route de consultation rétablit l'ancien mode « par plaque ») — `pseudoId` devient le `vehicleId`, `disabled` vaut type PMR **et** justificatif, toute autre réponse = véhicule non identifié, voir section 16 |
-| **Booking** | `http_booking_client.py` | **✅ Branché** (`GET /reservations/active?vehicle_id=…&at=…`, toujours 200 : `valid` + réservations confirmées couvrant l'instant ; mêmes codes de type de place que Parking ; panne → entrée sans réservation). Pas de place nominative : la place est prise chez Parking, type réservé, quota « booking » |
+| **Booking** | `http_booking_client.py` | **✅ Branché** (`GET /v2/booking/reservations/valid?vehicle_id=…&at=…` avec `X-API-Key` = `BOOKING_API_KEY`, exigée depuis Booking 2.x ; toujours 200 : `valid` + réservations confirmées couvrant l'instant ; mêmes codes de type de place que Parking ; panne → entrée sans réservation ; clé refusée, 401 ou 403 → même repli, écrit en erreur dans le journal ; `GET /v2/booking/availability`, avec la même clé, donne les places réservables du plan 3D). Pas de place nominative : la place est prise chez Parking, type réservé, quota « booking » |
 | **Parking** | `http_parking_client.py` | **✅ Branché** (`hold` → `confirm_entry` avec le `hold_id` reçu, place mise de côté 30 s → `free` ; catégories STANDARD/XL/ELECTRIC/HANDICAPPED/TWO_WHEELS vérifiées sur `GET /parking/categories` avant chaque `hold` (liste en cache 5 min ; une catégorie absente ou un 404 sur `hold` → « Catégorie de place X inconnue du service Parking ») ; libellé de Parking remonté ; occupation lue sur `GET /parking/occupation` ; en-tête `X-API-Key` = `PARKING_API_KEY`) — pas de `placeId` réel, encodage synthétique `"CATEGORIE:walkin\|booking"`, voir section 16 |
 | **Pricing** | `http_pricing_client.py` | **✅ Branché** (`PRICING_USE_MOCK=false`) contre le vrai service (`POST /quote`) — **Pricing calcule seul le montant** à partir de la zone, du mode et de la durée envoyés par Access (gratuité initiale et quarts d'heure appliqués par Pricing) ; zone PMR `handicapped` depuis sa grille v2 du 24/11 (ancien nom `disabled` réessayé sur `ZONE_NOT_FOUND`) — mapping `PlaceType → zone` et arrondi de durée pour les réservations restent des hypothèses documentées dans le fichier, voir aussi section 16 |
 | **Payment** | `http_payment_client.py` | **✅ Branché** (`POST /payments` puis polling `GET /payments/{id}` jusqu'à `ACCEPTED`/`REFUSED`, 2 s / 40 s max) — montant en centimes, clé d'idempotence `access:{stationnement}:exit`, en-tête `X-API-Key` envoyé si `PAYMENT_API_KEY` est renseignée, voir section 16 |
@@ -505,7 +505,7 @@ ACCESS_TEST_DATABASE_URL=<url Postgres> pytest tests/integration   # idem contre
 pytest -v            # détail de chaque cas
 ```
 
-Couverture (491 tests) :
+Couverture (499 tests) :
 
 - **Unitaires** — matrice complète de la règle de compatibilité
   véhicule/place, règle de présence, règle d'accessibilité ; chaque use case
@@ -548,7 +548,7 @@ précédente, `needs:` dans le workflow) et doivent **tous** passer — si une
 | Job | Outil | Ce qu'il vérifie |
 |---|---|---|
 | Lint | `ruff` | Erreurs, imports, bugs probables, règles de sécurité, **formatage homogène** (config : `ruff.toml`) |
-| Tests | `pytest` | Les 491 tests unitaires + intégration, sans aucun secret |
+| Tests | `pytest` | Les 499 tests unitaires + intégration, sans aucun secret |
 | Sécurité du code | `bandit` | Analyse statique (SAST) : injections, appels dangereux, secrets en dur… |
 | Dépendances | `pip-audit` | Vulnérabilités connues (CVE) dans `requirements.txt` |
 | Secrets | `gitleaks` | Aucun secret (clé API, URL CloudAMQP…) dans tout l'historique git |
@@ -604,15 +604,18 @@ il suffit de le chercher dans les logs Render pour retrouver tout le passage.
 ### Batterie de tests en ligne (borne publique)
 
 [`scripts/tests_en_ligne.py`](scripts/tests_en_ligne.py) fait 59 contrôles
-contre le service en ligne, sans clé : santé et version, pages, routes
+contre le service en ligne, avec la clé des bornes (`BORNE_API_KEY`, jamais
+la clé d'exploitation) : santé et version, pages, routes
 protégées (401), en-têtes de sécurité, erreurs de saisie, puis de **vrais
 passages** avec les cinq services (un par type de véhicule, refus attendus,
 plaques française et italienne identiques). Toujours dans la première heure
-gratuite : 0 €, aucun paiement. Environ 3 minutes (10 passages par minute
-au plus sur la borne publique).
+gratuite : 0 €, aucun paiement. Environ 2 minutes (20 passages par minute
+au plus sur `POST /access/requests`). Sans `BORNE_API_KEY`, les passages
+réels sont sautés (signalé, sans compter comme un échec) : depuis la 4.29.0,
+un passage exige une borne mise en service avec sa clé.
 
 ```bash
-python3 scripts/tests_en_ligne.py
+BORNE_API_KEY=<clé borne> python3 scripts/tests_en_ligne.py
 ```
 
 Avec `VEHICLES_API_KEY`, les véhicules de test sont ensuite supprimés chez
@@ -789,8 +792,10 @@ Puis <http://localhost:9090> — requêtes utiles :
   démonstration : en production, un code par agent, plus long, ou une
   validation depuis un poste authentifié.
 - **Gestion des secrets** : aucun secret dans Git (`gitleaks` en CI) ; clé API
-  générée par Render, URL CloudAMQP et clé Payment saisies dans Render
-  (`sync: false`). **En production, Access refuse de démarrer** si `API_KEY`
+  générée par Render, URL CloudAMQP et clés des autres services saisies dans
+  Render (`sync: false`) : `PARKING_API_KEY` et `BOOKING_API_KEY`,
+  obligatoires (ces deux services exigent l'en-tête `X-API-Key`), et
+  `PAYMENT_API_KEY`. **En production, Access refuse de démarrer** si `API_KEY`
   vaut `change-me` ou fait moins de 16 caractères (`config.check_secrets`) ;
   en local, simple avertissement.
 - **En-têtes de sécurité** : `X-Content-Type-Options: nosniff`,
@@ -1300,6 +1305,12 @@ le reste de l'API fonctionne normalement (best-effort : la publication
    avec « Service Parking indisponible, réessayez plus tard ».
    `PRICING_API_KEY` et `VEHICLES_API_KEY` existent sur le même principe,
    pour le jour où ces services activeront leur authentification.
+2quater-b. **`BOOKING_API_KEY` (obligatoire)** : Booking exige l'en-tête
+   `X-API-Key` sur toutes ses routes (sauf sa route de santé) depuis sa
+   version 2.x (constaté le 27/11/2026). Demandez la clé à l'équipe Booking
+   et collez-la ici — sans elle, Booking répond 401, plus aucune réservation
+   n'est reconnue (le véhicule entre comme un client sans réservation) et le
+   journal d'Access affiche « Booking refuse la clé d'Access ».
 2quater bis. **`METRICS_TOKEN`** (lecture de `/metrics`) : généré par Render
    (`generateValue: true`) ; sinon, ajoutez-le à la main (au moins 16
    caractères, différent des deux clés, par exemple `openssl rand -hex 24`).
@@ -1345,7 +1356,7 @@ le reste de l'API fonctionne normalement (best-effort : la publication
   normal, pas un bug. Les services de l'équipe (Parking, Pricing...) sont
   logés pareil : un appel sortant d'Access vers l'un d'eux peut donc aussi
   déclencher son réveil. Les clients HTTP réels utilisent un timeout de
-  **20s** (`infrastructure/external/http_*_client.py`) pour l'encaisser, et
+  **45 s** (`COLD_START_TIMEOUT_S`, `infrastructure/external/outgoing_http.py`) pour l'encaisser, et
   toute erreur (429/5xx/timeout/connexion refusée) est traitée comme un
   refus métier propre plutôt qu'un crash — voir l'exemple en
   [section 4](#4-architecture-hexagonale).

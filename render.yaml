@@ -108,6 +108,8 @@ services:
         sync: false  # secret fourni en privé par l'équipe Payment : à coller dans Render > Environment
       - key: PARKING_API_KEY
         sync: false  # OBLIGATOIRE : Parking exige X-API-Key depuis le 18/11 — clé à demander à l'équipe Parking
+      - key: BOOKING_API_KEY
+        sync: false  # OBLIGATOIRE : Booking exige X-API-Key depuis sa version 2.x (27/11) — clé à demander à l'équipe Booking
       - key: PRICING_API_KEY
         sync: false  # optionnel tant que Pricing n'a pas activé son authentification
       - key: VEHICLES_API_KEY

@@ -50,7 +50,10 @@ fois avant de conclure qu'un service est en panne.
    - Vehicles : `GET /api/vehicle/{id}` (avec un identifiant obtenu par
      `POST /api/vehicle/create` sur une plaque de test `ZZ-9xx-ZZ`, que
      Vehicles retrouve ou crée), pour voir les **noms réels** des champs.
-   - Booking : `GET /reservations/active?vehicle_id=00000000-0000-0000-0000-000000000000&at=<maintenant>`.
+   - Booking : `GET /v2/booking/health` ; ses autres routes exigent `X-API-Key`
+     (`BOOKING_API_KEY`, chargée de `.env` dans une variable du shell si
+     elle y est ; jamais affichée, jamais recopiée, pas de `curl -v`) :
+     `GET /v2/booking/reservations/valid?vehicle_id=00000000-0000-0000-0000-000000000000&at=<maintenant>`.
    - Pricing : `GET /rates` (zones réelles) et `POST /quote` pour chaque
      zone qu'Access envoie (un devis ne coûte rien).
    - Parking : `GET /health` ; ses autres routes exigent `X-API-Key`, que tu

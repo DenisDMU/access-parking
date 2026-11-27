@@ -95,7 +95,8 @@ class Settings:
     parking_api_key: str = os.getenv("PARKING_API_KEY", "")
     pricing_api_key: str = os.getenv("PRICING_API_KEY", "")
     vehicles_api_key: str = os.getenv("VEHICLES_API_KEY", "")
-    booking_api_key: str = os.getenv("BOOKING_API_KEY", "")  # Booking n'en exige pas (24/11)
+    # Booking l'exige depuis sa version 2.x (constaté le 2026-11-27).
+    booking_api_key: str = os.getenv("BOOKING_API_KEY", "")
     # Routes de Vehicles (renommées deux fois le 24/11) : réglables dans
     # Render pour suivre un futur changement sans toucher au code.
     # `{plate}` est remplacé par la plaque (encodée).

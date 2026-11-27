@@ -46,6 +46,7 @@ from src.infrastructure.db.repositories.sql_vehicle_presence_repository import (
     SqlVehiclePresenceRepository,
 )
 from src.infrastructure.db.session import make_engine, make_session_factory
+from src.infrastructure.external.http_booking_client import API_PREFIX as BOOKING_API_PREFIX
 from src.infrastructure.external.http_booking_client import HttpBookingClient
 from src.infrastructure.external.http_parking_client import HttpParkingClient
 from src.infrastructure.external.http_payment_client import HttpPaymentClient
@@ -88,7 +89,9 @@ def wake_services() -> bool:
         "payment": settings.payment_service_url,
     }
     if not settings.booking_use_mock:
-        services["booking"] = settings.booking_service_url
+        # Booking 2.x n'a plus de `/health` à la racine : sa route de santé
+        # (sans clé) est `/v2/booking/health`.
+        services["booking"] = settings.booking_service_url.rstrip("/") + BOOKING_API_PREFIX
     return warm_up_services(services)
 
 
