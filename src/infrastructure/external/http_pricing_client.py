@@ -44,11 +44,15 @@ comportement inattendu apparaît) :
     payload de l'événement `VEHICLE_EXITED` côté Access — actuellement
     seul `amount_eur` est utilisé. À étendre si la traçabilité doit
     remonter jusqu'à Access.
-  - Authentification : `PRICING_API_KEY` est renseignée sur Render depuis le
-    2026-11-27 et envoyée dans `X-API-Key`. Pricing 1.1.0 (en ligne ce
-    jour-là) ne la vérifie pas encore. Dès qu'il la vérifiera, une clé
-    refusée (401/403) est écrite en erreur dans le journal, avec le nom de
-    la variable à corriger ; la sortie est refusée, comme pour une panne.
+  - Authentification : depuis le 2026-11-27 (15 h 17, commit `b52c726` de
+    Pricing), `POST /quote` exige `X-API-Key` et répond sinon
+    401 `{ detail: { code: "UNAUTHORIZED", ... } }`. Access envoie
+    `PRICING_API_KEY` (saisie sur Render). Une clé refusée (401/403) est
+    écrite en erreur dans le journal, avec le nom de la variable à corriger ;
+    la sortie est refusée, comme pour une panne. `GET /health`, `GET /rates`
+    et le nouveau `POST /simulate` (devis non enregistré) restent sans clé ;
+    Access n'utilise pas `/simulate` : le devis d'une sortie doit rester
+    tracé chez Pricing.
 """
 
 from __future__ import annotations

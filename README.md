@@ -20,7 +20,7 @@
 | | |
 |---|---|
 | **Rôle** | Décide si un véhicule peut entrer/sortir du parking et coordonne les échanges avec Vehicles, Booking, Parking, Pricing, Payment (aucune donnée métier des autres services). |
-| **Version actuelle** | `4.29.4` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
+| **Version actuelle** | `4.29.5` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
 | **Dernière mise à jour** | 27 novembre 2026 (Access suit Booking 2.5.0 : routes sous `/v2/booking` et clé `BOOKING_API_KEY` ; le passage d'un véhicule exige une borne mise en service avec sa clé ; le plan 3D et la promenade restent publics) |
 | **URL du service déployé** | https://access-api-a1u7.onrender.com |
 | **Documentation Swagger/OpenAPI** | https://access-api-a1u7.onrender.com/docs (ReDoc : `/redoc`, spec brute : `/openapi.json`) |
@@ -73,7 +73,7 @@
 | **Observabilité** | ✅ Correlation ID propagé à tous les services et événements, logs par décision, `/metrics` Prometheus (techniques + métier + intégration), Prometheus et Grafana fournis ([`tp/prometheus`](tp/prometheus/README.md)), `/health` avec version et commit | [section 9](#métriques-prometheus) |
 | **CI/CD et déploiement** | ✅ GitHub Actions (lint → tests → bandit → pip-audit → gitleaks), déploiement Render après CI verte, smoke test de l'instance déployée (version vérifiée), CHANGELOG, Dependabot | [section 9](#intégration-continue-cicd), [section 14](#14-déploiement-sur-render) |
 | **Sécurité** | ✅ Clé API (comparaison en temps constant) sur toutes les routes sauf `/health`, clé borne limitée au passage d'un véhicule, refus de démarrer en production avec une clé faible, validation stricte, erreurs sans stack trace, en-têtes de sécurité, CORS restreint, rate limiting, secrets hors Git, plaque jamais stockée/publiée/renvoyée/loggée (test dédié) | [section 10](#10-sécurité) |
-| **Version** | `4.29.4` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
+| **Version** | `4.29.5` (`src/__init__.py`, exposée par `/health` et `/docs`) | [CHANGELOG](CHANGELOG.md) |
 | **Dernière mise à jour** | 27 novembre 2026 | |
 
 ### Suivi des jalons
@@ -1320,12 +1320,13 @@ le reste de l'API fonctionne normalement (best-effort : la publication
    `X-API-Key` sur toutes ses routes depuis le 18/11/2026. Demandez la clé à
    l'équipe Parking et collez-la ici — sans elle, toute entrée est refusée
    avec « Service Parking indisponible, réessayez plus tard ».
-   `PRICING_API_KEY` suit le même principe : la clé transmise par l'équipe
-   Pricing est saisie dans Render depuis le 27/11/2026. Ce jour-là, Pricing
-   (1.1.0) ne la vérifie pas encore ; dès qu'il la vérifiera, une clé absente
-   ou refusée bloquera les sorties (« service de tarification indisponible »)
-   et s'écrira en erreur dans le journal. `VEHICLES_API_KEY` existe aussi,
-   pour le jour où Vehicles activera son authentification.
+   **`PRICING_API_KEY` (obligatoire)** suit le même principe : Pricing exige
+   `X-API-Key` sur `POST /quote` depuis le 27/11/2026. Demandez la clé à
+   l'équipe Pricing et collez-la ici — sans elle, ou avec une clé refusée,
+   toute sortie est refusée (« service de tarification indisponible ») et
+   l'erreur s'écrit dans le journal avec le nom de la variable.
+   `VEHICLES_API_KEY` existe aussi, pour le jour où Vehicles activera son
+   authentification.
 2quater-b. **`BOOKING_API_KEY` (obligatoire)** : Booking exige l'en-tête
    `X-API-Key` sur toutes ses routes (sauf sa route de santé) depuis sa
    version 2.x (constaté le 27/11/2026). Demandez la clé à l'équipe Booking
