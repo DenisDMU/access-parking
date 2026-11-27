@@ -171,3 +171,41 @@ def test_autre_404_pas_de_nouvel_essai():
 def test_reponse_sans_montant():
     client = _pricing(lambda r: httpx.Response(201, json={"currency": "EUR"}))
     assert client.calculate_price("v1", _ENTRY, _EXIT, _PMR) is None
+
+
+# --- Clé d'API ---------------------------------------------------------------
+
+
+def test_cle_envoyee_a_pricing_seulement_si_elle_est_renseignee():
+    seen: list[str | None] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.headers.get("X-API-Key"))
+        return httpx.Response(201, json={"amount_eur": "0.75"})
+
+    with_key = HttpPricingClient(
+        "https://pricing.test",
+        api_key="cle-de-test-pricing",
+        transport=httpx.MockTransport(handler),
+    )
+    assert with_key.calculate_price("v1", _ENTRY, _EXIT, PlaceType(category=FOUR)) == Decimal(
+        "0.75"
+    )
+    _pricing(handler).calculate_price("v1", _ENTRY, _EXIT, PlaceType(category=FOUR))
+    assert seen == ["cle-de-test-pricing", None]
+
+
+def test_cle_refusee_par_pricing_sortie_refusee_et_erreur_loggee(caplog):
+    for status in (401, 403):
+        caplog.clear()
+        client = HttpPricingClient(
+            "https://pricing.test",
+            api_key="cle-de-test-pricing",
+            transport=httpx.MockTransport(
+                lambda _r, s=status: httpx.Response(s, json={"detail": "clé invalide"})
+            ),
+        )
+        with caplog.at_level("ERROR"):
+            assert client.calculate_price("v1", _ENTRY, _EXIT, PlaceType(category=FOUR)) is None
+        assert "PRICING_API_KEY" in caplog.text
+        assert "cle-de-test-pricing" not in caplog.text
