@@ -21,7 +21,7 @@
 |---|---|
 | **Rôle** | Décide si un véhicule peut entrer/sortir du parking et coordonne les échanges avec Vehicles, Booking, Parking, Pricing, Payment (aucune donnée métier des autres services). |
 | **Version actuelle** | `4.29.1` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
-| **Dernière mise à jour** | 27 novembre 2026 (le passage d'un véhicule exige une borne mise en service avec sa clé ; le plan 3D et la promenade restent publics) |
+| **Dernière mise à jour** | 27 novembre 2026 (Access suit Booking 2.5.0 : routes sous `/v2/booking` et clé `BOOKING_API_KEY` ; le passage d'un véhicule exige une borne mise en service avec sa clé ; le plan 3D et la promenade restent publics) |
 | **URL du service déployé** | https://access-api-a1u7.onrender.com |
 | **Documentation Swagger/OpenAPI** | https://access-api-a1u7.onrender.com/docs (ReDoc : `/redoc`, spec brute : `/openapi.json`) |
 | **Dépendances (services appelés)** | **Vehicles**, **Booking**, **Parking**, **Pricing**, **Payment** : tous réels |
@@ -363,8 +363,8 @@ aucune route, aucun schéma n'a changé.
 Chaque service externe a eu sa **propre bascule mock/réel**
 (`VEHICLES_USE_MOCK`, `BOOKING_USE_MOCK`, `PARKING_USE_MOCK`,
 `PRICING_USE_MOCK`, `PAYMENT_USE_MOCK` — seule `BOOKING_USE_MOCK` subsiste,
-les autres ont disparu depuis que ces services sont branchés en réel) — `USE_MOCKS` reste la valeur par
-défaut globale tant qu'aucune bascule individuelle n'est définie. **C'est
+les autres ont disparu depuis que ces services sont branchés en réel) — `USE_MOCKS` était la valeur par
+défaut globale tant qu'aucune bascule individuelle n'était définie. **C'est
 volontaire** : vos camarades finissent leur service chacun à son rythme, pas
 question d'attendre que les 5 soient prêts pour en brancher un premier. Les
 5 squelettes HTTP existent déjà (`infrastructure/external/http_*_client.py`),
@@ -393,7 +393,7 @@ même fichier `deps.py`) — chaque squelette liste ses propres `TODO` :
 | Service  | Fichier squelette                      | Points ouverts principaux |
 |----------|------------------------------------------|----------------------------|
 | **Vehicles** | `http_vehicles_client.py` | **✅ Branché** (`POST /api/vehicle/create` : plaque → pseudoId, création si inconnue, véhicule connu jamais réécrit ; puis `GET /api/vehicle/{pseudoId}` ; routes réglables par `VEHICLES_IDENTIFY_PATH` et `VEHICLES_LOOKUP_PATH`, Vehicles ayant changé son contrat cinq fois le 24/11 ; **sur un 404, routes retrouvées automatiquement dans son Swagger** (`/v3/api-docs`), réessai immédiat, routes mémorisées et loggées en avertissement ; `GET /api/vehicle/{id}/plate`, qui redonne la plaque pour la facturation, n'est jamais appelé par Access (à protéger par une clé côté Vehicles, REVUE 28) ; `{plate}` dans la route de consultation rétablit l'ancien mode « par plaque ») — `pseudoId` devient le `vehicleId`, `disabled` vaut type PMR **et** justificatif, toute autre réponse = véhicule non identifié, voir section 16 |
-| **Booking** | `http_booking_client.py` | **✅ Branché** (`GET /v2/booking/reservations/valid?vehicle_id=…&at=…` avec `X-API-Key` = `BOOKING_API_KEY`, exigée depuis Booking 2.x ; toujours 200 : `valid` + réservations confirmées couvrant l'instant ; mêmes codes de type de place que Parking ; panne → entrée sans réservation). Pas de place nominative : la place est prise chez Parking, type réservé, quota « booking » |
+| **Booking** | `http_booking_client.py` | **✅ Branché** (`GET /v2/booking/reservations/valid?vehicle_id=…&at=…` avec `X-API-Key` = `BOOKING_API_KEY`, exigée depuis Booking 2.x ; toujours 200 : `valid` + réservations confirmées couvrant l'instant ; mêmes codes de type de place que Parking ; panne → entrée sans réservation ; clé refusée, 401 ou 403 → même repli, écrit en erreur dans le journal ; `GET /v2/booking/availability`, avec la même clé, donne les places réservables du plan 3D). Pas de place nominative : la place est prise chez Parking, type réservé, quota « booking » |
 | **Parking** | `http_parking_client.py` | **✅ Branché** (`hold` → `confirm_entry` avec le `hold_id` reçu, place mise de côté 30 s → `free` ; catégories STANDARD/XL/ELECTRIC/HANDICAPPED/TWO_WHEELS vérifiées sur `GET /parking/categories` avant chaque `hold` (liste en cache 5 min ; une catégorie absente ou un 404 sur `hold` → « Catégorie de place X inconnue du service Parking ») ; libellé de Parking remonté ; occupation lue sur `GET /parking/occupation` ; en-tête `X-API-Key` = `PARKING_API_KEY`) — pas de `placeId` réel, encodage synthétique `"CATEGORIE:walkin\|booking"`, voir section 16 |
 | **Pricing** | `http_pricing_client.py` | **✅ Branché** (`PRICING_USE_MOCK=false`) contre le vrai service (`POST /quote`) — **Pricing calcule seul le montant** à partir de la zone, du mode et de la durée envoyés par Access (gratuité initiale et quarts d'heure appliqués par Pricing) ; zone PMR `handicapped` depuis sa grille v2 du 24/11 (ancien nom `disabled` réessayé sur `ZONE_NOT_FOUND`) — mapping `PlaceType → zone` et arrondi de durée pour les réservations restent des hypothèses documentées dans le fichier, voir aussi section 16 |
 | **Payment** | `http_payment_client.py` | **✅ Branché** (`POST /payments` puis polling `GET /payments/{id}` jusqu'à `ACCEPTED`/`REFUSED`, 2 s / 40 s max) — montant en centimes, clé d'idempotence `access:{stationnement}:exit`, en-tête `X-API-Key` envoyé si `PAYMENT_API_KEY` est renseignée, voir section 16 |
@@ -604,15 +604,18 @@ il suffit de le chercher dans les logs Render pour retrouver tout le passage.
 ### Batterie de tests en ligne (borne publique)
 
 [`scripts/tests_en_ligne.py`](scripts/tests_en_ligne.py) fait 59 contrôles
-contre le service en ligne, sans clé : santé et version, pages, routes
+contre le service en ligne, avec la clé des bornes (`BORNE_API_KEY`, jamais
+la clé d'exploitation) : santé et version, pages, routes
 protégées (401), en-têtes de sécurité, erreurs de saisie, puis de **vrais
 passages** avec les cinq services (un par type de véhicule, refus attendus,
 plaques française et italienne identiques). Toujours dans la première heure
-gratuite : 0 €, aucun paiement. Environ 3 minutes (10 passages par minute
-au plus sur la borne publique).
+gratuite : 0 €, aucun paiement. Environ 2 minutes (20 passages par minute
+au plus sur `POST /access/requests`). Sans `BORNE_API_KEY`, les passages
+réels sont sautés (signalé, sans compter comme un échec) : depuis la 4.29.0,
+un passage exige une borne mise en service avec sa clé.
 
 ```bash
-python3 scripts/tests_en_ligne.py
+BORNE_API_KEY=<clé borne> python3 scripts/tests_en_ligne.py
 ```
 
 Avec `VEHICLES_API_KEY`, les véhicules de test sont ensuite supprimés chez
@@ -789,8 +792,10 @@ Puis <http://localhost:9090> — requêtes utiles :
   démonstration : en production, un code par agent, plus long, ou une
   validation depuis un poste authentifié.
 - **Gestion des secrets** : aucun secret dans Git (`gitleaks` en CI) ; clé API
-  générée par Render, URL CloudAMQP et clé Payment saisies dans Render
-  (`sync: false`). **En production, Access refuse de démarrer** si `API_KEY`
+  générée par Render, URL CloudAMQP et clés des autres services saisies dans
+  Render (`sync: false`) : `PARKING_API_KEY` et `BOOKING_API_KEY`,
+  obligatoires (ces deux services exigent l'en-tête `X-API-Key`), et
+  `PAYMENT_API_KEY`. **En production, Access refuse de démarrer** si `API_KEY`
   vaut `change-me` ou fait moins de 16 caractères (`config.check_secrets`) ;
   en local, simple avertissement.
 - **En-têtes de sécurité** : `X-Content-Type-Options: nosniff`,
@@ -1351,7 +1356,7 @@ le reste de l'API fonctionne normalement (best-effort : la publication
   normal, pas un bug. Les services de l'équipe (Parking, Pricing...) sont
   logés pareil : un appel sortant d'Access vers l'un d'eux peut donc aussi
   déclencher son réveil. Les clients HTTP réels utilisent un timeout de
-  **20s** (`infrastructure/external/http_*_client.py`) pour l'encaisser, et
+  **45 s** (`COLD_START_TIMEOUT_S`, `infrastructure/external/outgoing_http.py`) pour l'encaisser, et
   toute erreur (429/5xx/timeout/connexion refusée) est traitée comme un
   refus métier propre plutôt qu'un crash — voir l'exemple en
   [section 4](#4-architecture-hexagonale).
