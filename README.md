@@ -21,7 +21,7 @@
 |---|---|
 | **Rôle** | Décide si un véhicule peut entrer/sortir du parking et coordonne les échanges avec Vehicles, Booking, Parking, Pricing, Payment (aucune donnée métier des autres services). |
 | **Version actuelle** | `4.28.0` ([CHANGELOG](CHANGELOG.md)) — la version et le SHA du commit déployé sont exposés par `GET /health` |
-| **Dernière mise à jour** | 24 novembre 2026 (plaques de tous pays ; Parking 1.5.0 : catégories et occupation ; borne client ; Vehicles par plaque) |
+| **Dernière mise à jour** | 25 novembre 2026 (plan 3D et promenade sur la borne publique ; `/metrics` protégé par un jeton de lecture ; TP Prometheus) |
 | **URL du service déployé** | https://access-api-a1u7.onrender.com |
 | **Documentation Swagger/OpenAPI** | https://access-api-a1u7.onrender.com/docs (ReDoc : `/redoc`, spec brute : `/openapi.json`) |
 | **Dépendances (services appelés)** | **Vehicles**, **Booking**, **Parking**, **Pricing**, **Payment** : tous réels |
@@ -830,7 +830,6 @@ Puis <http://localhost:9090> — requêtes utiles :
   recopient jamais la valeur reçue.
 
 ---
-TY765YU
 
 ## 11. Endpoints
 
