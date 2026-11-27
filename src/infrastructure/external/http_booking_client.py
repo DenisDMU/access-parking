@@ -1,10 +1,12 @@
 """Client HTTP réel vers le service **Booking** de l'équipe.
 
-Implémente `BookingServicePort`. Contrat lu sur le Swagger de Booking 0.4.0
-(https://booking-api-vhy5.onrender.com/docs) le 2026-11-24, puis vérifié par
-appels réels :
+Implémente `BookingServicePort`. Contrat lu sur le Swagger de Booking 2.5.0
+(https://booking-api-vhy5.onrender.com/docs) le 2026-11-27, puis vérifié par
+appels réels. Booking 2.x a déplacé toutes ses routes sous `/v2/booking` et
+renommé `/reservations/active` en `/reservations/valid` (mêmes paramètres,
+même réponse) :
 
-    GET {base_url}/reservations/active?vehicle_id=<pseudoId>&at=<ISO 8601 UTC>
+    GET {base_url}/v2/booking/reservations/valid?vehicle_id=<pseudoId>&at=<ISO 8601 UTC>
     -> 200 toujours :
        { vehicle_id, at, valid: bool,
          reservations: [{ id (code à 6 chiffres), place_type, start_at, end_at }] }
@@ -16,7 +18,9 @@ appels réels :
 - La réservation est **payée à l'avance** à Booking : à la sortie, Access ne
   facture que le dépassement éventuel après `end_at` (voir
   `ProcessExitRequest`).
-- Pas d'authentification côté Booking au 2026-11-24.
+- Booking exige l'en-tête `X-API-Key` (`BOOKING_API_KEY`, clé fournie en
+  privé par l'équipe Booking) : sans elle, 401 sur toutes ses routes sauf
+  `/v2/booking/health`.
 - Booking ne gère aucune place nominative : `place_id=None`, Access demande
   alors la place à Parking dans le quota « booking ».
 
@@ -38,6 +42,7 @@ from src.infrastructure.external.place_categories import place_type_from_code
 logger = logging.getLogger(__name__)
 
 INFO_TIMEOUT_S = 5.0  # lectures d'affichage (places réservables), jamais bloquantes
+API_PREFIX = "/v2/booking"  # préfixe de toutes les routes depuis Booking 2.x
 
 
 def _parse(value: str) -> datetime:
@@ -67,9 +72,18 @@ class HttpBookingClient:
                 "booking", timeout=self._timeout_s, headers=self._headers, transport=self._transport
             ) as client:
                 response = client.get(
-                    f"{self._base_url}/reservations/active",
+                    f"{self._base_url}{API_PREFIX}/reservations/valid",
                     params={"vehicle_id": vehicle_id, "at": at.isoformat()},
                 )
+            if response.status_code in (401, 403):
+                # Pas une panne : la clé manque ou n'est plus la bonne. Dit
+                # clairement, sinon plus aucune réservation n'est reconnue
+                # sans que rien ne l'explique.
+                logger.error(
+                    "Booking refuse la clé d'Access (%s) : vérifier BOOKING_API_KEY",
+                    response.status_code,
+                )
+                return None
             response.raise_for_status()
             data = response.json()
             if not data.get("valid") or not data.get("reservations"):
@@ -94,7 +108,8 @@ class HttpBookingClient:
             return None
 
     def free_capacity(self, place_type: str, at: datetime | None = None) -> int | None:
-        """`GET /availability` sur l'heure pleine en cours : `min_free_capacity`.
+        """`GET /v2/booking/availability` sur l'heure pleine en cours :
+        `min_free_capacity`.
 
         Sert au plan 3D (borne de réservation) : une information, jamais une
         décision. Délai court (`INFO_TIMEOUT_S`) : Booking endormi ne doit pas
@@ -107,7 +122,7 @@ class HttpBookingClient:
                 "booking", timeout=INFO_TIMEOUT_S, headers=self._headers, transport=self._transport
             ) as client:
                 response = client.get(
-                    f"{self._base_url}/availability",
+                    f"{self._base_url}{API_PREFIX}/availability",
                     params={
                         "place_type": place_type,
                         "start_at": start.isoformat(),

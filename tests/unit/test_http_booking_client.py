@@ -1,4 +1,4 @@
-"""Tests unitaires — `http_booking_client.py` contre un faux Booking 0.4.0
+"""Tests unitaires — `http_booking_client.py` contre un faux Booking 2.5.0
 (`httpx.MockTransport`), sans appel réseau."""
 
 from datetime import UTC, datetime, timedelta, timezone
@@ -36,7 +36,7 @@ def _client(handler) -> HttpBookingClient:
     return HttpBookingClient(_BASE, transport=httpx.MockTransport(handler))
 
 
-def test_appelle_reservations_active_avec_le_vehicule_et_l_instant():
+def test_appelle_reservations_valid_avec_le_vehicule_et_l_instant():
     seen = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -46,7 +46,7 @@ def test_appelle_reservations_active_avec_le_vehicule_et_l_instant():
 
     paris = timezone(timedelta(hours=1))
     _client(handler).get_reservation("v1", at=datetime(2026, 11, 24, 15, 30, tzinfo=paris))
-    assert seen["path"] == "/reservations/active"
+    assert seen["path"] == "/v2/booking/reservations/valid"
     assert seen["params"] == {"vehicle_id": "v1", "at": "2026-11-24T14:30:00+00:00"}
 
 
@@ -68,6 +68,34 @@ def test_deux_roues():
     body = _active(place_type="TWO_WHEELS")
     reservation = _client(lambda _r: httpx.Response(200, json=body)).get_reservation("v1", at=_AT)
     assert reservation.reserved_place_type.category is VehicleCategory.TWO_WHEELER
+
+
+def test_envoie_la_cle_de_booking_quand_elle_est_renseignee():
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.headers.get("X-API-Key"))
+        if request.url.path.endswith("/availability"):
+            return httpx.Response(200, json={"available": True, "min_free_capacity": 3})
+        return httpx.Response(200, json=_active(valid=False))
+
+    with_key = HttpBookingClient(
+        _BASE, transport=httpx.MockTransport(handler), api_key="cle-de-test-booking"
+    )
+    with_key.get_reservation("v1", at=_AT)
+    with_key.free_capacity("XL", _AT)
+    _client(handler).get_reservation("v1", at=_AT)
+    assert seen == ["cle-de-test-booking", "cle-de-test-booking", None]
+
+
+def test_cle_refusee_par_booking_entree_sans_reservation_et_erreur_loggee(caplog):
+    for status in (401, 403):
+        caplog.clear()
+        client = _client(lambda _r, s=status: httpx.Response(s, json={"detail": "clé invalide"}))
+        with caplog.at_level("ERROR"):
+            assert client.get_reservation("v1", at=_AT) is None
+        assert "BOOKING_API_KEY" in caplog.text
+        assert client.free_capacity("XL", _AT) is None
 
 
 def test_pas_de_reservation_valable():
@@ -117,7 +145,7 @@ def test_free_capacity_interroge_l_heure_pleine_en_cours():
 
     at = datetime(2026, 11, 25, 9, 42, 13, tzinfo=UTC)
     assert _client(handler).free_capacity("XL", at) == 7
-    assert seen["path"] == "/availability"
+    assert seen["path"] == "/v2/booking/availability"
     assert seen["params"]["place_type"] == "XL"
     assert seen["params"]["start_at"].startswith("2026-11-25T09:00:00")
     assert seen["params"]["end_at"].startswith("2026-11-25T10:00:00")
