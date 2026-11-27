@@ -332,11 +332,14 @@ def release_present_vehicle(
 @router.post(
     "/vehicles/known",
     response_model=VehicleKnownOut,
-    summary="Vérifie si une plaque est connue par Vehicles",
+    summary="Demande à Vehicles l'identifiant pseudonymisé d'une plaque",
     description=(
         "Consultation à la volée auprès de Vehicles, sans lancer le workflow "
-        "complet, sans créer le véhicule et sans rien persister. La plaque "
-        "voyage dans le corps (jamais dans l'URL) et n'est jamais renvoyée."
+        "complet et sans rien persister dans Access. La plaque voyage dans le "
+        "corps (jamais dans l'URL) et n'est jamais renvoyée. Vehicles n'offre "
+        "plus de consultation par plaque sans création : une plaque qu'il n'a "
+        "jamais vue y est enregistrée, et `known` vaut `true` dès que Vehicles "
+        "répond (`false` : Vehicles n'a pas pu identifier la plaque)."
     ),
     responses=_COMMON_ERROR_RESPONSES,
 )

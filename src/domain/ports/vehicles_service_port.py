@@ -16,8 +16,10 @@ from src.domain.value_objects.dto import VehicleInfo, VehicleType
 
 class VehiclesServicePort(Protocol):
     def get_vehicle_info(self, plate: str) -> VehicleInfo | None:
-        """Consultation seule : identité pseudonymisée du véhicule, ou `None`
-        s'il est inconnu (ou si Vehicles est indisponible)."""
+        """Identité pseudonymisée du véhicule, ou `None` si Vehicles ne
+        l'identifie pas (ou est indisponible). Access n'en attend qu'une
+        lecture ; le service réel, lui, enregistre une plaque qu'il n'a
+        jamais vue (pas de consultation par plaque sans création)."""
         ...
 
     def identify_vehicle(

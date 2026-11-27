@@ -60,3 +60,57 @@ def test_jeton_des_metriques_identique_a_une_cle_refuse(same_as):
 
 def test_jeton_des_metriques_absent_ou_solide_accepte():
     assert check_secrets(Settings(api_key="x" * 44, metrics_token="m" * 32), production=True) == []
+
+
+# --- Clés des services de l'équipe : jamais vers une adresse sans https ----------
+
+_SERVICES = ["vehicles", "booking", "parking", "pricing", "payment"]
+
+
+def _with_service(name: str, url: str, key: str) -> Settings:
+    return Settings(
+        api_key="x" * 44,
+        booking_use_mock=False,
+        **{f"{name}_service_url": url, f"{name}_api_key": key},
+    )
+
+
+@pytest.mark.parametrize("name", _SERVICES)
+def test_cle_d_un_service_vers_une_adresse_sans_https_refusee_en_production(name):
+    settings = _with_service(name, f"http://{name}.example", "cle-de-test-du-service")
+    with pytest.raises(InsecureConfigurationError, match=f"{name.upper()}_SERVICE_URL"):
+        check_secrets(settings, production=True)
+    # En local : simple avertissement, le démarrage continue.
+    assert check_secrets(settings, production=False) == [
+        f"{name.upper()}_SERVICE_URL n'est pas en https alors que "
+        f"{name.upper()}_API_KEY est renseignée"
+    ]
+
+
+@pytest.mark.parametrize("name", _SERVICES)
+def test_cle_d_un_service_vers_une_adresse_https_acceptee(name):
+    settings = _with_service(name, f"HTTPS://{name}.example", "cle-de-test-du-service")
+    assert check_secrets(settings, production=True) == []
+
+
+@pytest.mark.parametrize("name", _SERVICES)
+def test_adresse_sans_https_toleree_tant_qu_aucune_cle_ne_part(name):
+    settings = _with_service(name, f"http://{name}.example", "")
+    assert check_secrets(settings, production=True) == []
+
+
+def test_le_message_de_refus_ne_contient_pas_la_cle():
+    settings = _with_service("booking", "http://booking.example", "cle-de-test-du-service")
+    with pytest.raises(InsecureConfigurationError) as refus:
+        check_secrets(settings, production=True)
+    assert "cle-de-test-du-service" not in str(refus.value)
+
+
+def test_booking_simule_son_adresse_n_est_pas_controlee():
+    settings = Settings(
+        api_key="x" * 44,
+        booking_use_mock=True,
+        booking_service_url="http://booking.example",
+        booking_api_key="cle-de-test-du-service",
+    )
+    assert check_secrets(settings, production=True) == []
